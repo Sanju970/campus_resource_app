@@ -1,6 +1,4 @@
-backend_ai_campus_portal/node_modules/
+node_modules/
 .env
 *.log
 .DS_Store
-dist/
-build/
