@@ -1,6 +1,7 @@
 import express from "express";
 import session from "express-session";
 import cors from "cors";
+import db from "./db.js";
 
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
@@ -24,4 +25,4 @@ app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/admin", adminRoutes);
 
-app.listen(3000, () => console.log("✅ Backend running on http://localhost:3000"));
+app.listen(3000, () => console.log("Backend running on http://localhost:3000"));
