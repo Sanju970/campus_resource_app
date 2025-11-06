@@ -1,0 +1,152 @@
+-- ============================================================
+-- DATABASE: campus_portal
+-- AUTHOR: Pritesh (ChatGPT assisted)
+-- DESCRIPTION: Fully normalized schema for Student-Faculty-Admin portal
+-- ============================================================
+
+-- Drop and create database fresh
+DROP DATABASE IF EXISTS campus_portal;
+CREATE DATABASE campus_portal;
+USE campus_portal;
+
+-- ============================================================
+-- 1. USER TABLES
+-- ============================================================
+
+CREATE TABLE roles (
+    role_id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name ENUM('student','faculty','admin') NOT NULL UNIQUE
+);
+
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    user_uid VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- 2. EVENTS
+-- ============================================================
+
+CREATE TABLE events (
+    event_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    start_datetime DATETIME NOT NULL,
+    end_datetime DATETIME NOT NULL,
+    location VARCHAR(200),
+    capacity INT,
+    category VARCHAR(100),
+    instructor_email VARCHAR(150),
+    registration_required BOOLEAN DEFAULT FALSE,
+    status ENUM('pending','approved','rejected') DEFAULT 'pending',
+    created_by INT NOT NULL,
+    approved_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (approved_by) REFERENCES users(user_id)
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- 3. ANNOUNCEMENTS
+-- ============================================================
+
+CREATE TABLE announcements (
+    announcement_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    priority ENUM('low','medium','high','urgent') DEFAULT 'medium',
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- 4. FAVORITES
+-- ============================================================
+
+CREATE TABLE favorites (
+    favorite_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    item_type ENUM('event','announcement','resource') NOT NULL,
+    item_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- 5. NOTIFICATIONS
+-- ============================================================
+
+CREATE TABLE notifications (
+    notification_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    message VARCHAR(255) NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- 6. EVENT REGISTRATIONS (for when registration_required = true)
+-- ============================================================
+
+CREATE TABLE event_registrations (
+    registration_id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id INT NOT NULL,
+    user_id INT NOT NULL,
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (event_id, user_id),
+    FOREIGN KEY (event_id) REFERENCES events(event_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- 7. SAMPLE DATA (OPTIONAL)
+-- ============================================================
+
+INSERT INTO roles (role_name) VALUES ('student'), ('faculty'), ('admin');
+
+-- Sample Admin User
+INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
+VALUES ('System', 'Admin', 'admin001', 'admin@campus.com', 'hashed_password_here', 3);
+
+-- ============================================================
+-- END OF SCRIPT
+-- ============================================================
+
+
+INSERT INTO events (title, description, start_datetime, end_datetime, location, capacity, category, instructor_email, registration_required, status, created_by)
+VALUES 
+('Career Fair 2025', 'Meet top companies and explore career opportunities.', '2025-11-15 10:00:00', '2025-11-15 16:00:00', 'Main Hall, Student Union', 200, 1, NULL, 1, 1, 1),
+('AI Workshop', 'Hands-on workshop on AI and Machine Learning.', '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101', 50, 2, 'prof.ai@university.edu', 1, 1, 2),
+('Music Concert', 'Enjoy live performances by student bands.', '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium', 300, 3, NULL, 0, 1, 1),
+('Guest Lecture: Quantum Computing', 'Lecture by Dr. Quantum on future computing trends.', '2025-12-01 11:00:00', '2025-12-01 12:30:00', 'Lecture Hall 3', 100, 2, 'dr.quantum@university.edu', 1, 1, 2),
+('Sports Meet', 'Annual inter-college sports event.', '2025-12-05 09:00:00', '2025-12-05 17:00:00', 'Sports Ground', 500, 4, NULL, 0, 1, 1);
+
+UPDATE events
+SET status = 'approved', approved_by = 1
+WHERE event_id = 7;
+
+INSERT INTO announcements (title, content, priority, created_by)
+VALUES 
+('Library Hours Extended', 'The library will now be open until 10 PM on weekdays.', 'medium', 1),
+('Campus Maintenance', 'The main campus parking lot will be closed for maintenance.', 'high', 1),
+('Guest Lecture on AI', 'Join us for a guest lecture on Artificial Intelligence by Dr. Smith.', 'urgent', 1),
+('Cafeteria Menu Update', 'New vegetarian options available from next week.', 'low', 1);
+
