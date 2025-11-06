@@ -26,7 +26,7 @@ export default function HomePage() {
     { title: 'Career Services', icon: Briefcase, path: '/resources', color: 'bg-orange-500' },
   ];
 
-  // ✅ Fix: handle both numeric and string roles from DB
+  // Fix: handle both numeric and string roles from DB
   const getRoleSpecificContent = () => {
     const role = user?.role || user?.role_id;
 

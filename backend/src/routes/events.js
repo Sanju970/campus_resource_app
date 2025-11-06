@@ -13,10 +13,10 @@ router.get('/', (req, res) => {
   `;
   db.query(query, (err, results) => {
     if (err) {
-      console.error('❌ Database error:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ message: 'Failed to fetch events', error: err.message });
     }
-    console.log(`✅ Events fetched: ${results.length}`);
+    console.log(`Events fetched: ${results.length}`);
     res.json(results);
   });
 });
@@ -28,7 +28,7 @@ router.get('/registrations/:user_id', (req, res) => {
 
   db.query(query, [userId], (err, results) => {
     if (err) {
-      console.error('❌ Registration fetch error:', err);
+      console.error('Registration fetch error:', err);
       return res.status(500).json({ message: 'Failed to fetch registrations', error: err.message });
     }
     res.json(results);
@@ -89,7 +89,7 @@ router.post('/', (req, res) => {
     ],
     (err, results) => {
       if (err) {
-        console.error('❌ Error creating event:', err);
+        console.error('Error creating event:', err);
         return res.status(500).json({ message: 'Failed to create event', error: err.message });
       }
 
@@ -125,7 +125,7 @@ router.post('/:event_id/rsvp', (req, res) => {
       if (err.code === 'ER_DUP_ENTRY') {
         return res.status(400).json({ message: 'Already registered for this event' });
       }
-      console.error('❌ RSVP error:', err);
+      console.error('RSVP error:', err);
       return res.status(500).json({ message: 'Failed to register', error: err.message });
     }
     res.json({ message: 'RSVP successful' });
@@ -139,7 +139,7 @@ router.delete('/:event_id/rsvp', (req, res) => {
 
   db.query(query, [eventId, user_id], (err) => {
     if (err) {
-      console.error('❌ Cancel RSVP error:', err);
+      console.error('Cancel RSVP error:', err);
       return res.status(500).json({ message: 'Failed to cancel RSVP', error: err.message });
     }
     res.json({ message: 'RSVP cancelled successfully' });

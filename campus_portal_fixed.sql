@@ -1,10 +1,9 @@
 -- ============================================================
 -- DATABASE: campus_portal
--- AUTHOR: Pritesh (ChatGPT assisted)
--- DESCRIPTION: Fully normalized schema for Student-Faculty-Admin portal
+-- AUTHOR: Group4 (Phase 3)
 -- ============================================================
 
--- Drop and create database fresh
+-- Drop and recreate database fresh
 DROP DATABASE IF EXISTS campus_portal;
 CREATE DATABASE campus_portal;
 USE campus_portal;
@@ -51,6 +50,8 @@ CREATE TABLE events (
     created_by INT NOT NULL,
     approved_by INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- prevent redundant/duplicate event entries
+    CONSTRAINT unique_event UNIQUE (title, start_datetime, location),
     FOREIGN KEY (created_by) REFERENCES users(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(user_id)
@@ -68,6 +69,7 @@ CREATE TABLE announcements (
     priority ENUM('low','medium','high','urgent') DEFAULT 'medium',
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_announcement UNIQUE (title, created_by),
     FOREIGN KEY (created_by) REFERENCES users(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -82,6 +84,7 @@ CREATE TABLE favorites (
     item_type ENUM('event','announcement','resource') NOT NULL,
     item_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_favorite UNIQUE (user_id, item_type, item_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -101,7 +104,7 @@ CREATE TABLE notifications (
 );
 
 -- ============================================================
--- 6. EVENT REGISTRATIONS (for when registration_required = true)
+-- 6. EVENT REGISTRATIONS
 -- ============================================================
 
 CREATE TABLE event_registrations (
@@ -117,32 +120,33 @@ CREATE TABLE event_registrations (
 );
 
 -- ============================================================
--- 7. SAMPLE DATA (OPTIONAL)
+-- 7. SAMPLE DATA
 -- ============================================================
 
 INSERT INTO roles (role_name) VALUES ('student'), ('faculty'), ('admin');
 
--- Sample Admin User
+-- Sample Users
 INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
-VALUES ('System', 'Admin', 'admin001', 'admin@campus.com', 'hashed_password_here', 3);
+VALUES 
+('System', 'Admin', 'adm001', 'admin@campus.edu', 'admin123', 3),
+('Alice', 'Faculty', 'fac001', 'alice@campus.edu', 'faculty123', 2),
+('Bob', 'Student', 'stu001', 'bob@student.edu', 'student123', 1);
 
--- ============================================================
--- END OF SCRIPT
--- ============================================================
-
-
+-- Sample Events (duplicates prevented by unique constraint)
 INSERT INTO events (title, description, start_datetime, end_datetime, location, capacity, category, instructor_email, registration_required, status, created_by)
 VALUES 
-('Career Fair 2025', 'Meet top companies and explore career opportunities.', '2025-11-15 10:00:00', '2025-11-15 16:00:00', 'Main Hall, Student Union', 200, 1, NULL, 1, 1, 1),
-('AI Workshop', 'Hands-on workshop on AI and Machine Learning.', '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101', 50, 2, 'prof.ai@university.edu', 1, 1, 2),
-('Music Concert', 'Enjoy live performances by student bands.', '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium', 300, 3, NULL, 0, 1, 1),
-('Guest Lecture: Quantum Computing', 'Lecture by Dr. Quantum on future computing trends.', '2025-12-01 11:00:00', '2025-12-01 12:30:00', 'Lecture Hall 3', 100, 2, 'dr.quantum@university.edu', 1, 1, 2),
-('Sports Meet', 'Annual inter-college sports event.', '2025-12-05 09:00:00', '2025-12-05 17:00:00', 'Sports Ground', 500, 4, NULL, 0, 1, 1);
+('Career Fair 2025', 'Meet top companies and explore career opportunities.', 
+ '2025-11-15 10:00:00', '2025-11-15 16:00:00', 'Main Hall, Student Union', 200, 'Career', NULL, 1, 'approved', 1),
+('AI Workshop', 'Hands-on workshop on AI and Machine Learning.', 
+ '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101', 50, 'Workshop', 'prof.ai@university.edu', 1, 'approved', 2),
+('Music Concert', 'Enjoy live performances by student bands.', 
+ '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium', 300, 'Concert', NULL, 0, 'approved', 1),
+('Guest Lecture: Quantum Computing', 'Lecture by Dr. Quantum on future computing trends.', 
+ '2025-12-01 11:00:00', '2025-12-01 12:30:00', 'Lecture Hall 3', 100, 'Lecture', 'dr.quantum@university.edu', 1, 'approved', 2),
+('Sports Meet', 'Annual inter-college sports event.', 
+ '2025-12-05 09:00:00', '2025-12-05 17:00:00', 'Sports Ground', 500, 'Sports', NULL, 0, 'approved', 1);
 
-UPDATE events
-SET status = 'approved', approved_by = 1
-WHERE event_id = 7;
-
+-- Sample Announcements
 INSERT INTO announcements (title, content, priority, created_by)
 VALUES 
 ('Library Hours Extended', 'The library will now be open until 10 PM on weekdays.', 'medium', 1),
@@ -150,3 +154,6 @@ VALUES
 ('Guest Lecture on AI', 'Join us for a guest lecture on Artificial Intelligence by Dr. Smith.', 'urgent', 1),
 ('Cafeteria Menu Update', 'New vegetarian options available from next week.', 'low', 1);
 
+-- ============================================================
+-- END OF SCRIPT
+-- ============================================================
