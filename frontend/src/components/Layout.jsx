@@ -22,7 +22,6 @@ export default function Layout({ children, notificationCount = 0 }) {
     { id: 'home', label: 'Home', icon: Home, path: '/' },
     { id: 'events', label: 'Events', icon: CalendarDays, path: '/events' },
     { id: 'announcements', label: 'Announcements', icon: Bell, path: '/announcements' },
-    { id: 'materials', label: 'Materials', icon: FileText, path: '/materials' }, 
     { id: 'schedule', label: 'Schedule', icon: Calendar, path: '/schedule' },
     { id: 'resources', label: 'Help Center', icon: HelpCircle, path: '/resources' },
 
