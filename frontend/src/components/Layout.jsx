@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Home, HelpCircle, Calendar, User, LogOut, GraduationCap, Bell, FileText, CalendarDays, Heart } from 'lucide-react';
+import { Users, Home, Info, Calendar, User, LogOut, GraduationCap, Bell, FileText, CalendarDays, Heart } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -23,7 +23,7 @@ export default function Layout({ children, notificationCount = 0 }) {
     { id: 'events', label: 'Events', icon: CalendarDays, path: '/events' },
     { id: 'announcements', label: 'Announcements', icon: Bell, path: '/announcements' },
     { id: 'schedule', label: 'Schedule', icon: Calendar, path: '/schedule' },
-    { id: 'resources', label: 'Help Center', icon: HelpCircle, path: '/resources' },
+    { id: 'resources', label: 'About us', icon: Info, path: '/resources' },
 
   ];
 
