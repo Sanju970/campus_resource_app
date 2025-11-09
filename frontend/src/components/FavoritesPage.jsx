@@ -5,7 +5,6 @@ import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Calendar, MapPin, Users, Heart, Pin, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import { sampleEvents } from '../types/events';
-import { sampleMaterials } from '../types/materials';
 import { sampleAnnouncements } from '../types/announcements';
 import { toast } from 'sonner';
 
@@ -20,14 +19,6 @@ export default function FavoritesPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
-  const favoriteMaterials = sampleMaterials.filter(m => favoriteMaterialIds.includes(m.id));
-
-  const removeFavoriteMaterial = (materialId) => {
-    const next = favoriteMaterialIds.filter(id => id !== materialId);
-    setFavoriteMaterialIds(next);
-    try { localStorage.setItem('favorite_material_ids', JSON.stringify(next)); } catch {}
-    toast.info('Material removed from favorites');
-  };
 
 
   const favoriteEvents = sampleEvents.filter(event => favoriteEventIds.includes(event.id));
@@ -98,61 +89,7 @@ export default function FavoritesPage() {
           <TabsTrigger value="announcements">
             Announcements ({favoriteAnnouncements.length})
           </TabsTrigger>
-          <TabsTrigger value="materials">
-            Materials ({favoriteMaterials.length})
-          </TabsTrigger>
         </TabsList>
-          {/* Favorite Materials */}
-        <TabsContent value="materials" className="space-y-4 mt-6">
-          {favoriteMaterials.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Heart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No favorite materials yet</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Click the heart icon on materials to save them here
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favoriteMaterials.map((material) => (
-                <Card key={material.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between mb-2">
-                      <Badge>{material.category_id}</Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeFavoriteMaterial(material.id)}
-                      >
-                        <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                      </Button>
-                    </div>
-                    <CardTitle className="text-lg">{material.title}</CardTitle>
-                    <CardDescription>{material.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{formatDateTime(material.date_time)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{material.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {material.registered_count || 0} / {material.capacity} registered
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
 
         {/* Favorite Events */}
         <TabsContent value="events" className="space-y-4 mt-6">
@@ -274,10 +211,7 @@ export default function FavoritesPage() {
           <div className="text-3xl font-semibold">{favoriteAnnouncements.length}</div>
           <div className="text-sm text-muted-foreground">Favorite Announcements</div>
         </div>
-        <div className="text-center space-y-1">
-          <div className="text-3xl font-semibold">{favoriteMaterials.length}</div>
-          <div className="text-sm text-muted-foreground">Favorite Materials</div>
-        </div>
+
       </div>
     </div>
   );
