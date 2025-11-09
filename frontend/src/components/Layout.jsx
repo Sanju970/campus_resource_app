@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Home, BookOpen, Calendar, User, LogOut, GraduationCap, Bell, FileText, CalendarDays, Heart } from 'lucide-react';
+import { Users, Home, HelpCircle, Calendar, User, LogOut, GraduationCap, Bell, FileText, CalendarDays, Heart } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -22,9 +22,10 @@ export default function Layout({ children, notificationCount = 0 }) {
     { id: 'home', label: 'Home', icon: Home, path: '/' },
     { id: 'events', label: 'Events', icon: CalendarDays, path: '/events' },
     { id: 'announcements', label: 'Announcements', icon: Bell, path: '/announcements' },
-    { id: 'materials', label: 'Materials', icon: FileText, path: '/materials' },
-    { id: 'resources', label: 'Resources', icon: BookOpen, path: '/resources' },
+    { id: 'materials', label: 'Materials', icon: FileText, path: '/materials' }, 
     { id: 'schedule', label: 'Schedule', icon: Calendar, path: '/schedule' },
+    { id: 'resources', label: 'Help Center', icon: HelpCircle, path: '/resources' },
+
   ];
 
   const getRoleBadgeColor = (role) => {
