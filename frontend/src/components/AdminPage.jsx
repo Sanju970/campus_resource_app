@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -18,70 +19,118 @@ import {
   TableRow,
 } from './ui/table';
 import { toast } from 'sonner';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, RefreshCw } from 'lucide-react';
 
 export default function AdminPage() {
-  const [users, setUsers] = useState([
-    {
-      id: '1',
-      firstName: 'Alice',
-      lastName: 'Johnson',
-      email: 'alice@campus.edu',
-      userId: 'alice01',
-      role: 'student',
-      department: 'Computer Science (CSE)',
-    },
-    {
-      id: '2',
-      firstName: 'Dr.',
-      lastName: 'Smith',
-      email: 'smith@campus.edu',
-      userId: 'smith02',
-      role: 'faculty',
-      department: 'Engineering (ECE)',
-    },
-  ]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
+  const API_BASE = 'http://localhost:5000/api'; // ✅ correct base
 
   const [newUser, setNewUser] = useState({
-    firstName: '',
-    lastName: '',
+    first_name: '',
+    last_name: '',
     email: '',
-    userId: '',
-    role: 'student',
-    department: '',
+    user_uid: '',
+    role_id: 1,
+    password: '',
   });
 
-  const handleAddUser = () => {
-    const { firstName, lastName, email, userId, department } = newUser;
-    if (!firstName || !lastName || !email || !userId || !department) {
-      toast.error('Please fill in all fields.');
-      return;
+  // -------------------- FETCH USERS --------------------
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const url = showInactive
+        ? `${API_BASE}/admin/users?all=true`
+        : `${API_BASE}/admin/users`;
+      const res = await axios.get(url);
+      setUsers(res.data);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
     }
-    setUsers((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), ...newUser },
-    ]);
-    setNewUser({
-      firstName: '',
-      lastName: '',
-      email: '',
-      userId: '',
-      role: 'student',
-      department: '',
-    });
-    toast.success('User added successfully.');
   };
 
-  const handleDeleteUser = (id) => {
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    toast.info('User deleted successfully.');
+  useEffect(() => {
+    fetchUsers();
+  }, [showInactive]);
+
+  // -------------------- ADD USER --------------------
+  const handleAddUser = async () => {
+    const { first_name, last_name, email, user_uid, role_id, password } = newUser;
+    if (!first_name || !last_name || !email || !user_uid) {
+      toast.error('Please fill in all required fields.');
+      return;
+    }
+
+    try {
+      const res = await axios.post(`${API_BASE}/admin/create`, {
+        first_name,
+        last_name,
+        email,
+        user_uid,
+        role_id,
+        password,
+      });
+
+      setUsers((prev) => [...prev, res.data.user]);
+      setNewUser({
+        first_name: '',
+        last_name: '',
+        email: '',
+        user_uid: '',
+        role_id: 1,
+        password: '',
+      });
+
+      toast.success(
+        `User added successfully. Temporary password: ${res.data.user.dummy_password}`
+      );
+    } catch (err) {
+      console.error('Add user error:', err);
+      toast.error(err.response?.data?.message || 'Error adding user');
+    }
+  };
+
+  // -------------------- DEACTIVATE USER --------------------
+  const handleDeactivateUser = async (id) => {
+    try {
+      await axios.patch(`${API_BASE}/admin/users/${id}/deactivate`);
+      toast.success('User deactivated successfully.');
+      fetchUsers();
+    } catch (err) {
+      console.error('Deactivate error:', err);
+      toast.error('Failed to deactivate user');
+    }
+  };
+
+  // -------------------- REACTIVATE USER --------------------
+  const handleActivateUser = async (id) => {
+    try {
+      await axios.patch(`${API_BASE}/admin/users/${id}/activate`);
+      toast.success('User reactivated successfully.');
+      fetchUsers();
+    } catch (err) {
+      console.error('Activate error:', err);
+      toast.error('Failed to reactivate user');
+    }
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div className="space-y-1 text-center">
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">User Management</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowInactive((p) => !p)}>
+            {showInactive ? 'Show Active Only' : 'Show All Users'}
+          </Button>
+          <Button variant="secondary" onClick={fetchUsers}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Add New User Form */}
@@ -92,16 +141,16 @@ export default function AdminPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input
             placeholder="First Name"
-            value={newUser.firstName}
+            value={newUser.first_name}
             onChange={(e) =>
-              setNewUser({ ...newUser, firstName: e.target.value })
+              setNewUser({ ...newUser, first_name: e.target.value })
             }
           />
           <Input
             placeholder="Last Name"
-            value={newUser.lastName}
+            value={newUser.last_name}
             onChange={(e) =>
-              setNewUser({ ...newUser, lastName: e.target.value })
+              setNewUser({ ...newUser, last_name: e.target.value })
             }
           />
           <Input
@@ -113,58 +162,37 @@ export default function AdminPage() {
           />
           <Input
             placeholder="User ID"
-            value={newUser.userId}
+            value={newUser.user_uid}
             onChange={(e) =>
-              setNewUser({ ...newUser, userId: e.target.value })
+              setNewUser({ ...newUser, user_uid: e.target.value })
             }
           />
 
           {/* Role Dropdown */}
           <Select
-            value={newUser.role}
-            onValueChange={(value) => setNewUser({ ...newUser, role: value })}
+            value={String(newUser.role_id)}
+            onValueChange={(value) =>
+              setNewUser({ ...newUser, role_id: Number(value) })
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select Role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="student">Student</SelectItem>
-              <SelectItem value="faculty">Faculty</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="1">Student</SelectItem>
+              <SelectItem value="2">Faculty</SelectItem>
+              <SelectItem value="3">Admin</SelectItem>
             </SelectContent>
           </Select>
 
-          {/* Department Dropdown */}
-          <Select
-            value={newUser.department}
-            onValueChange={(value) =>
-              setNewUser({ ...newUser, department: value })
+          <Input
+            placeholder="Password (optional)"
+            type="password"
+            value={newUser.password}
+            onChange={(e) =>
+              setNewUser({ ...newUser, password: e.target.value })
             }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select Department" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Computer Science (CSE)">
-                Computer Science (CSE)
-              </SelectItem>
-              <SelectItem value="Electronics (ECE)">
-                Electronics (ECE)
-              </SelectItem>
-              <SelectItem value="Information Technology (IT)">
-                Information Technology (IT)
-              </SelectItem>
-              <SelectItem value="Mechanical Engineering (MECH)">
-                Mechanical Engineering (MECH)
-              </SelectItem>
-              <SelectItem value="Civil Engineering (CIVIL)">
-                Civil Engineering (CIVIL)
-              </SelectItem>
-              <SelectItem value="Electrical & Electronics (EEE)">
-                Electrical & Electronics (EEE)
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          />
 
           <Button
             className="col-span-1 md:col-span-4"
@@ -179,62 +207,75 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-center">
-            Existing Users ({users.length})
+            {showInactive ? 'All Users' : 'Active Users'} ({users.length})
           </CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto relative">
-          {users.length === 0 ? (
+        <CardContent>
+          {loading ? (
+            <p className="text-center text-muted-foreground py-8">
+              Loading users...
+            </p>
+          ) : users.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
               No users found
             </p>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
-              <Table className="w-full table-fixed border-collapse text-sm text-center align-middle">
-                <colgroup>
-                  <col className="w-[10%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[25%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[5%]" />
-                </colgroup>
-
+              <Table className="w-full text-sm text-center align-middle">
                 <TableHeader className="sticky top-0 bg-muted/60">
-                  <TableRow className="border-b">
-                    <TableHead className="px-4 py-3">User ID</TableHead>
-                    <TableHead className="px-4 py-3">First Name</TableHead>
-                    <TableHead className="px-4 py-3">Last Name</TableHead>
-                    <TableHead className="px-4 py-3">Email</TableHead>
-                    <TableHead className="px-4 py-3">Role</TableHead>
-                    <TableHead className="px-4 py-3">Department</TableHead>
-                    <TableHead className="px-4 py-3">Action</TableHead>
+                  <TableRow>
+                    <TableHead>User UID</TableHead>
+                    <TableHead>First Name</TableHead>
+                    <TableHead>Last Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
-
                 <TableBody>
                   {users.map((u) => (
-                    <TableRow
-                      key={u.id}
-                      className="border-b hover:bg-muted/20 transition-colors"
-                    >
-                      <TableCell className="px-4 py-3 align-middle font-mono text-muted-foreground">
-                        {u.userId}
+                    <TableRow key={u.user_id}>
+                      <TableCell>{u.user_uid}</TableCell>
+                      <TableCell>{u.first_name}</TableCell>
+                      <TableCell>{u.last_name}</TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        {u.role_id === 1
+                          ? 'Student'
+                          : u.role_id === 2
+                          ? 'Faculty'
+                          : 'Admin'}
                       </TableCell>
-                      <TableCell className="px-4 py-3">{u.firstName}</TableCell>
-                      <TableCell className="px-4 py-3">{u.lastName}</TableCell>
-                      <TableCell className="px-4 py-3">{u.email}</TableCell>
-                      <TableCell className="px-4 py-3 capitalize">{u.role}</TableCell>
-                      <TableCell className="px-4 py-3">{u.department}</TableCell>
-                      <TableCell className="px-4 py-3">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteUser(u.id)}
-                          className="mx-auto flex justify-center items-center gap-1"
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </Button>
+                      <TableCell>
+                        {u.is_active ? (
+                          <span className="text-green-600 font-medium">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="text-red-600 font-medium">
+                            Inactive
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {u.is_active ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeactivateUser(u.user_id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" /> Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleActivateUser(u.user_id)}
+                          >
+                            Reactivate
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

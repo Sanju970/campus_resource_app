@@ -1,59 +1,51 @@
+// backend/src/index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+
+// --- Import DB Connection ---
 const db = require('./config/db');
 
+// --- Import Routes ---
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const announcementRoutes = require('./routes/announcements');
+const eventRoutes = require('./routes/events');
+const favoriteRoutes = require('./routes/favorites');
+const notificationRoutes = require('./routes/notifications');
+const registrationRoutes = require('./routes/event_registrations');
+
+// --- Initialize Express App ---
 const app = express();
-
-// Allow both React dev servers: localhost:3000 & localhost:5173
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like Postman, mobile apps)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        console.warn('Blocked by CORS:', origin);
-        return callback(
-          new Error('CORS not allowed for this origin: ' + origin),
-          false
-        );
-      }
-    },
-    credentials: true,
-  })
-);
-
-// Parse JSON bodies
+app.use(cors());
 app.use(express.json());
 
-// Check MySQL connection
+// --- Verify DB Connection ---
 db.connect((err) => {
   if (err) {
-    console.error('Database connection failed:', err.message);
+    console.error('❌ Database connection failed:', err.message);
   } else {
-    console.log('Connected to MySQL database');
+    console.log('✅ Connected to MySQL Database');
   }
 });
 
-// API Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/events', require('./routes/events'));
+// --- Mount All Routes ---
+app.use('/api/auth', authRoutes);              // login, signup, password change
+app.use('/api', userRoutes);                   // admin users create/deactivate/reactivate/fetch
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/event_registrations', registrationRoutes);
 
-// Default route for sanity check
+// --- Root Endpoint ---
 app.get('/', (req, res) => {
-  res.send('Campus Portal API running successfully');
+  res.send('🎓 Campus Portal Backend is running successfully!');
 });
 
-// Global error handler (optional but helpful)
-app.use((err, req, res, next) => {
-  console.error('Global error handler:', err.message);
-  res.status(500).json({ message: 'Internal server error', error: err.message });
-});
-
-// Start server
+// --- Start Server ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});

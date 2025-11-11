@@ -19,25 +19,30 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // -------------------- LOGIN --------------------
-  const login = async (email, password, role) => {
-    try {
-      const res = await axios.post(`${API_URL}/auth/login`, { email, password, role });
-      const { token, user } = res.data;
+const login = async (email, password, role) => {
+  try {
+    const res = await axios.post(`${API_URL}/auth/login`, { email, password, role });
+    const { token, user } = res.data;
 
-      // Save user + token
-      setUser(user);
-      setToken(token);
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('token', token);
+    const fullUser = {
+      ...user,
+      name: user.name || `${user.first_name} ${user.last_name}`,
+    };
 
-      toast.success(`Welcome back, ${user.first_name}!`);
-      return user;
-    } catch (err) {
-      console.error('Login failed:', err);
-      toast.error(err.response?.data?.message || 'Login failed');
-      throw err;
-    }
-  };
+    setUser(fullUser);
+    setToken(token);
+    localStorage.setItem('user', JSON.stringify(fullUser));
+    localStorage.setItem('token', token);
+
+    toast.success(`Welcome back, ${fullUser.first_name}!`);
+    return fullUser;
+  } catch (err) {
+    console.error('Login failed:', err);
+    toast.error(err.response?.data?.message || 'Login failed');
+    throw err;
+  }
+};
+
 
   // -------------------- SIGNUP --------------------
   const signup = async (first_name, last_name, user_uid, email, password, role_id) => {

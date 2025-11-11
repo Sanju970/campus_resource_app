@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,18 +8,182 @@ import { Textarea } from './ui/textarea';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
-import { 
-  Mail, 
-  Calendar, 
-  MapPin, 
-  GraduationCap, 
-  Briefcase, 
+import {
+  Mail,
+  Calendar,
+  MapPin,
+  GraduationCap,
+  Briefcase,
   Shield,
   Edit,
-  Save
+  Save,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+
+// ✅ Password Change Component (with dropdown & feedback)
+function ChangePasswordSection() {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [passwordHints, setPasswordHints] = useState([]);
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const strongPasswordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  const allowedChars = `A–Z, a–z, 0–9, and special characters: @$!%*?&`;
+
+  const evaluatePassword = (pwd) => {
+    const hints = [];
+    if (pwd.length < 8) hints.push('Must be at least 8 characters long');
+    if (!/[A-Z]/.test(pwd)) hints.push('Add at least one uppercase letter (A–Z)');
+    if (!/[a-z]/.test(pwd)) hints.push('Add at least one lowercase letter (a–z)');
+    if (!/[0-9]/.test(pwd)) hints.push('Add at least one number (0–9)');
+    if (!/[@$!%*?&]/.test(pwd))
+      hints.push('Add at least one special character (@$!%*?&)');
+    setPasswordHints(hints);
+  };
+
+  const handlePasswordUpdate = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword)
+      return toast.error('All fields are required');
+    if (newPassword !== confirmPassword)
+      return toast.error('New passwords do not match');
+    if (!strongPasswordRegex.test(newPassword))
+      return toast.error(
+        'Password is not strong enough. Please follow the listed requirements.'
+      );
+
+    try {
+      setLoading(true);
+      const res = await axios.post('http://localhost:5000/api/auth/change-password', {
+        user_id: user.user_id,
+        oldPassword,
+        newPassword,
+      });
+      toast.success(res.data.message || 'Password updated successfully');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordHints([]);
+      setOpen(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error updating password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
+    <div className="relative">
+      <Input
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={toggleShow}
+        className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="border-t pt-4 mt-4 space-y-2">
+      {/* Dropdown Header */}
+      <div
+        className="flex items-center justify-between cursor-pointer select-none"
+        onClick={() => setOpen(!open)}
+      >
+        <h3 className="text-lg font-medium">Change Password</h3>
+        {open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+      </div>
+
+      {/* Dropdown Content */}
+      {open && (
+        <div className="space-y-4 mt-3 animate-in fade-in duration-200">
+          {/* Inputs */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <PasswordInput
+              placeholder="Old Password"
+              value={oldPassword}
+              onChange={setOldPassword}
+              show={showOld}
+              toggleShow={() => setShowOld(!showOld)}
+            />
+            <PasswordInput
+              placeholder="New Password"
+              value={newPassword}
+              onChange={(val) => {
+                setNewPassword(val);
+                evaluatePassword(val);
+              }}
+              show={showNew}
+              toggleShow={() => setShowNew(!showNew)}
+            />
+            <PasswordInput
+              placeholder="Confirm New Password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              show={showConfirm}
+              toggleShow={() => setShowConfirm(!showConfirm)}
+            />
+          </div>
+
+          {/* Password Rules */}
+          <div className="text-sm text-muted-foreground space-y-1 mt-2">
+            <p className="font-medium text-gray-700">Password must contain:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>At least 8 characters</li>
+              <li>At least one uppercase (A–Z)</li>
+              <li>At least one lowercase (a–z)</li>
+              <li>At least one number (0–9)</li>
+              <li>At least one special character (@$!%*?&)</li>
+            </ul>
+            <p className="text-xs italic text-gray-500">
+              Allowed characters: {allowedChars}
+            </p>
+          </div>
+
+          {/* Missing requirements */}
+          {passwordHints.length > 0 && (
+            <div className="text-red-600 text-sm space-y-0.5 mt-1">
+              <p className="font-medium">Missing:</p>
+              <ul className="list-disc list-inside">
+                {passwordHints.map((hint, idx) => (
+                  <li key={idx}>{hint}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <Button
+            onClick={handlePasswordUpdate}
+            disabled={loading}
+            className="bg-blue-600 text-white hover:bg-blue-700 mt-3"
+          >
+            {loading ? 'Updating...' : 'Update Password'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -65,9 +230,7 @@ export default function ProfilePage() {
       {/* Header */}
       <div className="space-y-2">
         <h1>Profile</h1>
-        <p className="text-muted-foreground">
-          Manage your account information
-        </p>
+        <p className="text-muted-foreground">Manage your account information</p>
       </div>
 
       {/* Profile Overview */}
@@ -76,7 +239,7 @@ export default function ProfilePage() {
           <div className="flex flex-col md:flex-row items-start gap-6">
             <Avatar className="h-24 w-24">
               <AvatarFallback className={`${getRoleBadgeColor()} text-3xl`}>
-                {user?.name.charAt(0).toUpperCase()}
+                {user?.first_name?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
 
@@ -84,7 +247,7 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <h2>{user?.name}</h2>
+                    <h2>{`${user?.first_name} ${user?.last_name}`}</h2>
                     <Badge variant="secondary" className="capitalize">
                       <RoleIcon className="h-3 w-3 mr-1" />
                       {user?.role}
@@ -95,17 +258,15 @@ export default function ProfilePage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+                  onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
                 >
                   {isEditing ? (
                     <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save
+                      <Save className="h-4 w-4 mr-2" /> Save
                     </>
                   ) : (
                     <>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Profile
+                      <Edit className="h-4 w-4 mr-2" /> Edit Profile
                     </>
                   )}
                 </Button>
@@ -118,18 +279,8 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>Joined {user?.joinDate}</span>
+                  <span>Joined {user?.created_at}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{user?.department || 'Not specified'}</span>
-                </div>
-                {user?.studentId && (
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                    <span>ID: {user.studentId}</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -146,26 +297,13 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={user?.email}
-                disabled
-              />
-              <p className="text-xs text-muted-foreground">
-                Email cannot be changed
-              </p>
+              <Input id="email" type="email" value={user?.email} disabled />
+              <p className="text-xs text-muted-foreground">Email cannot be changed</p>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
               <Input
@@ -174,7 +312,6 @@ export default function ProfilePage() {
                 onChange={(e) => setDepartment(e.target.value)}
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="bio">Bio</Label>
               <Textarea
@@ -188,84 +325,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Role-Specific Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {user?.role === 'student' && 'Academic Information'}
-            {user?.role === 'faculty' && 'Faculty Information'}
-            {user?.role === 'admin' && 'Administrative Information'}
-          </CardTitle>
-          <CardDescription>
-            Details specific to your role
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {user?.role === 'student' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Current Year</p>
-                <p>Sophomore</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Major</p>
-                <p>Computer Science</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">GPA</p>
-                <p>3.7</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Credits Completed</p>
-                <p>64 / 120</p>
-              </div>
-            </div>
-          )}
-
-          {user?.role === 'faculty' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Department</p>
-                <p>{user?.department}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Title</p>
-                <p>Associate Professor</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Office</p>
-                <p>Science Building, Room 401</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Phone</p>
-                <p>(555) 123-4567</p>
-              </div>
-            </div>
-          )}
-
-          {user?.role === 'admin' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Department</p>
-                <p>{user?.department}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Position</p>
-                <p>Campus Administrator</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Office</p>
-                <p>Admin Building, Room 501</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Extension</p>
-                <p>ext. 1234</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Account Settings */}
       <Card>
@@ -281,38 +340,21 @@ export default function ProfilePage() {
                 Receive updates about your account
               </p>
             </div>
-            <Button variant="outline" size="sm">
-              Configure
-            </Button>
+            <Button variant="outline" size="sm">Configure</Button>
           </div>
 
-          <Separator />
-
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-t pt-4">
             <div>
               <p>Privacy Settings</p>
               <p className="text-sm text-muted-foreground">
                 Control who can see your profile
               </p>
             </div>
-            <Button variant="outline" size="sm">
-              Manage
-            </Button>
+            <Button variant="outline" size="sm">Manage</Button>
           </div>
 
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p>Change Password</p>
-              <p className="text-sm text-muted-foreground">
-                Update your account password
-              </p>
-            </div>
-            <Button variant="outline" size="sm">
-              Update
-            </Button>
-          </div>
+          {/* 🔹 Change Password Dropdown Section */}
+          <ChangePasswordSection />
         </CardContent>
       </Card>
     </div>

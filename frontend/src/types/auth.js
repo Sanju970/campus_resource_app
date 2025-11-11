@@ -13,7 +13,8 @@ export const UserRole = {
  * @typedef {Object} User
  * @property {string} id
  * @property {string} email
- * @property {string} name
+ * @property {string} firstname
+ * @property {string} lastname
  * @property {'student'|'faculty'|'admin'} role
  * @property {string} [department]
  * @property {string} [studentId]
