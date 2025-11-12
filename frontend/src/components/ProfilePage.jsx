@@ -25,7 +25,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
-// ✅ Password Change Component (with dropdown & feedback)
+// Password Change Component (with dropdown & feedback)
 function ChangePasswordSection() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -187,10 +187,6 @@ function ChangePasswordSection() {
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(user?.name || '');
-  const [department, setDepartment] = useState(user?.department || '');
-  const [bio, setBio] = useState('');
 
   const getRoleIcon = () => {
     switch (user?.role) {
@@ -219,11 +215,6 @@ export default function ProfilePage() {
   };
 
   const RoleIcon = getRoleIcon();
-
-  const handleSave = () => {
-    setIsEditing(false);
-    toast.success('Profile updated successfully!');
-  };
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -255,21 +246,6 @@ export default function ProfilePage() {
                   </div>
                   <p className="text-muted-foreground">{user?.email}</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
-                >
-                  {isEditing ? (
-                    <>
-                      <Save className="h-4 w-4 mr-2" /> Save
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="h-4 w-4 mr-2" /> Edit Profile
-                    </>
-                  )}
-                </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -278,53 +254,18 @@ export default function ProfilePage() {
                   <span>{user?.email}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                  <span>User ID: {user?.user_uid}</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>Joined {user?.created_at}</span>
+                  <span>Joined {new Date(user?.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Edit Profile Form */}
-      {isEditing && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit Profile</CardTitle>
-            <CardDescription>Update your personal information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={user?.email} disabled />
-              <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <Input
-                id="department"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                placeholder="Tell us about yourself..."
-                rows={4}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Account Settings */}
       <Card>

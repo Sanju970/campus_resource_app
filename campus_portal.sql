@@ -126,12 +126,21 @@ CREATE TABLE event_registrations (
 
 INSERT INTO roles (role_name) VALUES ('student'), ('faculty'), ('admin');
 
--- Sample Users
+-- ------------------------------------------------------
+-- SAMPLE USERS
+-- ------------------------------------------------------
+
 INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
-VALUES 
-('System', 'Admin', 'adm001', 'admin@campus.edu', 'admin123', 3),
-('Alice', 'Faculty', 'fac001', 'alice@campus.edu', 'faculty123', 2),
-('Bob', 'Student', 'stu001', 'bob@student.edu', 'student123', 1);
+VALUES
+('System', 'Admin', 'adm0001', 'adm0001@campus.edu',
+ '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3), 
+
+('Alice', 'Faculty', 'fac0001', 'fac0001@campus.edu',
+ '$2a$10$jOeOu5nm3qsxZzfTJOJ/YeGoedwZK0alkuU/daw1sFhUwt1bmKsQi', 2),
+
+('Bob', 'Student', 'stu0001', 'stu0001@campus.edu',
+ '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
+
 
 -- Sample Events (duplicates prevented by unique constraint)
 INSERT INTO events (title, description, start_datetime, end_datetime, location, capacity, category, instructor_email, registration_required, status, created_by)

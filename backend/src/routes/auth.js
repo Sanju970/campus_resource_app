@@ -1,161 +1,156 @@
-// routes/auth.js
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
 const router = express.Router();
+
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 
-// -------------------- REGISTER (SIGNUP) --------------------
+// -------------------- REGISTER --------------------
 router.post('/register', async (req, res) => {
   try {
-    const { first_name, last_name, user_uid, email, password, role_id } = req.body;
+    const { first_name, last_name, user_uid, password } = req.body;
 
-    if (!first_name || !last_name || !user_uid || !email || !password || !role_id) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Trim and clean inputs
+    const cleanFirst = (first_name || '').trim();
+    const cleanLast = (last_name || '').trim();
+    const cleanUid = (user_uid || '').trim().toLowerCase();
+    const cleanPass = (password || '').trim();
+
+    // Required fields check
+    if (!cleanFirst || !cleanLast || !cleanUid || !cleanPass) {
+      return res.status(400).json({
+        message: 'First name, last name, User ID, and password are required fields.',
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Validate UID pattern
+    const uidPattern = /^(stu|fac|adm)\d{4,5}$/; // prefix + 4–5 digits only
+    if (!uidPattern.test(cleanUid)) {
+      return res.status(400).json({
+        message:
+          'Invalid User ID format. It must start with stu/fac/adm followed by 4 or 5 digits (e.g., stu1234, fac98765).',
+      });
+    }
 
+    // Extract role based on prefix
+    let role_id = 0;
+    if (cleanUid.startsWith('stu')) role_id = 1;
+    else if (cleanUid.startsWith('fac')) role_id = 2;
+    else if (cleanUid.startsWith('adm')) role_id = 3;
+
+    // Strong password validation
+    const strongPasswordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!strongPasswordRegex.test(cleanPass)) {
+      return res.status(400).json({
+        message:
+          'Password must include at least 8 characters, one uppercase letter, one number, and one special character.',
+      });
+    }
+
+    // Auto-generate campus email
+    const email = `${cleanUid}@campus.edu`;
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(cleanPass, 10);
+
+    // Insert user
     const sql = `
       INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `;
-    db.query(sql, [first_name, last_name, user_uid, email.toLowerCase(), hashedPassword, role_id], (err, result) => {
-      if (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
-          return res.status(400).json({ message: 'Email or User ID already exists' });
+    db.query(
+      sql,
+      [cleanFirst, cleanLast, cleanUid, email, hashedPassword, role_id],
+      (err, result) => {
+        if (err) {
+          if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ message: 'User ID or email already exists.' });
+          }
+          console.error('Register DB Error:', err);
+          return res.status(500).json({ message: 'Database error.', error: err.message });
         }
-        console.error('Register DB Error:', err);
-        return res.status(500).json({ message: 'Database error', error: err.message });
+
+        res.status(201).json({
+          message: 'User registered successfully.',
+          user: {
+            user_id: result.insertId,
+            first_name: cleanFirst,
+            last_name: cleanLast,
+            user_uid: cleanUid,
+            email,
+            role_id,
+            created_at: new Date()
+          },
+        });
       }
-
-      const newUser = {
-        user_id: result.insertId,
-        first_name,
-        last_name,
-        user_uid,
-        email: email.toLowerCase(),
-        role_id,
-      };
-
-      res.status(201).json({ message: 'User registered successfully', user: newUser });
-    });
+    );
   } catch (error) {
     console.error('Register Error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error.', error: error.message });
   }
 });
 
 // -------------------- LOGIN --------------------
-router.post('/login', (req, res) => {
-  const { email, password, role } = req.body;
+// router.use((req, res, next) => {
+//   console.log('➡', req.method, req.url);
+//   next();
+// });
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' });
+router.post('/login', (req, res) => {
+  const { emailOrUid, password } = req.body;
+  if (!emailOrUid || !password) {
+    return res.status(400).json({ message: 'Email/User IDs and password are required.' });
   }
 
-  const sql = `SELECT * FROM users WHERE email = ? AND is_active = TRUE LIMIT 1`;
+  // Accept both UID or email
+  const identifier = String(emailOrUid || '').trim().toLowerCase();
+  console.error(identifier);
+  const lookupQuery = identifier.includes('@')
+    ? 'SELECT * FROM users WHERE email = ? AND is_active = TRUE LIMIT 1'
+    : 'SELECT * FROM users WHERE user_uid = ? AND is_active = TRUE LIMIT 1';
 
-  db.query(sql, [email.toLowerCase()], async (err, results) => {
+  db.query(lookupQuery, [identifier], async (err, results) => {
     if (err) {
       console.error('Login DB Error:', err);
-      return res.status(500).json({ message: 'Database error', error: err.message });
+      return res.status(500).json({ message: 'Database error.', error: err.message });
     }
-
     if (results.length === 0) {
-      return res.status(400).json({ message: 'Invalid email or password' });
+      return res.status(400).json({ message: 'Invalid credentials.' });
     }
 
     const user = results[0];
     const match = await bcrypt.compare(password, user.password_hash);
-
     if (!match) {
-      return res.status(400).json({ message: 'Invalid email or password' });
+      return res.status(400).json({ message: 'Invalid credentials!' });
     }
 
-    if (role && Number(user.role_id) !== Number(role)) {
-      return res.status(403).json({ message: 'Invalid role selected' });
-    }
-
+    // Generate token
     const token = jwt.sign(
       { user_id: user.user_id, email: user.email, role_id: user.role_id },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    const loggedInUser = {
-      user_id: user.user_id,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      user_uid: user.user_uid,
-      email: user.email,
-      role_id: user.role_id,
-      role: user.role_id === 1 ? 'student' : user.role_id === 2 ? 'faculty' : 'admin',
-      name: `${user.first_name} ${user.last_name}`,
-    };
-
     res.json({
-      message: 'Login successful',
+      message: 'Login successful.',
       token,
-      user: loggedInUser,
+      user: {
+        user_id: user.user_id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        user_uid: user.user_uid,
+        email: user.email,
+        role_id: user.role_id,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        role:
+          user.role_id === 1 ? 'student' : user.role_id === 2 ? 'faculty' : 'admin',
+      },
     });
   });
 });
-
-// -------------------- CHANGE PASSWORD --------------------
-router.post('/change-password', async (req, res) => {
-  try {
-    const { user_id, oldPassword, newPassword } = req.body;
-
-    if (!user_id || !oldPassword || !newPassword) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-
-    // ✅ Strong password regex:
-    // At least 8 chars, one uppercase, one lowercase, one number, one special character
-    const strongPasswordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-
-    if (!strongPasswordRegex.test(newPassword)) {
-      return res.status(400).json({
-        message:
-          'Password must be at least 8 characters long and include one uppercase letter, one number, and one special character.',
-      });
-    }
-
-    const sql = `SELECT password_hash FROM users WHERE user_id = ? AND is_active = TRUE`;
-    db.query(sql, [user_id], async (err, results) => {
-      if (err) {
-        console.error('DB error:', err);
-        return res.status(500).json({ message: 'Database error' });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: 'User not found or inactive' });
-      }
-
-      const user = results[0];
-      const match = await bcrypt.compare(oldPassword, user.password_hash);
-      if (!match) {
-        return res.status(400).json({ message: 'Incorrect old password' });
-      }
-
-      const newHash = await bcrypt.hash(newPassword, 10);
-      const updateSQL = `UPDATE users SET password_hash = ?, updated_at = NOW() WHERE user_id = ?`;
-      db.query(updateSQL, [newHash, user_id], (err2) => {
-        if (err2) {
-          console.error('Password update error:', err2);
-          return res.status(500).json({ message: 'Error updating password' });
-        }
-        res.json({ message: 'Password updated successfully' });
-      });
-    });
-  } catch (error) {
-    console.error('Change password error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
 
 module.exports = router;

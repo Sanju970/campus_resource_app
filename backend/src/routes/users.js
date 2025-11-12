@@ -110,4 +110,19 @@ router.patch('/admin/users/:id/activate', (req, res) => {
   });
 });
 
+// -------------------- UPDATE BIO --------------------
+router.patch('/profile/:id', (req, res) => {
+  const { id } = req.params;
+  const { bio } = req.body;
+
+  const sql = `UPDATE users SET bio = ?, updated_at = NOW() WHERE user_id = ?`;
+  db.query(sql, [bio || '', id], (err, result) => {
+    if (err) return res.status(500).json({ message: 'DB error', error: err.message });
+    if (result.affectedRows === 0)
+      return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'Bio updated successfully' });
+  });
+});
+
+
 module.exports = router;

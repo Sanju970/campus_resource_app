@@ -18,10 +18,10 @@ export const AuthProvider = ({ children }) => {
     if (storedToken) setToken(storedToken);
   }, []);
 
-  // -------------------- LOGIN --------------------
-const login = async (email, password, role) => {
+// -------------------- LOGIN --------------------
+const login = async (emailOrUid, password) => {
   try {
-    const res = await axios.post(`${API_URL}/auth/login`, { email, password, role });
+    const res = await axios.post(`${API_URL}/auth/login`, { emailOrUid, password });
     const { token, user } = res.data;
 
     const fullUser = {
@@ -44,25 +44,39 @@ const login = async (email, password, role) => {
 };
 
 
-  // -------------------- SIGNUP --------------------
-  const signup = async (first_name, last_name, user_uid, email, password, role_id) => {
-    try {
-      const res = await axios.post(`${API_URL}/auth/register`, {
-        first_name,
-        last_name,
-        user_uid,
-        email,
-        password,
-        role_id,
-      });
-      toast.success('Account created successfully!');
-      return res.data.user;
-    } catch (err) {
-      console.error('Signup failed:', err);
-      toast.error(err.response?.data?.message || 'Signup failed');
-      throw err;
-    }
-  };
+
+// -------------------- SIGNUP --------------------
+const signup = async (first_name, last_name, user_uid, email, password, role_id, bio) => {
+  try {
+    const res = await axios.post(`${API_URL}/auth/register`, {
+      first_name,
+      last_name,
+      user_uid,
+      email,
+      password,
+      role_id,
+      bio,
+    });
+
+    toast.success(res.data?.message || 'Account created successfully!');
+    return res.data.user;
+  } catch (err) {
+    console.error('Signup failed:', err);
+
+    // Prefer backend error message if available
+    const backendMsg =
+      err.response?.data?.message ||
+      err.message ||
+      'Signup failed. Please try again.';
+
+    // Toast the actual message
+    toast.error(backendMsg);
+
+    // Rethrow with detailed message so calling code can handle if needed
+    throw new Error(backendMsg);
+  }
+};
+
 
   // -------------------- LOGOUT --------------------
   const logout = () => {

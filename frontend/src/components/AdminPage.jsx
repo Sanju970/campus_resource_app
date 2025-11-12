@@ -25,7 +25,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
-  const API_BASE = 'http://localhost:5000/api'; // ✅ correct base
+  const API_BASE = 'http://localhost:5000/api';
 
   const [newUser, setNewUser] = useState({
     first_name: '',
