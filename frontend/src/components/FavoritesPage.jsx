@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Calendar, MapPin, Users, Heart, Pin, AlertCircle, Info, AlertTriangle } from 'lucide-react';
-import { sampleEvents } from '../types/events';
+//import { sampleEvents } from '../types/events';
 import { sampleAnnouncements } from '../types/announcements';
 import { toast } from 'sonner';
 
