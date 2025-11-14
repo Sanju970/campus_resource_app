@@ -135,6 +135,21 @@ VALUES
 ('System', 'Admin', 'adm0001', 'adm0001@campus.edu',
  '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3), 
 
+('Alice', 'Faculty', 'fac0006', 'fac0006@campus.edu',
+ '$2a$10$0T0VOYrqBqhIlYvT0nRm.OUFwa3.nuDZ8SG/zchbZ9ZsEVll2xpY.', 2),
+
+('Alice', 'Faculty', 'fac0005', 'fac0005@campus.edu',
+ '$2a$10$Opi0eknm8c5n3wlgwXzC5utztgQuuenWWxRFxc8As052U9yiHWUfS', 2), 
+
+('Alice', 'Faculty', 'fac0004', 'fac0004@campus.edu',
+ '$2a$10$d1dNmwGVoCaRDZrIoQy29usriQaq0P3FA05A0TxMe0ExKKu/1/cO.', 2),
+
+('Alice', 'Faculty', 'fac0003', 'fac0003@campus.edu',
+ '$2a$10$1ZaRyvGA9PbpgvfIxeou5O5cfwe1Hig/2md/i3hElWUy4otxGJA.y', 2),
+
+('Alice', 'Faculty', 'fac0002', 'fac0002@campus.edu',
+ '$2a$10$KPyfTBLXS9lSLDXdKmDrYeVcsqsqt4gqTQ7agqLZdvaChXkg8u4Oe', 2),
+
 ('Alice', 'Faculty', 'fac0001', 'fac0001@campus.edu',
  '$2a$10$jOeOu5nm3qsxZzfTJOJ/YeGoedwZK0alkuU/daw1sFhUwt1bmKsQi', 2),
 
