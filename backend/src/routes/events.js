@@ -2,21 +2,91 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 
-// ---------------- GET all events ----------------
+// ---------------- CATEGORY / FACULTY MAPPING ----------------
+
+// category_id -> display name
+const CATEGORY_NAME_BY_ID = {
+  1: 'Library & Study Spaces',
+  2: 'Academic Support',
+  3: 'Career Services',
+  4: 'Health & Wellness',
+  5: 'IT Services',
+  6: 'Activities',
+};
+
+// category_id -> faculty user_uid
+const CATEGORY_FACULTY_UID = {
+  1: 'fac0001',
+  2: 'fac0002',
+  3: 'fac0003',
+  4: 'fac0004',
+  5: 'fac0005',
+  6: 'fac0006',
+};
+
+// ---------------- GET approved events (student view) ----------------
 router.get('/', (req, res) => {
-  console.log('🔥 GET /api/events called');
   const query = `
-    SELECT e.*, 
-           (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
+    SELECT e.*,
+      (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
     FROM events e
+    WHERE e.status = 'approved'
     ORDER BY e.start_datetime DESC
   `;
+
   db.query(query, (err, results) => {
     if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ message: 'Failed to fetch events', error: err.message });
+      console.error('Events fetch error:', err);
+      return res
+        .status(500)
+        .json({ message: 'Failed to fetch events', error: err.message });
     }
-    console.log(`Events fetched: ${results.length}`);
+    res.json(results);
+  });
+});
+
+// ---------------- GET events (student view: approved + own events) ----------------
+router.get('/', (req, res) => {
+  const { user_id } = req.query; // optional
+
+  let query;
+  let params = [];
+
+  if (user_id) {
+    // If user_id is sent: show all approved events + events created by this user
+    query = `
+      SELECT e.*,
+             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count,
+             u.user_uid  AS approver_uid,
+             CONCAT(u.first_name, ' ', u.last_name) AS approver_name
+      FROM events e
+      LEFT JOIN users u ON e.approved_by = u.user_id
+      WHERE e.status = 'approved'
+         OR e.created_by = ?
+      ORDER BY e.start_datetime DESC
+    `;
+    params.push(user_id);
+  } else {
+    // Fallback: only approved events
+    query = `
+      SELECT e.*,
+             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count,
+             u.user_uid  AS approver_uid,
+             CONCAT(u.first_name, ' ', u.last_name) AS approver_name
+      FROM events e
+      LEFT JOIN users u ON e.approved_by = u.user_id
+      WHERE e.status = 'approved'
+      ORDER BY e.start_datetime DESC
+    `;
+  }
+
+  db.query(query, params, (err, results) => {
+    if (err) {
+      console.error('Events fetch error:', err);
+      return res
+        .status(500)
+        .json({ message: 'Failed to fetch events', error: err.message });
+    }
     res.json(results);
   });
 });
@@ -29,7 +99,9 @@ router.get('/registrations/:user_id', (req, res) => {
   db.query(query, [userId], (err, results) => {
     if (err) {
       console.error('Registration fetch error:', err);
-      return res.status(500).json({ message: 'Failed to fetch registrations', error: err.message });
+      return res
+        .status(500)
+        .json({ message: 'Failed to fetch registrations', error: err.message });
     }
     res.json(results);
   });
@@ -40,93 +112,159 @@ router.post('/', (req, res) => {
   const {
     title,
     description,
-    date_time,        // from frontend
-    end_time,         // from frontend
-    start_datetime,
-    end_datetime,
+    date_time,        // from frontend (optional)
+    end_time,         // from frontend (optional)
+    start_datetime,   // preferred if frontend sends this
+    end_datetime,     // preferred if frontend sends this
     location,
     capacity,
-    category_id,
+    category_id,      // 1–6
     registration_required,
     instructor_email,
-    created_by,
-    approved_by,
-    status,
-    created_by_name,
+    created_by,       // student/faculty/admin user_id from auth
+    status,           // usually undefined from frontend
   } = req.body;
 
   const startTime = start_datetime || date_time;
   const endTime = end_datetime || end_time;
-  const category = category_id || null;
+  const catId = category_id ? Number(category_id) : null;
 
-  if (!title || !description || !startTime || !endTime || !location) {
+  if (!title || !description || !startTime || !endTime || !location || !capacity || !catId) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  const query = `
-    INSERT INTO events
-    (title, description, start_datetime, end_datetime, location, capacity, category,
-     registration_required, instructor_email, created_by, approved_by, status, created_by_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+  const categoryName = CATEGORY_NAME_BY_ID[catId] || null;
+  const approverUid = CATEGORY_FACULTY_UID[catId] || null;
 
-  db.query(
-    query,
-    [
-      title,
-      description,
-      startTime,
-      endTime,
-      location,
-      capacity,
-      category,
-      registration_required,
-      instructor_email,
-      created_by,
-      approved_by || null,
-      status || 'pending',
-      created_by_name || '',
-    ],
-    (err, results) => {
-      if (err) {
-        console.error('Error creating event:', err);
-        return res.status(500).json({ message: 'Failed to create event', error: err.message });
-      }
+  // helper to actually insert event once we know approved_by
+  const insertEvent = (approvedByUserId, approverEmail) => {
+    const query = `
+      INSERT INTO events
+        (title, description, start_datetime, end_datetime, location,
+         capacity, category_id, category, registration_required, instructor_email,
+         created_by, approved_by, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-      res.json({
-        event_id: results.insertId,
+    const finalInstructorEmail = instructor_email || approverEmail || null;
+
+    db.query(
+      query,
+      [
         title,
         description,
-        start_datetime: startTime,
-        end_datetime: endTime,
+        startTime,
+        endTime,
         location,
-        capacity,
-        category,
-        registration_required,
-        instructor_email,
+        parseInt(capacity, 10),
+        catId,
+        categoryName,
+        registration_required ? 1 : 0,
+        finalInstructorEmail,
         created_by,
-        approved_by,
-        status,
-        created_by_name,
-        registered_count: 0,
-      });
+        approvedByUserId || null,
+        status || 'pending',
+      ],
+      (err, results) => {
+        if (err) {
+          console.error('Error creating event:', err);
+          return res
+            .status(500)
+            .json({ message: 'Failed to create event', error: err.message });
+        }
+
+        res.json({
+          event_id: results.insertId,
+          title,
+          description,
+          start_datetime: startTime,
+          end_datetime: endTime,
+          location,
+          capacity: parseInt(capacity, 10),
+          category_id: catId,
+          category: categoryName,
+          registration_required,
+          instructor_email: finalInstructorEmail,
+          created_by,
+          approved_by: approvedByUserId || null,
+          status: status || 'pending',
+          registered_count: 0,
+        });
+      }
+    );
+  };
+
+  // If we have a mapped faculty UID, look up their user_id
+  if (approverUid) {
+    const facultyQuery =
+      'SELECT user_id, email FROM users WHERE user_uid = ? LIMIT 1';
+
+    db.query(facultyQuery, [approverUid], (facErr, facRows) => {
+      if (facErr) {
+        console.error('Error finding faculty approver:', facErr);
+        return res.status(500).json({
+          message: 'Failed to determine faculty approver',
+          error: facErr.message,
+        });
+      }
+
+      const approver = facRows[0] || null;
+      const approverId = approver ? approver.user_id : null;
+      const approverEmail = approver ? approver.email : null;
+
+      insertEvent(approverId, approverEmail);
+    });
+  } else {
+    // No category mapping -> insert with no approver
+    insertEvent(null, null);
+  }
+});
+
+// ---------------- GET pending events for a specific faculty ----------------
+router.get('/faculty/:faculty_id/pending', (req, res) => {
+  const facultyId = req.params.faculty_id;
+
+  const query = `
+    SELECT e.*,
+      (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
+    FROM events e
+    WHERE e.approved_by = ?
+      AND e.status = 'pending'
+    ORDER BY e.start_datetime DESC
+  `;
+
+  db.query(query, [facultyId], (err, results) => {
+    if (err) {
+      console.error('Faculty pending events fetch error:', err);
+      return res
+        .status(500)
+        .json({
+          message: 'Failed to fetch faculty pending events',
+          error: err.message,
+        });
     }
-  );
+    res.json(results);
+  });
 });
 
 // ---------------- RSVP endpoints ----------------
 router.post('/:event_id/rsvp', (req, res) => {
   const eventId = req.params.event_id;
   const { user_id } = req.body;
-  const query = 'INSERT INTO event_registrations (event_id, user_id) VALUES (?, ?)';
+  const query =
+    'INSERT INTO event_registrations (event_id, user_id) VALUES (?, ?)';
 
   db.query(query, [eventId, user_id], (err) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
-        return res.status(400).json({ message: 'Already registered for this event' });
+        return res
+          .status(400)
+          .json({ message: 'Already registered for this event' });
       }
       console.error('RSVP error:', err);
-      return res.status(500).json({ message: 'Failed to register', error: err.message });
+      return res
+        .status(500)
+        .json({ message: 'Failed to register', error: err.message });
     }
     res.json({ message: 'RSVP successful' });
   });
@@ -135,35 +273,48 @@ router.post('/:event_id/rsvp', (req, res) => {
 router.delete('/:event_id/rsvp', (req, res) => {
   const eventId = req.params.event_id;
   const { user_id } = req.body;
-  const query = 'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?';
+  const query =
+    'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?';
 
   db.query(query, [eventId, user_id], (err) => {
     if (err) {
       console.error('Cancel RSVP error:', err);
-      return res.status(500).json({ message: 'Failed to cancel RSVP', error: err.message });
+      return res
+        .status(500)
+        .json({ message: 'Failed to cancel RSVP', error: err.message });
     }
     res.json({ message: 'RSVP cancelled successfully' });
   });
 });
 
-// ---------------- ADMIN actions ----------------
+// ---------------- APPROVE / REJECT actions ----------------
 router.patch('/:event_id/approve', (req, res) => {
   const eventId = req.params.event_id;
-  const query = 'UPDATE events SET status = "active" WHERE event_id = ?';
+  const query = 'UPDATE events SET status = "approved" WHERE event_id = ?';
+
   db.query(query, [eventId], (err) => {
-    if (err)
-      return res.status(500).json({ message: 'Failed to approve event', error: err.message });
+    if (err) {
+      console.error('Approve event error:', err);
+      return res
+        .status(500)
+        .json({ message: 'Failed to approve event', error: err.message });
+    }
     res.json({ message: 'Event approved successfully' });
   });
 });
 
-router.delete('/:event_id', (req, res) => {
+router.patch('/:event_id/reject', (req, res) => {
   const eventId = req.params.event_id;
-  const query = 'DELETE FROM events WHERE event_id = ?';
+  const query = 'UPDATE events SET status = "rejected" WHERE event_id = ?';
+
   db.query(query, [eventId], (err) => {
-    if (err)
-      return res.status(500).json({ message: 'Failed to delete event', error: err.message });
-    res.json({ message: 'Event deleted successfully' });
+    if (err) {
+      console.error('Reject event error:', err);
+      return res
+        .status(500)
+        .json({ message: 'Failed to reject event', error: err.message });
+    }
+    res.json({ message: 'Event rejected successfully' });
   });
 });
 
