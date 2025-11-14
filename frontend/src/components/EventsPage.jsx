@@ -27,20 +27,49 @@ import {
   Plus,
   CheckCircle,
   XCircle,
-  Clock,
   Heart,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
-//categories
-  const eventCategories = [
-  { id: 1, key: 'Library $Study Spaces', name: "Library & Study Spaces", color: 'bg-blue-100 text-blue-800' },
-  { id: 2, key: 'Academic Support', name: "Academic Support", color: 'bg-green-100 text-green-800' },
-  { id: 3, key: 'Career Services', name: "Career Services", color: 'bg-purple-100 text-purple-800' },
-  { id: 4, key: 'Health & Wellness', name: "Health & Wellness", color: 'bg-yellow-100 text-yellow-800' },
-  { id: 5, key: 'IT Services', name: "IT Services", color: 'bg-red-100 text-red-800' }, 
-  { id: 6, key: 'Activities', name: "Activities", color: 'bg-pink-100 text-pink-800' },
+// Categories (ids MUST match event_categories + category_id in DB)
+const eventCategories = [
+  {
+    id: 1,
+    key: 'Library & Study Spaces',
+    name: 'Library & Study Spaces',
+    color: 'bg-blue-100 text-blue-800',
+  },
+  {
+    id: 2,
+    key: 'Academic Support',
+    name: 'Academic Support',
+    color: 'bg-green-100 text-green-800',
+  },
+  {
+    id: 3,
+    key: 'Career Services',
+    name: 'Career Services',
+    color: 'bg-purple-100 text-purple-800',
+  },
+  {
+    id: 4,
+    key: 'Health & Wellness',
+    name: 'Health & Wellness',
+    color: 'bg-yellow-100 text-yellow-800',
+  },
+  {
+    id: 5,
+    key: 'IT Services',
+    name: 'IT Services',
+    color: 'bg-red-100 text-red-800',
+  },
+  {
+    id: 6,
+    key: 'Activities',
+    name: 'Activities',
+    color: 'bg-pink-100 text-pink-800',
+  },
 ];
 
 export default function EventsPage() {
@@ -70,13 +99,24 @@ export default function EventsPage() {
     instructor_email: '',
   });
 
-  // Everyone can create events for simplicity
+  // You can keep this simple; everyone can create
   const canCreateOrApprove = true;
 
   // ---------------- Fetch Events ----------------
   const fetchEvents = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/events');
+      let url = 'http://localhost:5000/api/events';
+
+      // For faculty, fetch only events assigned to them and pending
+      if (user.role === 'faculty') {
+        url = `http://localhost:5000/api/events/faculty/${user.user_id}/pending`;
+      } else {
+        // student / others: get approved + own events
+        url = `http://localhost:5000/api/events?user_id=${user.user_id}`;
+      }
+
+
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
       setEvents(data);
@@ -86,8 +126,10 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Fetch Registered Events ----------------
+  // ---------------- Fetch Registered Events (students) ----------------
   const fetchRegisteredEvents = async () => {
+    if (user.role !== 'student') return;
+
     try {
       const res = await fetch(
         `http://localhost:5000/api/events/registrations/${user.user_id}`
@@ -104,6 +146,7 @@ export default function EventsPage() {
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------------- Filters ----------------
@@ -115,15 +158,19 @@ export default function EventsPage() {
       event.location.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
-      !selectedCategory || event.category === selectedCategory;
+      !selectedCategory || event.category_id === selectedCategory;
+
+    // Students should only see approved events
     const matchesStatus =
-      user?.role === 'student' ? event.status === 'active' : true;
+      user?.role === 'student' ? event.status === 'approved' : true;
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // ---------------- RSVP ----------------
+  // ---------------- RSVP (students only) ----------------
   const handleRSVP = async (eventId) => {
+    if (user.role !== 'student') return;
+
     try {
       if (registeredEvents.includes(eventId)) {
         // Cancel RSVP
@@ -150,7 +197,7 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Favorite ----------------
+  // ---------------- Favorite (local only) ----------------
   const toggleFavorite = (eventId) => {
     if (favoriteEvents.includes(eventId)) {
       setFavoriteEvents(favoriteEvents.filter((id) => id !== eventId));
@@ -189,10 +236,10 @@ export default function EventsPage() {
 
     const event = {
       ...newEvent,
-      capacity: parseInt(capacity),
+      capacity: parseInt(capacity, 10),
       created_by: user.user_id,
-      created_by_name: `${user.first_name} ${user.last_name}`,
-      status: user.role === 'student' ? 'pending' : 'active',
+      // We let backend decide status = 'pending'
+      // status: 'pending',
       registered_count: 0,
     };
 
@@ -202,6 +249,11 @@ export default function EventsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(event),
       });
+
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Failed to create event');
+      }
 
       const savedEvent = await res.json();
       setEvents([savedEvent, ...events]);
@@ -220,28 +272,24 @@ export default function EventsPage() {
         instructor_email: '',
       });
 
-      toast.success(
-        user.role === 'admin'
-          ? 'Event created successfully!'
-          : 'Event submitted for approval'
-      );
+      toast.success('Event submitted for approval');
     } catch (err) {
       console.error('Error creating event:', err);
-      toast.error('Failed to create event');
+      toast.error(err.message || 'Failed to create event');
     }
   };
 
-  // ---------------- Approve & Reject ----------------
+  // ---------------- Approve & Reject (faculty) ----------------
   const handleApproveEvent = async (eventId) => {
+    if (user.role !== 'faculty') return;
+
     try {
       await fetch(`http://localhost:5000/api/events/${eventId}/approve`, {
         method: 'PATCH',
       });
-      setEvents(
-        events.map((e) =>
-          e.event_id === eventId ? { ...e, status: 'active' } : e
-        )
-      );
+
+      // Remove from local list (since it's no longer pending)
+      setEvents(events.filter((e) => e.event_id !== eventId));
       toast.success('Event approved');
     } catch (err) {
       console.error(err);
@@ -250,10 +298,14 @@ export default function EventsPage() {
   };
 
   const handleRejectEvent = async (eventId) => {
+    if (user.role !== 'faculty') return;
+
     try {
-      await fetch(`http://localhost:5000/api/events/${eventId}`, {
-        method: 'DELETE',
+      await fetch(`http://localhost:5000/api/events/${eventId}/reject`, {
+        method: 'PATCH',
       });
+
+      // Remove from local list (since it's no longer pending)
       setEvents(events.filter((e) => e.event_id !== eventId));
       toast.info('Event rejected');
     } catch (err) {
@@ -264,6 +316,7 @@ export default function EventsPage() {
 
   const formatDateTime = (dateString) => {
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -273,7 +326,9 @@ export default function EventsPage() {
   };
 
   const isEventFull = (event) =>
-    event.registered_count && event.registered_count >= event.capacity;
+    event.registered_count && event.capacity
+      ? event.registered_count >= event.capacity
+      : false;
 
   // ---------------- JSX ----------------
   return (
@@ -318,7 +373,10 @@ export default function EventsPage() {
                   <Textarea
                     value={newEvent.description}
                     onChange={(e) =>
-                      setNewEvent({ ...newEvent, description: e.target.value })
+                      setNewEvent({
+                        ...newEvent,
+                        description: e.target.value,
+                      })
                     }
                     rows={3}
                   />
@@ -371,7 +429,10 @@ export default function EventsPage() {
                       className="border rounded-md w-full p-2"
                       value={newEvent.category_id}
                       onChange={(e) =>
-                        setNewEvent({ ...newEvent, category_id: e.target.value })
+                        setNewEvent({
+                          ...newEvent,
+                          category_id: Number(e.target.value),
+                        })
                       }
                     >
                       <option value="">Select Category</option>
@@ -447,11 +508,44 @@ export default function EventsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEvents.map((event) => {
           const category = eventCategories.find(
-            (c) => c.id === event.category
+            (c) => c.id === event.category_id
           );
           const isRegistered = registeredEvents.includes(event.event_id);
           const isFavorite = favoriteEvents.includes(event.event_id);
           const isFull = isEventFull(event);
+          const isCreator = Number(event.created_by) === Number(user.user_id);
+
+          let statusLabel = null;
+          if (isCreator) {
+            if (event.status === 'pending') {
+                // For creator: show department-style wording
+                const departmentLabel = category
+                  ? `${category.name} department`
+                  : 'the department';
+
+                statusLabel = `Sent for approval to ${departmentLabel}`;
+              } 
+             else if (event.status === 'approved') {
+              if (event.approver_uid || event.approver_name) {
+                statusLabel = `Approved by ${
+                  event.approver_name || event.approver_uid
+                }`;
+              } else {
+                statusLabel = 'Approved';
+              }
+            } else if (event.status === 'rejected') {
+              statusLabel = 'Rejected';
+            }
+          } else if (event.status && event.status !== 'approved') {
+            // For non-creators, we can still show simple status for pending/rejected
+            statusLabel = event.status;
+          }
+
+
+          const canApproveThisEvent =
+            user.role === 'faculty' &&
+            event.status === 'pending' &&
+            event.approved_by === user.user_id;
 
           return (
             <Card
@@ -464,8 +558,8 @@ export default function EventsPage() {
                     {category && (
                       <Badge className={category.color}>{category.name}</Badge>
                     )}
-                    {event.status !== 'active' && user.role === 'admin' && (
-                      <Badge variant="outline">Pending</Badge>
+                    {event.status === 'pending' && user.role === 'faculty' && (
+                      <Badge variant="outline">Pending Approval</Badge>
                     )}
                   </div>
                   <Button
@@ -497,13 +591,14 @@ export default function EventsPage() {
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      {event.registered_count || 0} / {event.capacity} registered
+                      {event.registered_count || 0} / {event.capacity || 0}{' '}
+                      registered
                     </span>
                   </div>
                 </div>
 
-                {/* Admin Approve/Reject or RSVP */}
-                {event.status !== 'active' && user.role === 'admin' ? (
+                {/* Faculty Approve/Reject OR Student RSVP */}
+                {canApproveThisEvent ? (
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -521,7 +616,11 @@ export default function EventsPage() {
                       <XCircle className="h-4 w-4 mr-1" /> Reject
                     </Button>
                   </div>
-                ) : event.registration_required ? (
+                ) : isCreator ? (
+                  <Badge variant="secondary" className="w-full justify-center">
+                    You created this event
+                  </Badge>
+                ) : user.role === 'student' && event.registration_required ? (
                   <Button
                     className="w-full"
                     variant={isRegistered ? 'outline' : 'default'}
@@ -536,9 +635,12 @@ export default function EventsPage() {
                   </Button>
                 ) : (
                   <Badge variant="secondary" className="w-full justify-center">
-                    No Registration Required
+                    {event.registration_required
+                      ? 'Registration Closed'
+                      : 'No Registration Required'}
                   </Badge>
                 )}
+
               </CardContent>
             </Card>
           );
