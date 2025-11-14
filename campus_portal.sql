@@ -36,28 +36,30 @@ CREATE TABLE users (
 -- 2. EVENTS
 -- ============================================================
 
-CREATE TABLE events (
-    event_id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(200) NOT NULL,
-    description TEXT,
-    start_datetime DATETIME NOT NULL,
-    end_datetime DATETIME NOT NULL,
-    location VARCHAR(200),
-    capacity INT,
-    category VARCHAR(100),
-    instructor_email VARCHAR(150),
-    registration_required BOOLEAN DEFAULT FALSE,
-    status ENUM('pending','approved','rejected') DEFAULT 'pending',
-    created_by INT NOT NULL,
-    approved_by INT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- prevent redundant/duplicate event entries
-    CONSTRAINT unique_event UNIQUE (title, start_datetime, location),
-    FOREIGN KEY (created_by) REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (approved_by) REFERENCES users(user_id)
-        ON DELETE SET NULL ON UPDATE CASCADE
-);
+DROP TABLE IF EXISTS `events`;
+CREATE TABLE `events` (
+  `event_id` int NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) NOT NULL,
+  `description` text,
+  `start_datetime` datetime NOT NULL,
+  `end_datetime` datetime NOT NULL,
+  `location` varchar(200) DEFAULT NULL,
+  `capacity` int DEFAULT NULL,
+  `category_id` int DEFAULT NULL,
+  `category` varchar(100) DEFAULT NULL,
+  `instructor_email` varchar(150) DEFAULT NULL,
+  `registration_required` tinyint(1) DEFAULT '0',
+  `status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `created_by` int NOT NULL,
+  `approved_by` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`event_id`),
+  UNIQUE KEY `unique_event` (`title`,`start_datetime`,`location`),
+  KEY `created_by` (`created_by`),
+  KEY `approved_by` (`approved_by`),
+  CONSTRAINT `events_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `events_ibfk_2` FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ============================================================
 -- 3. ANNOUNCEMENTS
@@ -108,17 +110,19 @@ CREATE TABLE notifications (
 -- 6. EVENT REGISTRATIONS
 -- ============================================================
 
-CREATE TABLE event_registrations (
-    registration_id INT AUTO_INCREMENT PRIMARY KEY,
-    event_id INT NOT NULL,
-    user_id INT NOT NULL,
-    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (event_id, user_id),
-    FOREIGN KEY (event_id) REFERENCES events(event_id)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
-);
+DROP TABLE IF EXISTS `event_registrations`;
+
+CREATE TABLE `event_registrations` (
+  `registration_id` int NOT NULL AUTO_INCREMENT,
+  `event_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `registered_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`registration_id`),
+  UNIQUE KEY `event_id` (`event_id`,`user_id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `event_registrations_ibfk_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`event_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `event_registrations_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ============================================================
 -- 7. SAMPLE DATA
