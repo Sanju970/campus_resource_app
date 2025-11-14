@@ -132,28 +132,28 @@ INSERT INTO roles (role_name) VALUES ('student'), ('faculty'), ('admin');
 
 INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
 VALUES
-('System', 'Admin', 'adm0001', 'adm0001@campus.edu',
+('System', 'Admin', 'adm0001', 'adm0001@gmail.com',
  '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3), 
 
-('Alice', 'Faculty', 'fac0006', 'fac0006@campus.edu',
+('Alice', 'Faculty', 'fac0006', 'fac0006@gmail.com',
  '$2a$10$0T0VOYrqBqhIlYvT0nRm.OUFwa3.nuDZ8SG/zchbZ9ZsEVll2xpY.', 2),
 
-('Alice', 'Faculty', 'fac0005', 'fac0005@campus.edu',
+('Alice', 'Faculty', 'fac0005', 'fac0005@gmail.com',
  '$2a$10$Opi0eknm8c5n3wlgwXzC5utztgQuuenWWxRFxc8As052U9yiHWUfS', 2), 
 
-('Alice', 'Faculty', 'fac0004', 'fac0004@campus.edu',
+('Alice', 'Faculty', 'fac0004', 'fac0004@gmail.com',
  '$2a$10$d1dNmwGVoCaRDZrIoQy29usriQaq0P3FA05A0TxMe0ExKKu/1/cO.', 2),
 
-('Alice', 'Faculty', 'fac0003', 'fac0003@campus.edu',
+('Alice', 'Faculty', 'fac0003', 'fac0003@gmail.com',
  '$2a$10$1ZaRyvGA9PbpgvfIxeou5O5cfwe1Hig/2md/i3hElWUy4otxGJA.y', 2),
 
-('Alice', 'Faculty', 'fac0002', 'fac0002@campus.edu',
+('Alice', 'Faculty', 'fac0002', 'fac0002@gmail.com',
  '$2a$10$KPyfTBLXS9lSLDXdKmDrYeVcsqsqt4gqTQ7agqLZdvaChXkg8u4Oe', 2),
 
-('Alice', 'Faculty', 'fac0001', 'fac0001@campus.edu',
+('Alice', 'Faculty', 'fac0001', 'fac0001@gmail.com',
  '$2a$10$jOeOu5nm3qsxZzfTJOJ/YeGoedwZK0alkuU/daw1sFhUwt1bmKsQi', 2),
 
-('Bob', 'Student', 'stu0001', 'stu0001@campus.edu',
+('Bob', 'Student', 'stu0001', 'stu0001@gmail.com',
  '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
 
 
@@ -163,11 +163,11 @@ VALUES
 ('Career Fair 2025', 'Meet top companies and explore career opportunities.', 
  '2025-11-15 10:00:00', '2025-11-15 16:00:00', 'Main Hall, Student Union', 200, 'Career', NULL, 1, 'approved', 1),
 ('AI Workshop', 'Hands-on workshop on AI and Machine Learning.', 
- '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101', 50, 'Workshop', 'prof.ai@university.edu', 1, 'approved', 2),
+ '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101', 50, 'Workshop', 'fac0001@gmail.com', 1, 'approved', 2),
 ('Music Concert', 'Enjoy live performances by student bands.', 
  '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium', 300, 'Concert', NULL, 0, 'approved', 1),
 ('Guest Lecture: Quantum Computing', 'Lecture by Dr. Quantum on future computing trends.', 
- '2025-12-01 11:00:00', '2025-12-01 12:30:00', 'Lecture Hall 3', 100, 'Lecture', 'dr.quantum@university.edu', 1, 'approved', 2),
+ '2025-12-01 11:00:00', '2025-12-01 12:30:00', 'Lecture Hall 3', 100, 'Lecture', 'fac0002@gmail.com', 1, 'approved', 2),
 ('Sports Meet', 'Annual inter-college sports event.', 
  '2025-12-05 09:00:00', '2025-12-05 17:00:00', 'Sports Ground', 500, 'Sports', NULL, 0, 'approved', 1);
 

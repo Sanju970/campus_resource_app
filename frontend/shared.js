@@ -51,7 +51,7 @@ function headerTemplate(user, current = '') {
       <div class="absolute right-0 mt-2 w-64 bg-white border rounded dropdown-shadow hidden" data-dropdown>
         <div class="p-3 space-y-1">
           <p class="font-medium" data-user-name>${user?.name || 'User'}</p>
-          <p class="text-xs text-slate-500" data-user-email>${user?.email || 'user@campus.edu'}</p>
+          <p class="text-xs text-slate-500" data-user-email>${user?.email || 'user@gmail.com'}</p>
           <p class="text-xs text-slate-500 capitalize" data-user-role>Role: ${role}</p>
         </div>
         <div class="border-t my-2"></div>

@@ -128,9 +128,9 @@ npm run build
 You can use the following test accounts to explore different roles in the portal:
 | Role| Email| Password|
 |-|-|-|
-| **Student**|[student@campus.edu](mailto:student@campus.edu)|student123 |
-| **Faculty**|[faculty@campus.edu](mailto:faculty@campus.edu)|faculty123 |
-| **Admin**|[admin@campus.edu](mailto:admin@campus.edu)|admin123|
+| **Student**|[student@gmail.com](mailto:student@gmail.com)|student123 |
+| **Faculty**|[faculty@gmail.com](mailto:faculty@gmail.com)|faculty123 |
+| **Admin**|[admin@gmail.com](mailto:admin@gmail.com)|admin123|
 
 
 ## Deployment on UTA Cloud

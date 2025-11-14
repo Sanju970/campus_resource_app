@@ -159,7 +159,7 @@ export default function LoginPage() {
                     <Label>Email or User ID</Label>
                     <Input
                       type="text"
-                      placeholder="stu1234 or stu1234@campus.edu"
+                      placeholder="stu1234 or stu1234@gmail.com"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       required
