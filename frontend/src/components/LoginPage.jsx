@@ -1,115 +1,125 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Eye, EyeOff, GraduationCap, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Eye, EyeOff, GraduationCap, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import axios from "axios";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Login state
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  /* ---------------------------- LOGIN STATE ---------------------------- */
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showLoginPass, setShowLoginPass] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Signup state
-  const [signupFirstName, setSignupFirstName] = useState('');
-  const [signupLastName, setSignupLastName] = useState('');
-  const [signupUserId, setSignupUserId] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  /* ---------------------------- SIGNUP STATE --------------------------- */
+  const [signup, setSignup] = useState({
+    first: "",
+    last: "",
+    userId: "",
+    pass: "",
+    confirm: "",
+  });
+
+  const [showSignupPass, setShowSignupPass] = useState(false);
   const [showSignupConfirm, setShowSignupConfirm] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const passwordsMatch =
-    signupPassword === signupConfirmPassword && signupPassword.length > 0;
+    signup.pass === signup.confirm && signup.pass.length > 0;
 
-  // Remember me preload
+  /* ------------------------ REMEMBER ME LOADING ------------------------ */
   useEffect(() => {
-    const savedEmail = localStorage.getItem('rememberedEmail');
-    const savedRemember = localStorage.getItem('rememberMe') === 'true';
-    if (savedEmail) setLoginEmail(savedEmail);
+    const saved = localStorage.getItem("rememberedIdentifier");
+    const savedRemember = localStorage.getItem("rememberMe") === "true";
+
+    if (saved) setIdentifier(saved);
     if (savedRemember) setRememberMe(true);
   }, []);
 
-  // -------------------- HANDLE LOGIN --------------------
-const handleLogin = async (e) => {
-  e.preventDefault();
-  if (isLoading) return;
-  setIsLoading(true);
+  /* ---------------------------- LOGIN LOGIC ---------------------------- */
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
 
-  try {
-    await login(loginEmail, loginPassword);
-    toast.success('Login successful!');
-    if (rememberMe) {
-      localStorage.setItem('rememberedEmail', loginEmail);
-      localStorage.setItem('rememberMe', 'true');
-    } else {
-      localStorage.removeItem('rememberedEmail');
-      localStorage.setItem('rememberMe', 'false');
+    try {
+      await login(identifier, password);
+
+      toast.success("Login successful!");
+
+      if (rememberMe) {
+        localStorage.setItem("rememberedIdentifier", identifier);
+        localStorage.setItem("rememberMe", "true");
+      } else {
+        localStorage.removeItem("rememberedIdentifier");
+        localStorage.setItem("rememberMe", "false");
+      }
+
+      navigate("/");
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Invalid login credentials."
+      );
+    } finally {
+      setLoading(false);
     }
-    navigate('/');
-  } catch (err) {
-    const msg = err.response?.data?.message || 'Invalid credentials';
-    toast.error(msg);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
-
-  // -------------------- HANDLE SIGNUP --------------------
+  /* ---------------------------- SIGNUP LOGIC --------------------------- */
   const handleSignup = async (e) => {
     e.preventDefault();
 
     if (!passwordsMatch) {
-      toast.error('Passwords do not match.');
+      toast.error("Passwords do not match.");
       return;
     }
-
     if (!acceptedTerms) {
-      toast.error('Please accept the Terms and Conditions.');
+      toast.error("Please accept the Terms and Conditions.");
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/register', {
-        first_name: signupFirstName,
-        last_name: signupLastName,
-        user_uid: signupUserId,
-        password: signupPassword,
+      const res = await axios.post(
+        "http://localhost:5000/api/auth/register",
+        {
+          first_name: signup.first,
+          last_name: signup.last,
+          user_uid: signup.userId,
+          password: signup.pass,
+        }
+      );
+
+      toast.success(res.data?.message || "Account created successfully!");
+
+      setSignup({
+        first: "",
+        last: "",
+        userId: "",
+        pass: "",
+        confirm: "",
       });
-
-      toast.success(res.data?.message || 'Account created successfully! You can now log in.');
-
-      // Reset form
-      setSignupFirstName('');
-      setSignupLastName('');
-      setSignupUserId('');
-      setSignupPassword('');
-      setSignupConfirmPassword('');
       setAcceptedTerms(false);
     } catch (err) {
-      const msg = err.response?.data?.message || 'Signup failed';
-      toast.error(msg);
+      toast.error(err.response?.data?.message || "Signup failed.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // -------------------- UI --------------------
+  /* ------------------------------- UI ------------------------------- */
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="w-full max-w-md space-y-6">
@@ -121,7 +131,9 @@ const handleLogin = async (e) => {
             </div>
           </div>
           <h1 className="text-3xl font-bold">Campus Portal</h1>
-          <p className="text-muted-foreground">AI-Integrated Campus Resources Platform</p>
+          <p className="text-muted-foreground">
+            AI-Integrated Campus Resources Platform
+          </p>
         </div>
 
         {/* Tabs */}
@@ -132,7 +144,7 @@ const handleLogin = async (e) => {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {/* ---------------- LOGIN ---------------- */}
+            {/* ----------------------------- LOGIN TAB ----------------------------- */}
             <TabsContent value="login">
               <form onSubmit={handleLogin}>
                 <CardHeader>
@@ -147,9 +159,9 @@ const handleLogin = async (e) => {
                     <Label>Email or User ID</Label>
                     <Input
                       type="text"
-                      placeholder="adm0001 or adm0001@campus.edu"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="stu1234 or stu1234@campus.edu"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
                       required
                     />
                   </div>
@@ -158,47 +170,53 @@ const handleLogin = async (e) => {
                     <Label>Password</Label>
                     <div className="relative">
                       <Input
-                        type={showLoginPassword ? 'text' : 'password'}
+                        type={showLoginPass ? "text" : "password"}
                         placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                       />
                       <button
                         type="button"
                         className="absolute inset-y-0 right-2 flex items-center pr-2 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowLoginPassword((v) => !v)}
+                        onClick={() => setShowLoginPass((s) => !s)}
                       >
-                        {showLoginPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
+                        {showLoginPass ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between py-1">
-                    <label className="inline-flex items-center gap-2 text-sm">
+                  <div className="flex items-center justify-between text-sm py-1">
+                    <label className="inline-flex items-center gap-2">
                       <input
                         type="checkbox"
-                        className="h-4 w-4"
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
+                        className="h-4 w-4"
                       />
                       Remember me
                     </label>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate("/forgot-password")}
+                      className="text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Login
                   </Button>
                 </CardContent>
               </form>
             </TabsContent>
 
-            {/* ---------------- SIGNUP ---------------- */}
+            {/* ----------------------------- SIGNUP TAB ---------------------------- */}
             <TabsContent value="signup">
               <form onSubmit={handleSignup}>
                 <CardHeader>
@@ -213,16 +231,21 @@ const handleLogin = async (e) => {
                     <div className="space-y-2">
                       <Label>First Name</Label>
                       <Input
-                        value={signupFirstName}
-                        onChange={(e) => setSignupFirstName(e.target.value)}
+                        value={signup.first}
+                        onChange={(e) =>
+                          setSignup({ ...signup, first: e.target.value })
+                        }
                         required
                       />
                     </div>
+
                     <div className="space-y-2">
                       <Label>Last Name</Label>
                       <Input
-                        value={signupLastName}
-                        onChange={(e) => setSignupLastName(e.target.value)}
+                        value={signup.last}
+                        onChange={(e) =>
+                          setSignup({ ...signup, last: e.target.value })
+                        }
                         required
                       />
                     </div>
@@ -231,9 +254,11 @@ const handleLogin = async (e) => {
                   <div className="space-y-2">
                     <Label>User ID</Label>
                     <Input
-                      value={signupUserId}
-                      onChange={(e) => setSignupUserId(e.target.value)}
-                      placeholder="stu1234 / fac1234 / adm0001"
+                      value={signup.userId}
+                      onChange={(e) =>
+                        setSignup({ ...signup, userId: e.target.value })
+                      }
+                      placeholder="stu1234 / fac98765"
                       required
                     />
                   </div>
@@ -242,21 +267,23 @@ const handleLogin = async (e) => {
                     <Label>Password</Label>
                     <div className="relative">
                       <Input
-                        type={showSignupPassword ? 'text' : 'password'}
-                        value={signupPassword}
-                        onChange={(e) => setSignupPassword(e.target.value)}
+                        type={showSignupPass ? "text" : "password"}
+                        value={signup.pass}
+                        onChange={(e) =>
+                          setSignup({ ...signup, pass: e.target.value })
+                        }
                         required
                       />
                       <button
                         type="button"
                         className="absolute inset-y-0 right-2 flex items-center pr-2 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowSignupPassword((prev) => !prev)}
+                        onClick={() => setShowSignupPass((s) => !s)}
                         tabIndex={-1}
                       >
-                        {showSignupPassword ? (
-                          <EyeOff className="h-4 w-4" />
+                        {showSignupPass ? (
+                          <EyeOff size={16} />
                         ) : (
-                          <Eye className="h-4 w-4" />
+                          <Eye size={16} />
                         )}
                       </button>
                     </div>
@@ -266,48 +293,53 @@ const handleLogin = async (e) => {
                     <Label>Confirm Password</Label>
                     <div className="relative">
                       <Input
-                        type={showSignupConfirm ? 'text' : 'password'}
-                        value={signupConfirmPassword}
-                        onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                        type={showSignupConfirm ? "text" : "password"}
+                        value={signup.confirm}
+                        onChange={(e) =>
+                          setSignup({ ...signup, confirm: e.target.value })
+                        }
                         required
                       />
                       <button
                         type="button"
                         className="absolute inset-y-0 right-2 flex items-center pr-2 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowSignupConfirm((prev) => !prev)}
+                        onClick={() => setShowSignupConfirm((s) => !s)}
                         tabIndex={-1}
                       >
                         {showSignupConfirm ? (
-                          <EyeOff className="h-4 w-4" />
+                          <EyeOff size={16} />
                         ) : (
-                          <Eye className="h-4 w-4" />
+                          <Eye size={16} />
                         )}
                       </button>
                     </div>
-                    {!passwordsMatch && signupConfirmPassword && (
-                      <p className="text-xs text-red-500">Passwords don't match.</p>
+                    {!passwordsMatch && signup.confirm && (
+                      <p className="text-xs text-red-500">
+                        Passwords do not match.
+                      </p>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={acceptedTerms}
                       onChange={(e) => setAcceptedTerms(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300"
-                      required
+                      className="h-4 w-4"
                     />
-                    <label className="text-sm text-muted-foreground select-none">
+                    <label className="text-sm text-muted-foreground">
                       I agree to the Terms and Conditions
                     </label>
                   </div>
 
                   <Button
                     type="submit"
+                    disabled={loading || !passwordsMatch || !acceptedTerms}
                     className="w-full"
-                    disabled={isLoading || !passwordsMatch || !acceptedTerms}
                   >
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {loading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Sign Up
                   </Button>
                 </CardContent>

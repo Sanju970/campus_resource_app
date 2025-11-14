@@ -16,26 +16,26 @@ import AdminPage from './components/AdminPage';
 import AIChat from './components/AIChat';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState as useReactState } from 'react';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
 
 function AppContent() {
   const { user, setUser } = useAuth();
-  const [currentPage, setCurrentPage] = useState('home');
+  const [currentPage, setCurrentPage] = useState("home");
   const [loading, setLoading] = useReactState(true);
 
-  // Restore user session from localStorage
+  // Restore user from localStorage
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     if (storedUser && !user) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (err) {
-        console.error('Failed to parse stored user:', err);
+        console.error("Failed to parse stored user:", err);
       }
     }
     setLoading(false);
   }, [user, setUser]);
 
-  // Wait until AuthContext finishes loading user
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -44,38 +44,50 @@ function AppContent() {
     );
   }
 
-  // If not logged in → show login page
-  if (!user) return <LoginPage />;
-
-  // Logged in → render dashboard layout
   return (
-    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
-      <Routes>
-        <Route path="/" element={<HomePage onNavigate={setCurrentPage} />} />
-        <Route path="/events" element={<EventsPage />} />
-        <Route path="/announcements" element={<AnnouncementsPage />} />
-        <Route path="/materials" element={<MaterialsPage />} />
-        <Route path="/resources" element={<ResourcesPage />} />
-        <Route path="/schedule" element={<SchedulePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
+    <Routes>
 
-        {/* Admin-only route */}
+      {/* PUBLIC ROUTES */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+      {/* If not logged in, redirect everything else to login */}
+      {!user ? (
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      ) : (
+        /* PRIVATE ROUTES */
         <Route
-          path="/admin"
+          path="*"
           element={
-            user.role === 3 || user.role === '3' || user.role === 'admin'
-              ? <AdminPage />
-              : <Navigate to="/" replace />
+            <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+              <Routes>
+                <Route path="/" element={<HomePage onNavigate={setCurrentPage} />} />
+                <Route path="/events" element={<EventsPage />} />
+                <Route path="/announcements" element={<AnnouncementsPage />} />
+                <Route path="/materials" element={<MaterialsPage />} />
+                <Route path="/resources" element={<ResourcesPage />} />
+                <Route path="/schedule" element={<SchedulePage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/favorites" element={<FavoritesPage />} />
+
+                <Route
+                  path="/admin"
+                  element={
+                    user.role === 3 || user.role === "3" || user.role === "admin" ? (
+                      <AdminPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+              </Routes>
+              <AIChat />
+            </Layout>
           }
         />
-
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <AIChat />
-    </Layout>
+      )}
+    </Routes>
   );
 }
 

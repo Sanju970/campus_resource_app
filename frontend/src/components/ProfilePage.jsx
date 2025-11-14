@@ -25,7 +25,27 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
-// Password Change Component (with dropdown & feedback)
+// Move PasswordInput OUTSIDE the parent component
+const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
+  <div className="relative w-full">
+    <Input
+      type={show ? 'text' : 'password'}
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full pr-10"
+    />
+    <button
+      type="button"
+      onClick={toggleShow}
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 z-10"
+      tabIndex={-1}
+    >
+      {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+    </button>
+  </div>
+);
+
 function ChangePasswordSection() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -40,7 +60,6 @@ function ChangePasswordSection() {
 
   const strongPasswordRegex =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  const allowedChars = `A–Z, a–z, 0–9, and special characters: @$!%*?&`;
 
   const evaluatePassword = (pwd) => {
     const hints = [];
@@ -59,14 +78,12 @@ function ChangePasswordSection() {
     if (newPassword !== confirmPassword)
       return toast.error('New passwords do not match');
     if (!strongPasswordRegex.test(newPassword))
-      return toast.error(
-        'Password is not strong enough. Please follow the listed requirements.'
-      );
+      return toast.error('Password does not meet strength requirements.');
 
     try {
       setLoading(true);
       const res = await axios.post('http://localhost:5000/api/auth/change-password', {
-        user_id: user.user_id,
+        user_uid: user.user_uid,
         oldPassword,
         newPassword,
       });
@@ -83,102 +100,72 @@ function ChangePasswordSection() {
     }
   };
 
-  const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
-    <div className="relative">
-      <Input
-        type={show ? 'text' : 'password'}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="pr-10"
-      />
-      <button
-        type="button"
-        onClick={toggleShow}
-        className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
-        tabIndex={-1}
-      >
-        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </button>
-    </div>
-  );
-
   return (
-    <div className="border-t pt-4 mt-4 space-y-2">
+    <div className="border-t pt-4 mt-4">
       {/* Dropdown Header */}
       <div
         className="flex items-center justify-between cursor-pointer select-none"
         onClick={() => setOpen(!open)}
       >
-        <h3 className="text-lg font-medium">Change Password</h3>
+        <div>
+          <p>Change Password</p>
+          <p className="text-sm text-muted-foreground">
+            Update your account password
+          </p>
+        </div>
         {open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
       </div>
 
       {/* Dropdown Content */}
       {open && (
-        <div className="space-y-4 mt-3 animate-in fade-in duration-200">
-          {/* Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <PasswordInput
-              placeholder="Old Password"
-              value={oldPassword}
-              onChange={setOldPassword}
-              show={showOld}
-              toggleShow={() => setShowOld(!showOld)}
-            />
-            <PasswordInput
-              placeholder="New Password"
-              value={newPassword}
-              onChange={(val) => {
-                setNewPassword(val);
-                evaluatePassword(val);
-              }}
-              show={showNew}
-              toggleShow={() => setShowNew(!showNew)}
-            />
-            <PasswordInput
-              placeholder="Confirm New Password"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              show={showConfirm}
-              toggleShow={() => setShowConfirm(!showConfirm)}
-            />
-          </div>
+        <div className="mt-4 space-y-3">
+          <PasswordInput
+            placeholder="Old Password"
+            value={oldPassword}
+            onChange={setOldPassword}
+            show={showOld}
+            toggleShow={() => setShowOld(!showOld)}
+          />
+          <PasswordInput
+            placeholder="New Password"
+            value={newPassword}
+            onChange={(val) => {
+              setNewPassword(val);
+              evaluatePassword(val);
+            }}
+            show={showNew}
+            toggleShow={() => setShowNew(!showNew)}
+          />
+          <PasswordInput
+            placeholder="Confirm New Password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            show={showConfirm}
+            toggleShow={() => setShowConfirm(!showConfirm)}
+          />
 
-          {/* Password Rules */}
-          <div className="text-sm text-muted-foreground space-y-1 mt-2">
-            <p className="font-medium text-gray-700">Password must contain:</p>
-            <ul className="list-disc list-inside space-y-0.5">
-              <li>At least 8 characters</li>
-              <li>At least one uppercase (A–Z)</li>
-              <li>At least one lowercase (a–z)</li>
-              <li>At least one number (0–9)</li>
-              <li>At least one special character (@$!%*?&)</li>
-            </ul>
-            <p className="text-xs italic text-gray-500">
-              Allowed characters: {allowedChars}
-            </p>
-          </div>
+          {/* Submit button - right below confirm password */}
+          
+          <Button
+            onClick={handlePasswordUpdate}
+            disabled={loading}
+            variant="outline" size="sm"
+            className="w-full bg-blue-600 text-black hover:bg-blue-700"
+          >
+            {loading ? 'Updating...' : 'Update Password'}
+          </Button>
 
-          {/* Missing requirements */}
+          {/* Show missing hints BELOW the button */}
           {passwordHints.length > 0 && (
-            <div className="text-red-600 text-sm space-y-0.5 mt-1">
-              <p className="font-medium">Missing:</p>
-              <ul className="list-disc list-inside">
+            <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
+              <p className="font-medium mb-1">Missing:</p>
+              <ul className="list-disc list-inside space-y-0.5">
                 {passwordHints.map((hint, idx) => (
                   <li key={idx}>{hint}</li>
                 ))}
               </ul>
             </div>
           )}
-
-          <Button
-            onClick={handlePasswordUpdate}
-            disabled={loading}
-            className="bg-blue-600 text-white hover:bg-blue-700 mt-3"
-          >
-            {loading ? 'Updating...' : 'Update Password'}
-          </Button>
         </div>
       )}
     </div>
@@ -294,7 +281,7 @@ export default function ProfilePage() {
             <Button variant="outline" size="sm">Manage</Button>
           </div>
 
-          {/* 🔹 Change Password Dropdown Section */}
+          {/* Change Password Dropdown Section */}
           <ChangePasswordSection />
         </CardContent>
       </Card>

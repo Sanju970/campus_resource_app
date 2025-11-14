@@ -22,13 +22,14 @@ app.use(cors());
 app.use(express.json());
 
 // --- Verify DB Connection ---
-db.connect((err) => {
-  if (err) {
-    console.error('❌ Database connection failed:', err.message);
-  } else {
-    console.log('✅ Connected to MySQL Database');
-  }
-});
+db.getConnection()
+  .then(conn => {
+    console.log("✅ Connected to MySQL Database");
+    conn.release();
+  })
+  .catch(err => {
+    console.error("❌ Database connection failed:", err.message);
+  });
 
 // --- Mount All Routes ---
 app.use('/api/auth', authRoutes);              // login, signup, password change
