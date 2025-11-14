@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import { Bot, Send, Sparkles } from 'lucide-react';
 import { campusResources } from '../types/resources';
-import { sampleEvents } from '../types/events';
+//import { sampleEvents } from '../types/events';
 import { sampleAnnouncements } from '../types/announcements';
 import { sampleMaterials } from '../types/materials';
 
