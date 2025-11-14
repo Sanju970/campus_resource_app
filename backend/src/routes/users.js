@@ -58,7 +58,7 @@ router.post("/admin/create", async (req, res) => {
         message: "Role does not match User UID prefix.",
       });
 
-    const email = `${cleanUid}@campus.edu`;
+    const email = `${cleanUid}@gmail.com`;
 
     const [exists] = await db.query(
       "SELECT user_id FROM users WHERE user_uid = ? OR email = ?",
@@ -192,7 +192,7 @@ router.patch("/admin/users/:id/update", async (req, res) => {
         message: "Invalid UID format.",
       });
 
-    const cleanEmail = `${cleanUid}@campus.edu`;
+    const cleanEmail = `${cleanUid}@gmail.com`;
 
     const [exists] = await db.query(
       `SELECT user_id FROM users WHERE (user_uid = ? OR email = ?) AND user_id != ?`,

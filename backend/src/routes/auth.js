@@ -55,7 +55,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const email = `${cleanUid}@campus.edu`;
+    const email = `${cleanUid}@gmail.com`;
     const hashedPassword = await bcrypt.hash(cleanPass, 10);
 
     const sql = `

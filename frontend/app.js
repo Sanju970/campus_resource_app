@@ -27,7 +27,7 @@ function fallbackLoginHTML() {
       <div class="space-y-3">
         <div>
           <label class="block text-sm mb-1">Email</label>
-          <input id="login-email" class="w-full border rounded px-3 py-2" placeholder="student@campus.edu" />
+          <input id="login-email" class="w-full border rounded px-3 py-2" placeholder="student@gmail.com" />
         </div>
         <div>
           <label class="block text-sm mb-1">Password</label>
@@ -74,7 +74,7 @@ async function render(route) {
       const btn = content.querySelector('#login-submit');
       if (btn) {
         btn.addEventListener('click', () => {
-          const email = content.querySelector('#login-email').value.trim() || 'user@campus.edu';
+          const email = content.querySelector('#login-email').value.trim() || 'user@gmail.com';
           const name = email.split('@')[0];
           const role = (content.querySelector('#login-role').value || 'student').toLowerCase();
           AppState.setUser({ name, email, role });

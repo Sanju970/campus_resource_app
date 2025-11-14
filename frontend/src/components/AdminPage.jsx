@@ -88,8 +88,8 @@ export default function AdminPage() {
 
   const computedEmail = useMemo(() => {
     return newUser.user_uid
-      ? `${newUser.user_uid.toLowerCase()}@campus.edu`
-      : "@campus.edu";
+      ? `${newUser.user_uid.toLowerCase()}@gmail.com`
+      : "@gmail.com";
   }, [newUser.user_uid]);
 
   const handleAddUser = async () => {
@@ -103,7 +103,7 @@ export default function AdminPage() {
     if (!validateUID(cleanUid))
       return toast.error("UID must be stu/fac/adm + 4–5 digits.");
 
-    const email = `${cleanUid}@campus.edu`;
+    const email = `${cleanUid}@gmail.com`;
     const role_id = getRoleFromUid(cleanUid);
 
     try {
@@ -375,7 +375,7 @@ export default function AdminPage() {
                 }
               />
 
-              <Input disabled value={`${editUser.user_uid}@campus.edu`} />
+              <Input disabled value={`${editUser.user_uid}@gmail.com`} />
 
               <Input
                 placeholder="User UID"

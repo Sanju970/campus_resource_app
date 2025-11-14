@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
                 <Input
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="stu1234 or user@campus.edu"
+                  placeholder="stu1234 or user@gmail.com"
                   required
                 />
               </div>

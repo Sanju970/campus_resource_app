@@ -109,7 +109,7 @@ export const sampleMaterials = [
     id: '7',
     title: 'Online Learning Resources Hub',
     description: 'Curated list of free online courses, tutorials, and educational platforms.',
-    url: 'https://campus.edu/learning-resources',
+    url: 'https://gmail.com/learning-resources',
     resource_type: 'link',
     category_id: 'general',
     created_by: 'admin1',
