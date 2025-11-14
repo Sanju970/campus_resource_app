@@ -33,12 +33,14 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
-// Example categories
-const eventCategories = [
-  { id: 'tech', name: 'Tech', color: 'bg-blue-100 text-blue-800' },
-  { id: 'sports', name: 'Sports', color: 'bg-green-100 text-green-800' },
-  { id: 'art', name: 'Art & Culture', color: 'bg-purple-100 text-purple-800' },
-  { id: 'academic', name: 'Academic', color: 'bg-yellow-100 text-yellow-800' },
+//categories
+  const eventCategories = [
+  { id: 1, key: 'Library $Study Spaces', name: "Library & Study Spaces", color: 'bg-blue-100 text-blue-800' },
+  { id: 2, key: 'Academic Support', name: "Academic Support", color: 'bg-green-100 text-green-800' },
+  { id: 3, key: 'Career Services', name: "Career Services", color: 'bg-purple-100 text-purple-800' },
+  { id: 4, key: 'Health & Wellness', name: "Health & Wellness", color: 'bg-yellow-100 text-yellow-800' },
+  { id: 5, key: 'IT Services', name: "IT Services", color: 'bg-red-100 text-red-800' }, 
+  { id: 6, key: 'Activities', name: "Activities", color: 'bg-pink-100 text-pink-800' },
 ];
 
 export default function EventsPage() {
