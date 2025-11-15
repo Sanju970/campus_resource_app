@@ -73,6 +73,34 @@ const eventCategories = [
   },
 ];
 
+// 12-hour time options – values stay in "HH:MM" (24h) format
+const timeOptions = [
+  { value: '00:00', label: '12:00 AM' },
+  { value: '01:00', label: '1:00 AM' },
+  { value: '02:00', label: '2:00 AM' },
+  { value: '03:00', label: '3:00 AM' },
+  { value: '04:00', label: '4:00 AM' },
+  { value: '05:00', label: '5:00 AM' },
+  { value: '06:00', label: '6:00 AM' },
+  { value: '07:00', label: '7:00 AM' },
+  { value: '08:00', label: '8:00 AM' },
+  { value: '09:00', label: '9:00 AM' },
+  { value: '10:00', label: '10:00 AM' },
+  { value: '11:00', label: '11:00 AM' },
+  { value: '12:00', label: '12:00 PM' },
+  { value: '13:00', label: '1:00 PM' },
+  { value: '14:00', label: '2:00 PM' },
+  { value: '15:00', label: '3:00 PM' },
+  { value: '16:00', label: '4:00 PM' },
+  { value: '17:00', label: '5:00 PM' },
+  { value: '18:00', label: '6:00 PM' },
+  { value: '19:00', label: '7:00 PM' },
+  { value: '20:00', label: '8:00 PM' },
+  { value: '21:00', label: '9:00 PM' },
+  { value: '22:00', label: '10:00 PM' },
+  { value: '23:00', label: '11:00 PM' },
+];
+
 export default function EventsPage() {
   const { user } = useAuth();
 
@@ -86,6 +114,9 @@ export default function EventsPage() {
   const [registeredEvents, setRegisteredEvents] = useState([]);
   const [favoriteEvents, setFavoriteEvents] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+
 
   // New event form state
   const [newEvent, setNewEvent] = useState({
@@ -255,6 +286,12 @@ const fetchEvents = async () => {
       category_id,
       instructor_email,
     } = newEvent;
+
+    const startDate = date_time;  // still using same variable
+    const endDate = end_time;
+
+    const combinedStart = startDate && startTime ? `${startDate}T${startTime}` : '';
+    const combinedEnd = endDate && endTime ? `${endDate}T${endTime}` : '';
 
     if (
       !title ||
@@ -445,26 +482,61 @@ const fetchEvents = async () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Start Date & Time</Label>
+                    <Label>Start Date</Label>
                     <Input
-                      type="datetime-local"
+                      type="date"
                       value={newEvent.date_time}
-                      min={minDateTime}
+                      min={minDateTime.slice(0, 10)}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, date_time: e.target.value })
                       }
+                      className="h-9 px-3 py-1 text-sm"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>End Date & Time</Label>
+                    <Label>Start Time</Label>
+                    <select
+                      className="border rounded-md w-full p-2"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    >
+                      <option value="">Select Time</option>   
+                      {timeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
                     <Input
-                      type="datetime-local"
+
+                      type="date"
                       value={newEvent.end_time}
-                      min={minDateTime}
+                      min={minDateTime.slice(0, 10)}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, end_time: e.target.value })
                       }
+                      className="h-9 px-3 py-1 text-sm"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Time</Label>
+                    <select
+                      className="border rounded-md w-full p-2"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                    >
+                      <option value="">Select Time</option>   
+                      {timeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="space-y-2">
