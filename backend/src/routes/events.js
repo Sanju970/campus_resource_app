@@ -276,20 +276,28 @@ router.patch('/:event_id/reject', async (req, res) => {
 });
 
 // ---------------- CANCEL action (creator: faculty/admin) ----------------
-router.patch('/:event_id/cancel', async (req, res) => {
+// ---------------- DELETE / CANCEL EVENT (hard delete) ----------------
+router.delete('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
-  const query = 'UPDATE events SET status = "cancelled" WHERE event_id = ?';
 
   try {
-    await pool.query(query, [eventId]);
-    res.json({ message: 'Event cancelled successfully' });
+    // First delete registrations for this event (to avoid FK issues)
+    await pool.query(
+      'DELETE FROM event_registrations WHERE event_id = ?',
+      [eventId]
+    );
+
+    // Then delete the event itself
+    await pool.query('DELETE FROM events WHERE event_id = ?', [eventId]);
+
+    res.json({ message: 'Event deleted successfully' });
   } catch (err) {
-    console.error('Cancel event error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to cancel event', error: err.message });
+    console.error('Delete event error:', err);
+    res.status(500).json({
+      message: 'Failed to delete event',
+      error: err.message,
+    });
   }
 });
-
 
 module.exports = router;

@@ -485,23 +485,26 @@ const fetchEvents = async () => {
     if (!isCreator || !isFacultyOrAdmin) return;
 
     try {
-      await fetch(`http://localhost:5000/api/events/${eventId}/cancel`, {
-        method: 'PATCH',
+      const response = await fetch(`http://localhost:5000/api/events/${eventId}`, {
+        method: 'DELETE',
       });
 
-      // Update local state: mark status as cancelled
-      setEvents(
-        events.map((e) =>
-          e.event_id === eventId ? { ...e, status: 'cancelled' } : e
-        )
-      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.message || 'Failed to cancel event';
+        throw new Error(message);
+      }
 
-      toast.info('Event cancelled');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to cancel event');
-    }
-  };
+      // Remove from local state
+      setEvents((prevEvents) => prevEvents.filter((e) => e.event_id !== eventId));
+      setEvents(events.filter((e) => e.event_id !== eventId));
+
+    toast.info('Event cancelled');
+  } catch (err) {
+    console.error('Cancel event error:', err);
+    toast.error('Failed to cancel event');
+  }
+};
 
 
   const formatDateTime = (dateString) => {
