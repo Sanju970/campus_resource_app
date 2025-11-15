@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   Card,
   CardContent,
@@ -103,28 +104,51 @@ export default function EventsPage() {
   const canCreateOrApprove = true;
 
   // ---------------- Fetch Events ----------------
-  const fetchEvents = async () => {
-    try {
-      let url = 'http://localhost:5000/api/events';
-
-      // For faculty, fetch only events assigned to them and pending
-      if (user.role === 'faculty') {
-        url = `http://localhost:5000/api/events/faculty/${user.user_id}/pending`;
-      } else {
-        // student / others: get approved + own events
-        url = `http://localhost:5000/api/events?user_id=${user.user_id}`;
-      }
-
-
-      const res = await fetch(url);
+const fetchEvents = async () => {
+  try {
+    // 🧑‍🎓 STUDENT (and others that are not faculty)
+    if (user.role !== 'faculty') {
+      const res = await fetch(
+        `http://localhost:5000/api/events?user_id=${user.user_id}`
+      );
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
       setEvents(data);
-    } catch (err) {
-      console.error('Error fetching events:', err);
-      toast.error('Failed to fetch events');
+      return;
     }
-  };
+
+    // 👩‍🏫 FACULTY – combine:
+    // 1) main events list (approved + own)
+    // 2) events pending their approval
+    const [allRes, pendingRes] = await Promise.all([
+      fetch(
+        `http://localhost:5000/api/events?user_id=${user.user_id}`
+      ),
+      fetch(
+        `http://localhost:5000/api/events/faculty/${user.user_id}/pending`
+      ),
+    ]);
+
+    if (!allRes.ok || !pendingRes.ok) throw new Error('Network error');
+
+    const allEventsData = await allRes.json();
+    const pendingEventsData = await pendingRes.json();
+
+    // Merge pending + all, avoiding duplicates by event_id
+    const combined = [
+      ...pendingEventsData,
+      ...allEventsData.filter(
+        (e) => !pendingEventsData.some((p) => p.event_id === e.event_id)
+      ),
+    ];
+
+    setEvents(combined);
+  } catch (err) {
+    console.error('Error fetching events:', err);
+    toast.error('Failed to fetch events');
+  }
+};
+
 
   // ---------------- Fetch Registered Events (students) ----------------
   const fetchRegisteredEvents = async () => {
@@ -541,11 +565,11 @@ export default function EventsPage() {
             statusLabel = event.status;
           }
 
-
           const canApproveThisEvent =
             user.role === 'faculty' &&
             event.status === 'pending' &&
-            event.approved_by === user.user_id;
+            Number(event.approved_by) === Number(user.user_id);
+
 
           return (
             <Card
