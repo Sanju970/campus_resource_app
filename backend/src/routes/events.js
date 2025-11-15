@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const pool = require('../config/db');
 
 // ---------------- CATEGORY / FACULTY MAPPING ----------------
 
@@ -24,30 +24,9 @@ const CATEGORY_FACULTY_UID = {
   6: 'fac0006',
 };
 
-// ---------------- GET approved events (student view) ----------------
-router.get('/', (req, res) => {
-  const query = `
-    SELECT e.*,
-      (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
-    FROM events e
-    WHERE e.status = 'approved'
-    ORDER BY e.start_datetime DESC
-  `;
-
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Events fetch error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to fetch events', error: err.message });
-    }
-    res.json(results);
-  });
-});
-
 // ---------------- GET events (student view: approved + own events) ----------------
-router.get('/', (req, res) => {
-  const { user_id } = req.query; // optional
+router.get('/', async (req, res) => {
+  const { user_id, role } = req.query; // optional
 
   let query;
   let params = [];
@@ -55,17 +34,15 @@ router.get('/', (req, res) => {
   if (user_id) {
     // If user_id is sent: show all approved events + events created by this user
     query = `
-      SELECT e.*,
-             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count,
-             u.user_uid  AS approver_uid,
-             CONCAT(u.first_name, ' ', u.last_name) AS approver_name
+      SELECT e.*, u.user_uid AS creator_uid,
+             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
       FROM events e
-      LEFT JOIN users u ON e.approved_by = u.user_id
+      LEFT JOIN users u ON e.created_by = u.user_id
       WHERE e.status = 'approved'
-         OR e.created_by = ?
+         OR (e.created_by = ? AND ? IN ('student', 'faculty', 'admin'))
       ORDER BY e.start_datetime DESC
     `;
-    params.push(user_id);
+    params.push(user_id, role);
   } else {
     // Fallback: only approved events
     query = `
@@ -80,31 +57,27 @@ router.get('/', (req, res) => {
     `;
   }
 
-  db.query(query, params, (err, results) => {
-    if (err) {
-      console.error('Events fetch error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to fetch events', error: err.message });
-    }
+  try {
+    const [results] = await pool.query(query, params);
     res.json(results);
-  });
+  } catch (err) {
+    console.error('Events fetch error:', err);
+    res.status(500).json({ message: 'Failed to fetch events', error: err.message });
+  }
 });
 
 // ---------------- GET user registrations ----------------
-router.get('/registrations/:user_id', (req, res) => {
+router.get('/registrations/:user_id', async (req, res) => {
   const userId = req.params.user_id;
   const query = 'SELECT event_id FROM event_registrations WHERE user_id = ?';
 
-  db.query(query, [userId], (err, results) => {
-    if (err) {
-      console.error('Registration fetch error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to fetch registrations', error: err.message });
-    }
+  try {
+    const [results] = await pool.query(query, [userId]);
     res.json(results);
-  });
+  } catch (err) {
+    console.error('Registration fetch error:', err);
+    res.status(500).json({ message: 'Failed to fetch registrations', error: err.message });
+  }
 });
 
 // ---------------- CREATE event ----------------
