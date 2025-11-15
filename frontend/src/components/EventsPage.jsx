@@ -163,10 +163,8 @@ const fetchEvents = async () => {
 };
 
 
-  // ---------------- Fetch Registered Events (students) ----------------
+  // ---------------- Fetch Registered Events (all roles) ----------------
   const fetchRegisteredEvents = async () => {
-    if (user.role !== 'student') return;
-
     try {
       const res = await fetch(
         `http://localhost:5000/api/events/registrations/${user.user_id}`
@@ -178,6 +176,7 @@ const fetchEvents = async () => {
       console.error('Error fetching registrations:', err);
     }
   };
+
 
   // ---------------- Use Effect ----------------
   useEffect(() => {
@@ -204,10 +203,8 @@ const fetchEvents = async () => {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // ---------------- RSVP (students only) ----------------
+  // ---------------- RSVP (students + faculty) ----------------
   const handleRSVP = async (eventId) => {
-    if (user.role !== 'student') return;
-
     try {
       if (registeredEvents.includes(eventId)) {
         // Cancel RSVP
@@ -233,6 +230,7 @@ const fetchEvents = async () => {
       toast.error('Failed to process RSVP');
     }
   };
+
 
   // ---------------- Favorite (local only) ----------------
   const toggleFavorite = (eventId) => {
@@ -284,19 +282,25 @@ const fetchEvents = async () => {
   };
 
   // ---- Date/Time Validation ----
-const now = new Date();
-const start = new Date(date_time);
-const end = new Date(end_time);
+  const now = new Date();
+  const start = new Date(date_time);
+  const end = new Date(end_time);
 
-if (start < now) {
-  toast.error('Start time must be in the future');
-  return;
-}
-if (end <= start) {
-  toast.error('End time must be after start time');
-  return;
-}
+  if (start < now) {
+    toast.error('Start time must be in the future');
+    return;
+  }
+  if (end <= start) {
+    toast.error('End time must be after start time');
+    return;
+  }
 
+  const event = {
+    ...newEvent,
+    capacity: capacityNum,
+    created_by: user.user_id,
+    registered_count: 0,
+  };
 
     try {
       const res = await fetch('http://localhost:5000/api/events', {
@@ -660,8 +664,9 @@ if (end <= start) {
                   </div>
                 </div>
 
-                {/* Faculty Approve/Reject OR Student RSVP */}
+                {/* Faculty Approve/Reject OR RSVP */}
                 {canApproveThisEvent ? (
+                  // ---------- FACULTY APPROVE ----------
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -680,10 +685,12 @@ if (end <= start) {
                     </Button>
                   </div>
                 ) : isCreator ? (
+                  // ---------- CREATOR BADGE ----------
                   <Badge variant="secondary" className="w-full justify-center">
                     You created this event
                   </Badge>
-                ) : user.role === 'student' && event.registration_required ? (
+                ) : event.registration_required ? (
+                  // ---------- RSVP for BOTH STUDENT + FACULTY ----------
                   <Button
                     className="w-full"
                     variant={isRegistered ? 'outline' : 'default'}
@@ -697,12 +704,12 @@ if (end <= start) {
                       : 'RSVP Now'}
                   </Button>
                 ) : (
+                  // ---------- NO REGISTRATION REQUIRED ----------
                   <Badge variant="secondary" className="w-full justify-center">
-                    {event.registration_required
-                      ? 'Registration Closed'
-                      : 'No Registration Required'}
+                    No Registration Required
                   </Badge>
                 )}
+
 
               </CardContent>
             </Card>
