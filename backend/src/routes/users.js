@@ -262,5 +262,21 @@ router.delete("/admin/users/:id", async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
+// Get user details by user ID
+router.get('/user/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [results] = await db.query(
+      'SELECT user_id, user_uid, first_name, last_name, email, role_id, is_active, created_at, updated_at FROM users WHERE user_id = ?',
+      [id]
+    );
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(results[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

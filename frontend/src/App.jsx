@@ -71,7 +71,7 @@ function AppContent() {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/favorites" element={<FavoritesPage />} />
-                <Route path="/my-events" element={<MyEventsDashboard />} />
+                <Route path="/my-events" element={<EventsPage />} />
 
                 <Route
                   path="/admin"
