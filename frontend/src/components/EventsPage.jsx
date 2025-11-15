@@ -391,6 +391,8 @@ const fetchEvents = async () => {
     capacity: capacityNum,
     created_by: user.user_id,
     registered_count: 0,
+    status: user.role === 'student' ? 'pending' : 'approved',
+
   };
 
     try {
@@ -421,8 +423,11 @@ const fetchEvents = async () => {
         registration_required: false,
         instructor_email: '',
       });
-
-      toast.success('Event submitted for approval');
+      if (user.role === 'student') {
+        toast.success('Event submitted for approval');
+      } else {
+        toast.success('Event created successfully');
+      }
     } catch (err) {
       console.error('Error creating event:', err);
       toast.error(err.message || 'Failed to create event');
