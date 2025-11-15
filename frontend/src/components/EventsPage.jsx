@@ -86,6 +86,10 @@ export default function EventsPage() {
   const [registeredEvents, setRegisteredEvents] = useState([]);
   const [favoriteEvents, setFavoriteEvents] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [showMyEventsOnly, setShowMyEventsOnly] = useState(false);
+  // For faculty: events assigned to them for approval
+  const [facultyPendingEvents, setFacultyPendingEvents] = useState([]);
+
 
   // New event form state
   const [newEvent, setNewEvent] = useState({
@@ -162,6 +166,22 @@ const fetchEvents = async () => {
   }
 };
 
+  // ---------------- Fetch events that need this faculty's approval ----------------
+  const fetchFacultyPendingEvents = async () => {
+    if (user.role !== 'faculty') return;
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/events/faculty/${user.user_id}/pending`
+      );
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+      setFacultyPendingEvents(data);
+    } catch (err) {
+      console.error('Error fetching faculty pending events:', err);
+      toast.error('Failed to fetch events requiring your approval');
+    }
+  };
 
   // ---------------- Fetch Registered Events (all roles) ----------------
   const fetchRegisteredEvents = async () => {
@@ -182,11 +202,44 @@ const fetchEvents = async () => {
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
+    fetchFacultyPendingEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------------- Filters ----------------
-  const filteredEvents = events.filter((event) => {
+  // Combine base events for faculty "My Events" view:
+  // - events I created (from /api/events)
+  // - events needing my approval (from /faculty/:id/pending)
+  const combinedEvents = showMyEventsOnly && user.role === 'faculty'
+    ? [
+        // my created events
+        ...events.filter(
+          (e) => Number(e.created_by) === Number(user.user_id)
+        ),
+        // plus pending approvals that weren't already in events[]
+        ...facultyPendingEvents.filter(
+          (p) => !events.some((e) => e.event_id === p.event_id)
+        ),
+      ]
+    : events;
+
+  const filteredEvents = combinedEvents.filter((event) => {
+    const isCreator = Number(event.created_by) === Number(user.user_id);
+    const needsMyApproval =
+      Number(event.approved_by) === Number(user.user_id) &&
+      event.status === 'pending';
+
+    // "My Events" behavior:
+    // - Student: only events I created
+    // - Faculty: events I created OR events needing my approval
+    if (showMyEventsOnly) {
+      if (user.role === 'faculty') {
+        if (!isCreator && !needsMyApproval) return false;
+      } else {
+        if (!isCreator) return false;
+      }
+    }
+
     const matchesSearch =
       searchQuery === '' ||
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -196,9 +249,11 @@ const fetchEvents = async () => {
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // Students should only see approved events
-    const matchesStatus =
-      user?.role === 'student' ? event.status === 'approved' : true;
+    // In All Events view, show only approved events.
+    // In My Events view, show all of MY events (any status).
+    const matchesStatus = showMyEventsOnly
+      ? true
+      : event.status === 'approved';
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
@@ -548,22 +603,45 @@ const fetchEvents = async () => {
             className="pl-10"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
+        {/* All Events */}
           <Button
-            variant={selectedCategory === null ? 'default' : 'outline'}
+            variant={!showMyEventsOnly && selectedCategory === null ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setSelectedCategory(null)}
+            onClick={() => {
+              setShowMyEventsOnly(false);
+              setSelectedCategory(null);
+            }}
           >
             All Events
           </Button>
+
+          {/* My Events (only events created by this user) */}
+          <Button
+            variant={showMyEventsOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setShowMyEventsOnly(true);
+              setSelectedCategory(null); // when switching to My Events, ignore category filter
+            }}
+          >
+            My Events
+          </Button>
+
+          {/* Category filters (only for All Events view) */}
           {eventCategories.map((category) => (
             <Button
               key={category.id}
               variant={
-                selectedCategory === category.id ? 'default' : 'outline'
+                !showMyEventsOnly && selectedCategory === category.id
+                  ? 'default'
+                  : 'outline'
               }
               size="sm"
-              onClick={() => setSelectedCategory(category.id)}
+              onClick={() => {
+                setShowMyEventsOnly(false); // selecting a category goes back to All Events view
+                setSelectedCategory(category.id);
+              }}
             >
               {category.name}
             </Button>
