@@ -282,7 +282,7 @@ const fetchEvents = async () => {
     // In All Events view, show only approved events.
     // In My Events view, show all of MY events (any status).
     const matchesStatus = showMyEventsOnly
-      ? true
+      ? event.status !== "cancelled"
       : event.status === 'approved';
 
     return matchesSearch && matchesCategory && matchesStatus;
@@ -468,6 +468,41 @@ const fetchEvents = async () => {
       toast.error('Failed to reject event');
     }
   };
+
+  // ---------------- Cancel Event (creator only) ----------------
+
+  const handleCancelEvent = async (eventId) => {
+    // Find the event
+    const eventToCancel = events.find((e) => e.event_id === eventId);
+    if (!eventToCancel) return;
+
+    // Only the creator AND role = faculty/admin can cancel
+    const isCreator =
+      Number(eventToCancel.created_by) === Number(user.user_id);
+    const isFacultyOrAdmin =
+      user.role === 'faculty' || user.role === 'admin';
+
+    if (!isCreator || !isFacultyOrAdmin) return;
+
+    try {
+      await fetch(`http://localhost:5000/api/events/${eventId}/cancel`, {
+        method: 'PATCH',
+      });
+
+      // Update local state: mark status as cancelled
+      setEvents(
+        events.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'cancelled' } : e
+        )
+      );
+
+      toast.info('Event cancelled');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to cancel event');
+    }
+  };
+
 
   const formatDateTime = (dateString) => {
   if (!dateString) return '';
@@ -838,13 +873,23 @@ const fetchEvents = async () => {
                       <XCircle className="h-4 w-4 mr-1" /> Reject
                     </Button>
                   </div>
-                ) : isCreator ? (
+                ) : isCreator && (user.role === 'faculty' || user.role === 'admin') ? (
                   // ---------- CREATOR BADGE ----------
+                  <div className="w-full space-y-2">
                   <Badge variant="secondary" className="w-full justify-center">
                     You created this event
                   </Badge>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleCancelEvent(event.event_id)}
+                    className="w-full"
+                  >
+                    <XCircle className="h-0 w-4 mr-1" /> Cancel Event
+                  </Button>
+                </div>
                 ) : event.registration_required ? (
-                  // ---------- RSVP for BOTH STUDENT + FACULTY ----------
+                // ---------- RSVP for BOTH STUDENT + FACULTY ----------
                   <Button
                     className="w-full"
                     variant={isRegistered ? 'outline' : 'default'}

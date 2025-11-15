@@ -275,4 +275,21 @@ router.patch('/:event_id/reject', async (req, res) => {
   }
 });
 
+// ---------------- CANCEL action (creator: faculty/admin) ----------------
+router.patch('/:event_id/cancel', async (req, res) => {
+  const eventId = req.params.event_id;
+  const query = 'UPDATE events SET status = "cancelled" WHERE event_id = ?';
+
+  try {
+    await pool.query(query, [eventId]);
+    res.json({ message: 'Event cancelled successfully' });
+  } catch (err) {
+    console.error('Cancel event error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to cancel event', error: err.message });
+  }
+});
+
+
 module.exports = router;
