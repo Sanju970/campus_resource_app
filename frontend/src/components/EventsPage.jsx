@@ -114,14 +114,11 @@ export default function EventsPage() {
   const [registeredEvents, setRegisteredEvents] = useState([]);
   const [favoriteEvents, setFavoriteEvents] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-<<<<<<< HEAD
   const [showMyEventsOnly, setShowMyEventsOnly] = useState(false);
   // For faculty: events assigned to them for approval
   const [facultyPendingEvents, setFacultyPendingEvents] = useState([]);
-=======
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
->>>>>>> c66baa708f9203dfda3469911cfe34a1c967cc77
 
 
   // New event form state
