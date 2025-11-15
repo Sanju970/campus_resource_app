@@ -125,6 +125,28 @@ CREATE TABLE `event_registrations` (
 ) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ============================================================
+-- 7. ORGANIZATION HEADS
+-- ============================================================
+
+DROP TABLE IF EXISTS `organization_heads`;
+
+CREATE TABLE organization_heads (
+  org_id INT PRIMARY KEY,
+  org_name VARCHAR(150) NOT NULL,
+  faculty_id VARCHAR(20) NOT NULL
+);
+
+
+INSERT INTO organization_heads (org_id, org_name, faculty_id) VALUES
+(1, 'Library & Study Spaces',  'fac0001'),
+(2, 'Academic Support',        'fac0002'),
+(3, 'Career Services',         'fac0003'),
+(4, 'Health & Wellness',       'fac0004'),
+(5, 'IT Services',             'fac0005'),
+(6, 'Activities',              'fac0006');
+
+
+-- ============================================================
 -- 7. SAMPLE DATA
 -- ============================================================
 
