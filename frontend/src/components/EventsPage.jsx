@@ -234,12 +234,22 @@ export default function EventsPage() {
       return;
     }
 
+    // Capacity range check: 1–1000
+  const capacityNum = parseInt(capacity, 10);
+
+  if (
+    Number.isNaN(capacityNum) ||
+    capacityNum < 1 ||
+    capacityNum > 1000
+  ) {
+    toast.error('Capacity must be between 1 and 1000');
+    return;
+  };
+
     const event = {
       ...newEvent,
       capacity: parseInt(capacity, 10),
       created_by: user.user_id,
-      // We let backend decide status = 'pending'
-      // status: 'pending',
       registered_count: 0,
     };
 
@@ -417,6 +427,9 @@ export default function EventsPage() {
                     <Label>Capacity</Label>
                     <Input
                       type="number"
+                      min={1}
+                      max={1000}
+                      step={1}
                       value={newEvent.capacity}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, capacity: e.target.value })
