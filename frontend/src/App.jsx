@@ -17,6 +17,7 @@ import AIChat from './components/AIChat';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState as useReactState } from 'react';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
+import MyEventsDashboard from './components/MyEventsDashboard';
 
 function AppContent() {
   const { user, setUser } = useAuth();
@@ -70,6 +71,7 @@ function AppContent() {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/favorites" element={<FavoritesPage />} />
+                <Route path="/my-events" element={<MyEventsDashboard />} />
 
                 <Route
                   path="/admin"
