@@ -17,7 +17,7 @@ import AIChat from './components/AIChat';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState as useReactState } from 'react';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
-import MyEventsDashboard from './components/MyEventsDashboard';
+
 
 function AppContent() {
   const { user, setUser } = useAuth();
