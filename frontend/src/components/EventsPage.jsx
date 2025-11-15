@@ -99,6 +99,19 @@ export default function EventsPage() {
     instructor_email: '',
   });
 
+  // helper to format current time for <input type="datetime-local" />
+const getCurrentDateTimeLocal = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+const [minDateTime] = useState(() => getCurrentDateTimeLocal());
+
+
   // You can keep this simple; everyone can create
   const canCreateOrApprove = true;
 
@@ -246,12 +259,20 @@ export default function EventsPage() {
     return;
   };
 
-    const event = {
-      ...newEvent,
-      capacity: parseInt(capacity, 10),
-      created_by: user.user_id,
-      registered_count: 0,
-    };
+  // ---- Date/Time Validation ----
+const now = new Date();
+const start = new Date(date_time);
+const end = new Date(end_time);
+
+if (start < now) {
+  toast.error('Start time must be in the future');
+  return;
+}
+if (end <= start) {
+  toast.error('End time must be after start time');
+  return;
+}
+
 
     try {
       const res = await fetch('http://localhost:5000/api/events', {
@@ -325,15 +346,18 @@ export default function EventsPage() {
   };
 
   const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return dateString;
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
 
   const isEventFull = (event) =>
     event.registered_count && event.capacity
@@ -397,6 +421,7 @@ export default function EventsPage() {
                     <Input
                       type="datetime-local"
                       value={newEvent.date_time}
+                      min={minDateTime}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, date_time: e.target.value })
                       }
@@ -407,6 +432,7 @@ export default function EventsPage() {
                     <Input
                       type="datetime-local"
                       value={newEvent.end_time}
+                      min={minDateTime}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, end_time: e.target.value })
                       }
