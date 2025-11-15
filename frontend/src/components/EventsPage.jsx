@@ -100,6 +100,19 @@ export default function EventsPage() {
     instructor_email: '',
   });
 
+  // helper to format current time for <input type="datetime-local" />
+const getCurrentDateTimeLocal = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+const [minDateTime] = useState(() => getCurrentDateTimeLocal());
+
+
   // You can keep this simple; everyone can create
   const canCreateOrApprove = true;
 
@@ -258,14 +271,32 @@ const fetchEvents = async () => {
       return;
     }
 
-    const event = {
-      ...newEvent,
-      capacity: parseInt(capacity, 10),
-      created_by: user.user_id,
-      // We let backend decide status = 'pending'
-      // status: 'pending',
-      registered_count: 0,
-    };
+    // Capacity range check: 1–1000
+  const capacityNum = parseInt(capacity, 10);
+
+  if (
+    Number.isNaN(capacityNum) ||
+    capacityNum < 1 ||
+    capacityNum > 1000
+  ) {
+    toast.error('Capacity must be between 1 and 1000');
+    return;
+  };
+
+  // ---- Date/Time Validation ----
+const now = new Date();
+const start = new Date(date_time);
+const end = new Date(end_time);
+
+if (start < now) {
+  toast.error('Start time must be in the future');
+  return;
+}
+if (end <= start) {
+  toast.error('End time must be after start time');
+  return;
+}
+
 
     try {
       const res = await fetch('http://localhost:5000/api/events', {
@@ -339,15 +370,18 @@ const fetchEvents = async () => {
   };
 
   const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return dateString;
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
 
   const isEventFull = (event) =>
     event.registered_count && event.capacity
@@ -411,6 +445,7 @@ const fetchEvents = async () => {
                     <Input
                       type="datetime-local"
                       value={newEvent.date_time}
+                      min={minDateTime}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, date_time: e.target.value })
                       }
@@ -421,6 +456,7 @@ const fetchEvents = async () => {
                     <Input
                       type="datetime-local"
                       value={newEvent.end_time}
+                      min={minDateTime}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, end_time: e.target.value })
                       }
@@ -441,6 +477,9 @@ const fetchEvents = async () => {
                     <Label>Capacity</Label>
                     <Input
                       type="number"
+                      min={1}
+                      max={1000}
+                      step={1}
                       value={newEvent.capacity}
                       onChange={(e) =>
                         setNewEvent({ ...newEvent, capacity: e.target.value })
