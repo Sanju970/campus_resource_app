@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { 
@@ -5,9 +6,8 @@ import {
   Calendar, 
   GraduationCap, 
   Briefcase, 
-  Heart, 
-  Clock,
-  Bell
+  Clock, 
+  Bell 
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Badge } from './ui/badge';
@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [notificationCount, setNotificationCount] = useState(0);
 
   const userName = user?.first_name ? `${user.first_name} ${user.last_name}` : 'User';
 
@@ -26,7 +27,13 @@ export default function HomePage() {
     { title: 'Career Services', icon: Briefcase, path: '/resources', color: 'bg-orange-500' },
   ];
 
-  // Fix: handle both numeric and string roles from DB
+  const recentActivity = [
+    { title: 'Assignment submitted', description: 'Computer Science 101', time: '2 hours ago' },
+    { title: 'New announcement', description: 'Mathematics 201', time: '5 hours ago' },
+    { title: 'Grade posted', description: 'English Literature', time: '1 day ago' },
+  ];  
+
+  // Function to get content based on role (existing logic)
   const getRoleSpecificContent = () => {
     const role = user?.role || user?.role_id;
 
@@ -37,7 +44,7 @@ export default function HomePage() {
         stats: [
           { label: 'Current Courses', value: '4', icon: BookOpen },
           { label: 'Upcoming Classes', value: '2', icon: Clock },
-          { label: 'Notifications', value: '4', icon: Bell },
+          { label: 'Notifications', value: notificationCount, icon: Bell },
         ],
       };
     }
@@ -75,11 +82,20 @@ export default function HomePage() {
 
   const content = getRoleSpecificContent();
 
-  const recentActivity = [
-    { title: 'Assignment submitted', description: 'Computer Science 101', time: '2 hours ago' },
-    { title: 'New announcement', description: 'Mathematics 201', time: '5 hours ago' },
-    { title: 'Grade posted', description: 'English Literature', time: '1 day ago' },
-  ];
+  useEffect(() => {
+    async function fetchNotificationCount() {
+      if (!user?.user_id) return;
+      try {
+        const res = await fetch(`http://localhost:5000/api/notifications/user/${user.user_id}`);
+        const data = await res.json();
+        const unread = data.filter(n => !n.is_read).length;
+        setNotificationCount(unread);
+      } catch (error) {
+        console.error('Failed to fetch notification count:', error);
+      }
+    }
+    fetchNotificationCount();
+  }, [user?.user_id]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -115,8 +131,13 @@ export default function HomePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {content.stats.map((stat, index) => {
           const Icon = stat.icon;
+          const isNotifications = stat.label === 'Notifications';
           return (
-            <Card key={index}>
+            <Card
+              key={index}
+              className={isNotifications ? 'cursor-pointer hover:bg-blue-100/30 transition' : ''}
+              onClick={isNotifications ? () => navigate('/notifications') : undefined}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm">{stat.label}</CardTitle>
                 <Icon className="h-4 w-4 text-muted-foreground" />
@@ -156,6 +177,7 @@ export default function HomePage() {
           })}
         </div>
       </div>
+
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

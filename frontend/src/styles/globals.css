@@ -195,3 +195,6 @@ Celina Ann Thomas - 1002234178 */
 html {
   font-size: var(--font-size);
 }
+.bg-background {
+  background-color: var(--background) !important;
+}
