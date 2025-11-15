@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db');
+const pool = require('../config/db'); // this should be a mysql2/promise pool
 
 // ---------------- CATEGORY / FACULTY MAPPING ----------------
 
@@ -26,32 +26,28 @@ const CATEGORY_FACULTY_UID = {
 
 // ---------------- GET events (student view: approved + own events) ----------------
 router.get('/', async (req, res) => {
-  const { user_id, role } = req.query; // optional
+  const { user_id } = req.query; // optional
 
   let query;
   let params = [];
 
   if (user_id) {
-    // If user_id is sent: show all approved events + events created by this user
-    query = `
-      SELECT e.*, u.user_uid AS creator_uid,
-             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
-      FROM events e
-      LEFT JOIN users u ON e.created_by = u.user_id
-      WHERE e.status = 'approved'
-         OR (e.created_by = ? AND ? IN ('student', 'faculty', 'admin'))
-      ORDER BY e.start_datetime DESC
-    `;
-    params.push(user_id, role);
-  } else {
-    // Fallback: only approved events
+    // Approved events + events created by this user
     query = `
       SELECT e.*,
-             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count,
-             u.user_uid  AS approver_uid,
-             CONCAT(u.first_name, ' ', u.last_name) AS approver_name
+             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
       FROM events e
-      LEFT JOIN users u ON e.approved_by = u.user_id
+      WHERE e.status = 'approved'
+         OR e.created_by = ?
+      ORDER BY e.start_datetime DESC
+    `;
+    params = [user_id];
+  } else {
+    // Only approved events
+    query = `
+      SELECT e.*,
+             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
+      FROM events e
       WHERE e.status = 'approved'
       ORDER BY e.start_datetime DESC
     `;
@@ -62,7 +58,9 @@ router.get('/', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('Events fetch error:', err);
-    res.status(500).json({ message: 'Failed to fetch events', error: err.message });
+    res
+      .status(500)
+      .json({ message: 'Failed to fetch events', error: err.message });
   }
 });
 
@@ -76,12 +74,14 @@ router.get('/registrations/:user_id', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('Registration fetch error:', err);
-    res.status(500).json({ message: 'Failed to fetch registrations', error: err.message });
+    res
+      .status(500)
+      .json({ message: 'Failed to fetch registrations', error: err.message });
   }
 });
 
 // ---------------- CREATE event ----------------
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const {
     title,
     description,
@@ -109,9 +109,26 @@ router.post('/', (req, res) => {
   const categoryName = CATEGORY_NAME_BY_ID[catId] || null;
   const approverUid = CATEGORY_FACULTY_UID[catId] || null;
 
-  // helper to actually insert event once we know approved_by
-  const insertEvent = (approvedByUserId, approverEmail) => {
-    const query = `
+  try {
+    let approvedByUserId = null;
+    let approverEmail = null;
+
+    // If we have a mapped faculty UID, look up their user_id
+    if (approverUid) {
+      const facultyQuery = 'SELECT user_id, email FROM users WHERE user_uid = ? LIMIT 1';
+      const [facRows] = await pool.query(facultyQuery, [approverUid]);
+
+      const approver = facRows[0] || null;
+      if (approver) {
+        approvedByUserId = approver.user_id;
+        approverEmail = approver.email;
+      }
+    }
+
+    const finalInstructorEmail = instructor_email || approverEmail || null;
+    const finalStatus = status || 'pending';
+
+    const insertQuery = `
       INSERT INTO events
         (title, description, start_datetime, end_datetime, location,
          capacity, category_id, category, registration_required, instructor_email,
@@ -119,82 +136,49 @@ router.post('/', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const finalInstructorEmail = instructor_email || approverEmail || null;
+    const [results] = await pool.query(insertQuery, [
+      title,
+      description,
+      startTime,
+      endTime,
+      location,
+      parseInt(capacity, 10),
+      catId,
+      categoryName,
+      registration_required ? 1 : 0,
+      finalInstructorEmail,
+      created_by,
+      approvedByUserId,
+      finalStatus,
+    ]);
 
-    db.query(
-      query,
-      [
-        title,
-        description,
-        startTime,
-        endTime,
-        location,
-        parseInt(capacity, 10),
-        catId,
-        categoryName,
-        registration_required ? 1 : 0,
-        finalInstructorEmail,
-        created_by,
-        approvedByUserId || null,
-        status || 'pending',
-      ],
-      (err, results) => {
-        if (err) {
-          console.error('Error creating event:', err);
-          return res
-            .status(500)
-            .json({ message: 'Failed to create event', error: err.message });
-        }
-
-        res.json({
-          event_id: results.insertId,
-          title,
-          description,
-          start_datetime: startTime,
-          end_datetime: endTime,
-          location,
-          capacity: parseInt(capacity, 10),
-          category_id: catId,
-          category: categoryName,
-          registration_required,
-          instructor_email: finalInstructorEmail,
-          created_by,
-          approved_by: approvedByUserId || null,
-          status: status || 'pending',
-          registered_count: 0,
-        });
-      }
-    );
-  };
-
-  // If we have a mapped faculty UID, look up their user_id
-  if (approverUid) {
-    const facultyQuery =
-      'SELECT user_id, email FROM users WHERE user_uid = ? LIMIT 1';
-
-    db.query(facultyQuery, [approverUid], (facErr, facRows) => {
-      if (facErr) {
-        console.error('Error finding faculty approver:', facErr);
-        return res.status(500).json({
-          message: 'Failed to determine faculty approver',
-          error: facErr.message,
-        });
-      }
-
-      const approver = facRows[0] || null;
-      const approverId = approver ? approver.user_id : null;
-      const approverEmail = approver ? approver.email : null;
-
-      insertEvent(approverId, approverEmail);
+    res.status(201).json({
+      event_id: results.insertId,
+      title,
+      description,
+      start_datetime: startTime,
+      end_datetime: endTime,
+      location,
+      capacity: parseInt(capacity, 10),
+      category_id: catId,
+      category: categoryName,
+      registration_required,
+      instructor_email: finalInstructorEmail,
+      created_by,
+      approved_by: approvedByUserId,
+      status: finalStatus,
+      registered_count: 0,
     });
-  } else {
-    // No category mapping -> insert with no approver
-    insertEvent(null, null);
+  } catch (err) {
+    console.error('Error creating event:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to create event', error: err.message });
   }
 });
 
 // ---------------- GET pending events for a specific faculty ----------------
-router.get('/faculty/:faculty_id/pending', (req, res) => {
+router.get('/faculty/:faculty_id/pending', async (req, res) => {
   const facultyId = req.params.faculty_id;
 
   const query = `
@@ -206,89 +190,89 @@ router.get('/faculty/:faculty_id/pending', (req, res) => {
     ORDER BY e.start_datetime DESC
   `;
 
-  db.query(query, [facultyId], (err, results) => {
-    if (err) {
-      console.error('Faculty pending events fetch error:', err);
-      return res
-        .status(500)
-        .json({
-          message: 'Failed to fetch faculty pending events',
-          error: err.message,
-        });
-    }
+  try {
+    const [results] = await pool.query(query, [facultyId]);
     res.json(results);
-  });
+  } catch (err) {
+    console.error('Faculty pending events fetch error:', err);
+    res
+      .status(500)
+      .json({
+        message: 'Failed to fetch faculty pending events',
+        error: err.message,
+      });
+  }
 });
 
 // ---------------- RSVP endpoints ----------------
-router.post('/:event_id/rsvp', (req, res) => {
+router.post('/:event_id/rsvp', async (req, res) => {
   const eventId = req.params.event_id;
   const { user_id } = req.body;
   const query =
     'INSERT INTO event_registrations (event_id, user_id) VALUES (?, ?)';
 
-  db.query(query, [eventId, user_id], (err) => {
-    if (err) {
-      if (err.code === 'ER_DUP_ENTRY') {
-        return res
-          .status(400)
-          .json({ message: 'Already registered for this event' });
-      }
-      console.error('RSVP error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to register', error: err.message });
-    }
+  try {
+    await pool.query(query, [eventId, user_id]);
     res.json({ message: 'RSVP successful' });
-  });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res
+        .status(400)
+        .json({ message: 'Already registered for this event' });
+    }
+    console.error('RSVP error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to register', error: err.message });
+  }
 });
 
-router.delete('/:event_id/rsvp', (req, res) => {
+router.delete('/:event_id/rsvp', async (req, res) => {
   const eventId = req.params.event_id;
   const { user_id } = req.body;
   const query =
     'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?';
 
-  db.query(query, [eventId, user_id], (err) => {
-    if (err) {
-      console.error('Cancel RSVP error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to cancel RSVP', error: err.message });
-    }
+  try {
+    await pool.query(query, [eventId, user_id]);
     res.json({ message: 'RSVP cancelled successfully' });
-  });
+  } catch (err) {
+    console.error('Cancel RSVP error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to cancel RSVP', error: err.message });
+  }
 });
 
 // ---------------- APPROVE / REJECT actions ----------------
-router.patch('/:event_id/approve', (req, res) => {
+router.patch('/:event_id/approve', async (req, res) => {
   const eventId = req.params.event_id;
   const query = 'UPDATE events SET status = "approved" WHERE event_id = ?';
 
-  db.query(query, [eventId], (err) => {
-    if (err) {
-      console.error('Approve event error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to approve event', error: err.message });
-    }
+  try {
+    await pool.query(query, [eventId]);
     res.json({ message: 'Event approved successfully' });
-  });
+  } catch (err) {
+    console.error('Approve event error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to approve event', error: err.message });
+  }
 });
 
-router.patch('/:event_id/reject', (req, res) => {
+router.patch('/:event_id/reject', async (req, res) => {
   const eventId = req.params.event_id;
   const query = 'UPDATE events SET status = "rejected" WHERE event_id = ?';
 
-  db.query(query, [eventId], (err) => {
-    if (err) {
-      console.error('Reject event error:', err);
-      return res
-        .status(500)
-        .json({ message: 'Failed to reject event', error: err.message });
-    }
+  try {
+    await pool.query(query, [eventId]);
     res.json({ message: 'Event rejected successfully' });
-  });
+  } catch (err) {
+    console.error('Reject event error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to reject event', error: err.message });
+  }
 });
 
 module.exports = router;
