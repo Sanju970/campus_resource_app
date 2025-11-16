@@ -253,9 +253,9 @@ const fetchEvents = async () => {
 
   const filteredEvents = combinedEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
+    const isApprover = Number(event.approved_by) === Number(user.user_id);
     const needsMyApproval =
-      Number(event.approved_by) === Number(user.user_id) &&
-      event.status === 'pending';
+      isApprover && event.status === 'pending';
 
     // "My Events" behavior:
     // - Student: only events I created
@@ -443,17 +443,27 @@ const fetchEvents = async () => {
         method: 'PATCH',
       });
 
-      // Remove from local list (since it's no longer pending)
-      setEvents(events.filter((e) => e.event_id !== eventId));
-      setFacultyPendingEvents(
-        facultyPendingEvents.filter((e) => e.event_id !== eventId)
+      // ✅ Update status locally instead of removing the event
+      setEvents((prevEvents) =>
+        prevEvents.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'approved' } : e
+        )
       );
+
+      // (Optional) also update in facultyPendingEvents if you want
+      setFacultyPendingEvents((prev) =>
+        prev.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'approved' } : e
+        )
+      );
+
       toast.success('Event approved');
     } catch (err) {
       console.error(err);
       toast.error('Failed to approve event');
     }
   };
+    
 
   const handleRejectEvent = async (eventId) => {
     if (user.role !== 'faculty') return;
@@ -463,11 +473,20 @@ const fetchEvents = async () => {
         method: 'PATCH',
       });
 
-      // Remove from local list (since it's no longer pending)
-      setEvents(events.filter((e) => e.event_id !== eventId));
-      setFacultyPendingEvents(
-        facultyPendingEvents.filter((e) => e.event_id !== eventId)
+      // ✅ Update status locally instead of removing the event
+      setEvents((prevEvents) =>
+        prevEvents.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'rejected' } : e
+        )
       );
+
+      // (Optional) also update in facultyPendingEvents if you want
+      setFacultyPendingEvents((prev) =>
+        prev.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'rejected' } : e
+        )
+      );
+
       toast.info('Event rejected');
     } catch (err) {
       console.error(err);
@@ -779,6 +798,7 @@ const fetchEvents = async () => {
           const isFavorite = favoriteEvents.includes(event.event_id);
           const isFull = isEventFull(event);
           const isCreator = Number(event.created_by) === Number(user.user_id);
+          const isApprover = Number(event.approved_by) === Number(user.user_id);
 
           let statusLabel = null;
           if (isCreator) {
@@ -801,6 +821,14 @@ const fetchEvents = async () => {
             } else if (event.status === 'rejected') {
               statusLabel = 'Rejected';
             }
+          } else if (isApprover) {
+            if (event.status === 'pending') {
+              statusLabel = 'Pending your approval';
+            } else if (event.status === 'approved') {
+              statusLabel = 'Approved';
+            } else if (event.status === 'rejected') {
+              statusLabel = 'Rejected';
+            } 
           } else if (event.status && event.status !== 'approved') {
             // For non-creators, we can still show simple status for pending/rejected
             statusLabel = event.status;
