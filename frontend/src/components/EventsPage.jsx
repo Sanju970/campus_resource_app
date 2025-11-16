@@ -279,6 +279,20 @@ export default function EventsPage() {
   // ---------------- RSVP (students + faculty) ----------------
   const handleRSVP = async (eventId) => {
     try {
+      const alreadyRegistered = registeredEvents.includes(eventId);
+      if (!alreadyRegistered) {
+      const event = events.find((e) => e.event_id === eventId);
+          if (!event) {
+        toast.error('Event not found');
+        return;
+      }
+      const currentCount = event.registered_count || 0;
+      const capacity = event.capacity || 0;
+      if (capacity && currentCount >= capacity) {
+        toast.error('This event is full. You cannot register.');
+        return;
+      }
+    }
       let res;
 
       if (registeredEvents.includes(eventId)) {
@@ -1006,7 +1020,7 @@ export default function EventsPage() {
                         variant="secondary"
                         className="w-full justify-center"
                       >
-                        You created this event
+                        You  this event
                       </Badge>
                       <Button
                         size="sm"
