@@ -181,18 +181,24 @@ router.post('/', async (req, res) => {
 router.get('/faculty/:faculty_id/pending', async (req, res) => {
   const facultyId = req.params.faculty_id;
 
+  if (!facultyId) {
+    return res
+      .status(400)
+      .json({ message: 'Invalid faculty id for pending events' });
+  }
+
   const query = `
     SELECT e.*,
       (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
     FROM events e
     WHERE e.approved_by = ?
       AND e.status = 'pending'
-    ORDER BY e.start_datetime DESC
+    ORDER BY e.start_datetime ASC
   `;
 
   try {
-    const [results] = await pool.query(query, [facultyId]);
-    res.json(results);
+    const [rows] = await pool.query(query, [facultyId]);
+    res.json(rows);
   } catch (err) {
     console.error('Faculty pending events fetch error:', err);
     res

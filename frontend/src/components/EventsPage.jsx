@@ -240,18 +240,16 @@ const fetchEvents = async () => {
   // Combine base events for faculty "My Events" view:
   // - events I created (from /api/events)
   // - events needing my approval (from /faculty/:id/pending)
-  const combinedEvents = showMyEventsOnly && user.role === 'faculty'
-    ? [
-        // my created events
-        ...events.filter(
-          (e) => Number(e.created_by) === Number(user.user_id)
-        ),
-        // plus pending approvals that weren't already in events[]
-        ...facultyPendingEvents.filter(
-          (p) => !events.some((e) => e.event_id === p.event_id)
-        ),
-      ]
-    : events;
+  const combinedEvents =
+    user.role === 'faculty'
+      ? [
+          ...events,
+          ...facultyPendingEvents.filter(
+            (p) => !events.some((e) => e.event_id === p.event_id)
+          ),
+        ]
+      : events;
+
 
   const filteredEvents = combinedEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
@@ -281,9 +279,11 @@ const fetchEvents = async () => {
 
     // In All Events view, show only approved events.
     // In My Events view, show all of MY events (any status).
-    const matchesStatus = showMyEventsOnly
-      ? event.status !== "cancelled"
-      : event.status === 'approved';
+   const matchesStatus = showMyEventsOnly
+    ? true
+    : user.role === 'faculty'
+    ? event.status === 'approved' || needsMyApproval
+    : event.status === 'approved';
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
@@ -876,8 +876,10 @@ const fetchEvents = async () => {
                       <XCircle className="h-4 w-4 mr-1" /> Reject
                     </Button>
                   </div>
-                ) : isCreator && (user.role === 'faculty' || user.role === 'admin') ? (
-                  // ---------- CREATOR BADGE ----------
+                ) : isCreator ? (
+                  // ---------- CREATOR VIEW ----------
+                  user.role === 'faculty' || user.role === 'admin' ? (
+                    //faculty/admin creator
                   <div className="w-full space-y-2">
                   <Badge variant="secondary" className="w-full justify-center">
                     You created this event
@@ -891,8 +893,16 @@ const fetchEvents = async () => {
                     <XCircle className="h-0 w-4 mr-1" /> Cancel Event
                   </Button>
                 </div>
-                ) : event.registration_required ? (
-                // ---------- RSVP for BOTH STUDENT + FACULTY ----------
+                ) : (
+                    // student creator
+                    <div className="w-full space-y-2">
+                      <Badge variant="secondary" className="w-full justify-center">
+                        You created this event
+                  </Badge>
+                 </div>
+                  )
+                  ) : event.registration_required ? (
+                  // ---------- RSVP for BOTH STUDENT + FACULTY ----------
                   <Button
                     className="w-full"
                     variant={isRegistered ? 'outline' : 'default'}
@@ -911,8 +921,6 @@ const fetchEvents = async () => {
                     No Registration Required
                   </Badge>
                 )}
-
-
               </CardContent>
             </Card>
           );
