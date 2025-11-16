@@ -795,7 +795,7 @@ export default function EventsPage() {
             All Events
           </Button>
 
-          {/* My Created Events */}
+          {/*Created Events*/}
           <Button
             variant={showCreatedEventsOnly ? 'default' : 'outline'}
             size="sm"
@@ -805,7 +805,7 @@ export default function EventsPage() {
               setSelectedCategory(null);
             }}
           >
-            My Created Events
+          Created Events
           </Button>
 
           {/* My Events (registered) */}
@@ -818,7 +818,7 @@ export default function EventsPage() {
               setSelectedCategory(null);
             }}
           >
-            My Events
+            Registered Events
           </Button>
 
           {/* Category filters (only for All Events view visually, but we keep them active) */}
