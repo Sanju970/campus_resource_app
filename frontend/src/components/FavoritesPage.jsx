@@ -21,7 +21,7 @@ export default function FavoritesPage() {
   });
 
 
-  const favoriteEvents = sampleEvents.filter(event => favoriteEventIds.includes(event.id));
+  const favoriteEvents = [];
   const favoriteAnnouncements = sampleAnnouncements.filter(announcement => 
     favoriteAnnouncementIds.includes(announcement.id)
   );
