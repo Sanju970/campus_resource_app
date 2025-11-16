@@ -12,9 +12,8 @@ import {
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from './ui/select';
-import { Search, Plus, Heart, Info, AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
+  Search, Plus, Info, AlertCircle, AlertTriangle, CheckCircle, Heart,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AnnouncementsEventsPage() {
@@ -22,11 +21,11 @@ export default function AnnouncementsEventsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState(null);
   const [filterMine, setFilterMine] = useState(false);
+  const [filterFavorites, setFilterFavorites] = useState(false);
 
   const [announcements, setAnnouncements] = useState([]);
-  const [favoriteAnnouncements, setFavoriteAnnouncements] = useState([]);
+  const [userMap, setUserMap] = useState({});
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [userMap, setUserMap] = useState({}); // user_id -> {first_name, last_name}
 
   const [newAnnouncement, setNewAnnouncement] = useState({
     title: '',
@@ -34,77 +33,69 @@ export default function AnnouncementsEventsPage() {
     priority: 'medium',
   });
 
-  const [events, setEvents] = useState([]);
-  const [isCreateEventDialogOpen, setIsCreateEventDialogOpen] = useState(false);
-
-  const [newEvent, setNewEvent] = useState({
-    title: '',
-    description: '',
-    start_datetime: '',
-    end_datetime: '',
-    location: '',
-    capacity: '',
-    category: '',
-    instructor_email: '',
-    registration_required: false,
-  });
+  const [favoriteAnnouncements, setFavoriteAnnouncements] = useState([]);
+  const [favoriteObjects, setFavoriteObjects] = useState({});
 
   const canCreate = user?.role === 'faculty' || user?.role === 'admin';
 
-  // Fetch users for announcements in batch
-  useEffect(() => {
-    const fetchAnnouncementUsers = async () => {
-      const uniqueUserIds = [
-        ...new Set(announcements.map(a => a.created_by)),
-      ].filter(Boolean);
-
-      // Skip if unchanged or already mapped.
-      const notFetched = uniqueUserIds.filter(id => !userMap[id]);
-      if (notFetched.length === 0) return;
-
-      // Fetch details for each user
-      const promises = notFetched.map(id =>
-        fetch(`http://localhost:5000/api/user/${id}`)
-          .then(res => res.ok ? res.json() : null)
-          .catch(() => null)
-      );
-      const results = await Promise.all(promises);
-      // Build new user map
-      const newMap = {};
-      notFetched.forEach((id, idx) => {
-        if (results[idx]) newMap[id] = results[idx];
-      });
-      setUserMap(current => ({ ...current, ...newMap }));
-    };
-    if (announcements.length > 0) fetchAnnouncementUsers();
-  }, [announcements]);
-
-  // Fetch announcements and events
   const fetchAnnouncements = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/announcements');
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
       setAnnouncements(data);
-    } catch (err) {
+    } catch {
       toast.error('Failed to fetch announcements');
     }
   };
-  const fetchEvents = async () => {
+
+  useEffect(() => {
+    const fetchAnnouncementUsers = async () => {
+      const uniqueUserIds = [
+        ...new Set(announcements.map(a => a.created_by)),
+      ].filter(Boolean);
+      const notFetched = uniqueUserIds.filter(id => !userMap[id]);
+      if (!notFetched.length) return;
+      const promises = notFetched.map(id =>
+        fetch(`http://localhost:5000/api/user/${id}`)
+          .then(res => (res.ok ? res.json() : null))
+          .catch(() => null),
+      );
+      const results = await Promise.all(promises);
+      const newMap = {};
+      notFetched.forEach((id, idx) => {
+        if (results[idx]) newMap[id] = results[idx];
+      });
+      setUserMap(curr => ({ ...curr, ...newMap }));
+    };
+    if (announcements.length > 0) fetchAnnouncementUsers();
+  }, [announcements]);
+
+  const fetchFavorites = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/events');
-      if (!res.ok) throw new Error('Network error');
+      if (!user?.user_id) return;
+      const res = await fetch(`http://localhost:5000/api/favorites/user/${user.user_id}`);
+      if (!res.ok) throw new Error('Failed to fetch favorites');
       const data = await res.json();
-      setEvents(data);
-    } catch (err) {
-      toast.error('Failed to fetch events');
+      const announcementFavs = data.filter(fav => fav.item_type === 'announcement');
+      setFavoriteAnnouncements(announcementFavs.map(fav => fav.item_id));
+      const favObjMap = {};
+      announcementFavs.forEach(fav => {
+        favObjMap[fav.item_id] = fav;
+      });
+      setFavoriteObjects(favObjMap);
+    } catch {
+      toast.error('Failed to load favorites');
     }
   };
 
   useEffect(() => {
     fetchAnnouncements();
-    fetchEvents();
   }, []);
+
+  useEffect(() => {
+    if (user?.user_id) fetchFavorites();
+  }, [user]);
 
   const handleCreateAnnouncement = async () => {
     const { title, content, priority } = newAnnouncement;
@@ -120,134 +111,110 @@ export default function AnnouncementsEventsPage() {
       });
       if (!res.ok) throw new Error('Failed to create announcement');
       const savedAnnouncement = await res.json();
-      setAnnouncements([savedAnnouncement, ...announcements]);
+      setAnnouncements(prev => [savedAnnouncement, ...prev]);
       setIsCreateDialogOpen(false);
-      setNewAnnouncement({
-        title: '',
-        content: '',
-        priority: 'medium',
+      setNewAnnouncement({ title: '', content: '', priority: 'medium' });
+      toast.success('Announcement published!');
+    } catch {
+      toast.error('Could not create announcement');
+    }
+  };
+
+  const handleAddFavorite = async (announcementId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/favorites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.user_id,
+          item_type: 'announcement',
+          item_id: announcementId,
+        }),
       });
-      toast.success('Announcement published successfully!');
-    } catch (err) {
-      toast.error('Failed to create announcement');
+      if (res.status === 409) {
+        toast.info('Already favorited');
+      } else if (!res.ok) {
+        throw new Error('API error');
+      } else {
+        toast.success('Added to favorites');
+      }
+      await fetchFavorites();
+    } catch {
+      toast.error('Could not favorite item');
     }
   };
 
-  const toggleFavorite = (announcementId) => {
-    if (favoriteAnnouncements.includes(announcementId)) {
-      setFavoriteAnnouncements(
-        favoriteAnnouncements.filter((id) => id !== announcementId)
-      );
-      toast.info('Removed from favorites');
-    } else {
-      setFavoriteAnnouncements([...favoriteAnnouncements, announcementId]);
-      toast.success('Added to favorites');
+  const handleRemoveFavorite = async (announcementId) => {
+    try {
+      const favObj = favoriteObjects[announcementId];
+      if (!favObj) {
+        toast.error('Not in favorites');
+        return;
+      }
+      const delRes = await fetch(`http://localhost:5000/api/favorites/${favObj.favorite_id}`, { method: 'DELETE' });
+      if (!delRes.ok) throw new Error('API error');
+      toast.success('Removed from favorites');
+      await fetchFavorites();
+    } catch {
+      toast.error('Could not remove favorite');
     }
   };
 
-  // ---- Priority helpers ----
   const getPriorityIcon = (priority) => {
     switch (priority) {
-      case 'urgent':
-        return <AlertCircle className="h-4 w-4" />;
-      case 'high':
-        return <AlertTriangle className="h-4 w-4" />;
-      case 'medium':
-        return <Info className="h-4 w-4" />;
-      case 'low':
-        return <CheckCircle className="h-4 w-4" />;
-      default:
-        return <Info className="h-4 w-4" />;
+      case 'urgent': return <AlertCircle className="h-4 w-4" />;
+      case 'high': return <AlertTriangle className="h-4 w-4" />;
+      case 'medium': return <Info className="h-4 w-4" />;
+      case 'low': return <CheckCircle className="h-4 w-4" />;
+      default: return <Info className="h-4 w-4" />;
     }
   };
+
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'urgent':
-        return 'bg-red-500 text-white';
-      case 'high':
-        return 'bg-orange-500 text-white';
-      case 'medium':
-        return 'bg-blue-500 text-white';
-      case 'low':
-        return 'bg-gray-500 text-white';
-      default:
-        return 'bg-gray-500 text-white';
+      case 'urgent': return 'bg-red-500 text-white';
+      case 'high': return 'bg-orange-500 text-white';
+      case 'medium': return 'bg-blue-500 text-white';
+      case 'low': return 'bg-gray-500 text-white';
+      default: return 'bg-gray-500 text-white';
     }
   };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   };
 
-  // ---- Filter and Sort Announcements ----
-  const filteredAnnouncements = announcements.filter((announcement) => {
+  const filteredAnnouncements = announcements.filter(announcement => {
     const matchesSearch =
       searchQuery === '' ||
       announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       announcement.content.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPriority =
-      !selectedPriority || announcement.priority === selectedPriority;
-    const matchesOwner = filterMine
-      ? announcement.created_by === user?.user_id
-      : true;
-    // Only show announcements less than 24hrs old
+
+    const matchesPriority = selectedPriority ? announcement.priority === selectedPriority : true;
+
+    const matchesOwner = filterMine ? announcement.created_by === user?.user_id : true;
+
+    // Show only favorites when checkbox is checked
+    const matchesFavorite = filterFavorites ? favoriteAnnouncements.includes(announcement.announcement_id) : true;
+
     const isNotExpired = new Date(announcement.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return matchesSearch && matchesPriority && matchesOwner && isNotExpired;
+
+    return matchesSearch && matchesPriority && matchesOwner && matchesFavorite && isNotExpired;
   });
 
-  const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-
-  // Events
-  const handleCreateEvent = async () => {
-    const { title, description, start_datetime, end_datetime, location } = newEvent;
-    if (!title || !description || !start_datetime || !end_datetime || !location) {
-      toast.error('Please enter required fields');
-      return;
-    }
-    try {
-      const res = await fetch('http://localhost:5000/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newEvent, created_by: user.user_id }),
-      });
-      if (!res.ok) throw new Error('Create failed');
-      const savedEvent = await res.json();
-      setEvents([savedEvent, ...events]);
-      setIsCreateEventDialogOpen(false);
-      setNewEvent({
-        title: '',
-        description: '',
-        start_datetime: '',
-        end_datetime: '',
-        location: '',
-        capacity: '',
-        category: '',
-        instructor_email: '',
-        registration_required: false,
-      });
-      toast.success('Event created!');
-    } catch (err) {
-      toast.error('Failed to create event');
-    }
-  };
+  const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-12">
-      {/* Announcement Header & Create */}
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <h1>Announcements</h1>
-          <p className="text-muted-foreground">
-            Stay updated with important campus announcements
-          </p>
+          <p className="text-muted-foreground">Stay updated with important campus announcements</p>
         </div>
         {canCreate && (
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -267,9 +234,7 @@ export default function AnnouncementsEventsPage() {
                   <Input
                     id="title"
                     value={newAnnouncement.title}
-                    onChange={(e) =>
-                      setNewAnnouncement({ ...newAnnouncement, title: e.target.value })
-                    }
+                    onChange={e => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
                     placeholder="e.g., Library Hours Extended"
                   />
                 </div>
@@ -278,9 +243,7 @@ export default function AnnouncementsEventsPage() {
                   <Textarea
                     id="content"
                     value={newAnnouncement.content}
-                    onChange={(e) =>
-                      setNewAnnouncement({ ...newAnnouncement, content: e.target.value })
-                    }
+                    onChange={e => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
                     placeholder="Announcement details..."
                     rows={5}
                   />
@@ -288,22 +251,18 @@ export default function AnnouncementsEventsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority</Label>
-                    <Select
-                      value={newAnnouncement.priority}
-                      onValueChange={(value) =>
-                        setNewAnnouncement({ ...newAnnouncement, priority: value })
-                      }
-                    >
-                      <SelectTrigger id="priority">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex flex-wrap gap-2">
+                      {['urgent', 'high', 'medium', 'low'].map(p => (
+                        <Button
+                          key={p}
+                          variant={selectedPriority === p ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedPriority(selectedPriority === p ? null : p)}
+                        >
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <Button onClick={handleCreateAnnouncement} className="w-full">
@@ -315,7 +274,6 @@ export default function AnnouncementsEventsPage() {
         )}
       </div>
 
-      {/* Announcement Search and Filter */}
       <div className="space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -323,11 +281,12 @@ export default function AnnouncementsEventsPage() {
             type="search"
             placeholder="Search announcements..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={e => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-4 items-center">
+          {/* Priority Buttons */}
           <Button
             variant={selectedPriority === null ? 'default' : 'outline'}
             size="sm"
@@ -335,16 +294,29 @@ export default function AnnouncementsEventsPage() {
           >
             All Priorities
           </Button>
-          {['urgent', 'high', 'medium', 'low'].map((p) => (
+          {['urgent', 'high', 'medium', 'low'].map(p => (
             <Button
               key={p}
               variant={selectedPriority === p ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSelectedPriority(p)}
+              onClick={() => setSelectedPriority(selectedPriority === p ? null : p)}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </Button>
           ))}
+
+          {/* My Favorites Checkbox */}
+          <Label htmlFor="favorites-checkbox" className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              id="favorites-checkbox"
+              type="checkbox"
+              checked={filterFavorites}
+              onChange={() => setFilterFavorites(!filterFavorites)}
+              className="cursor-pointer"
+            />
+            Show My Favorites Only
+          </Label>
+
           {user?.role === 'admin' && (
             <Button
               variant={filterMine ? 'default' : 'outline'}
@@ -357,11 +329,10 @@ export default function AnnouncementsEventsPage() {
         </div>
       </div>
 
-      {/* Announcements List */}
       <div className="space-y-4">
-        {sortedAnnouncements.map((announcement) => {
-          const isFavorite = favoriteAnnouncements.includes(announcement.announcement_id);
+        {sortedAnnouncements.map(announcement => {
           const poster = userMap[announcement.created_by];
+          const isFavorite = favoriteAnnouncements.includes(announcement.announcement_id);
           return (
             <Card key={announcement.announcement_id}>
               <CardHeader>
@@ -385,15 +356,18 @@ export default function AnnouncementsEventsPage() {
                         {announcement.priority.toUpperCase()}
                       </span>
                     </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => toggleFavorite(announcement.announcement_id)}
-                    >
-                      <Heart
-                        className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`}
-                      />
-                    </Button>
+                  </div>
+                  <div
+                    className="cursor-pointer"
+                    onClick={() =>
+                      isFavorite
+                        ? handleRemoveFavorite(announcement.announcement_id)
+                        : handleAddFavorite(announcement.announcement_id)
+                    }
+                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    <Heart size={24} fill={isFavorite ? 'red' : 'none'} stroke={isFavorite ? 'red' : 'gray'} />
                   </div>
                 </div>
               </CardHeader>
@@ -405,164 +379,9 @@ export default function AnnouncementsEventsPage() {
         })}
         {sortedAnnouncements.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              No announcements found matching your criteria.
-            </p>
+            <p className="text-muted-foreground">No announcements found matching your criteria.</p>
           </div>
         )}
-      </div>
-
-      {/* Events Section */}
-      <div>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1>Events</h1>
-            <p className="text-muted-foreground">
-              Discover and participate in campus events
-            </p>
-          </div>
-          {canCreate && (
-            <Dialog open={isCreateEventDialogOpen} onOpenChange={setIsCreateEventDialogOpen}>
-              {/* <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Event
-                </Button>
-              </DialogTrigger> */}
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Create New Event</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="event-title">Title</Label>
-                    <Input
-                      id="event-title"
-                      value={newEvent.title}
-                      onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                      placeholder="e.g., Career Fair 2025"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="event-description">Description</Label>
-                    <Textarea
-                      id="event-description"
-                      value={newEvent.description}
-                      onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                      placeholder="Event details..."
-                      rows={5}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="event-location">Location</Label>
-                    <Input
-                      id="event-location"
-                      value={newEvent.location}
-                      onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                      placeholder="Venue"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="start_datetime">Start Date & Time</Label>
-                      <Input
-                        type="datetime-local"
-                        id="start_datetime"
-                        value={newEvent.start_datetime}
-                        onChange={(e) => setNewEvent({ ...newEvent, start_datetime: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="end_datetime">End Date & Time</Label>
-                      <Input
-                        type="datetime-local"
-                        id="end_datetime"
-                        value={newEvent.end_datetime}
-                        onChange={(e) => setNewEvent({ ...newEvent, end_datetime: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="event-category">Category</Label>
-                    <Input
-                      id="event-category"
-                      value={newEvent.category}
-                      onChange={(e) => setNewEvent({ ...newEvent, category: e.target.value })}
-                      placeholder="Category"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="event-capacity">Capacity</Label>
-                    <Input
-                      type="number"
-                      id="event-capacity"
-                      value={newEvent.capacity}
-                      onChange={(e) => setNewEvent({ ...newEvent, capacity: e.target.value })}
-                      placeholder="Max Participants"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="event-instructor">Instructor Email</Label>
-                    <Input
-                      id="event-instructor"
-                      value={newEvent.instructor_email}
-                      onChange={(e) => setNewEvent({ ...newEvent, instructor_email: e.target.value })}
-                      placeholder="Instructor Email (optional)"
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="registration"
-                      checked={newEvent.registration_required}
-                      onChange={(e) =>
-                        setNewEvent({ ...newEvent, registration_required: e.target.checked })
-                      }
-                    />
-                    <Label htmlFor="registration">Registration Required</Label>
-                  </div>
-                  <Button onClick={handleCreateEvent} className="w-full">
-                    Publish Event
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-        <div className="space-y-4">
-          {events.map((event) => (
-            <Card key={event.event_id}>
-              <CardHeader>
-                <CardTitle className="text-lg">{event.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p>{event.description}</p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{formatDate(event.start_datetime)} - {formatDate(event.end_datetime)}</span>
-                  <span>•</span>
-                  <span>{event.location}</span>
-                  <span>•</span>
-                  <span>Capacity: {event.capacity}</span>
-                  {event.instructor_email && (
-                    <>
-                      <span>•</span>
-                      <span>Instructor: {event.instructor_email}</span>
-                    </>
-                  )}
-                  <span>•</span>
-                  <span>Category: {event.category}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {events.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                No events found.
-              </p>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
