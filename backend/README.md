@@ -27,3 +27,13 @@
 - Passwords are hashed with bcryptjs.
 - Students creating events will create them with `status = 'pending'`; faculty/admin creations are automatically `approved`.
 - This is a starter project — extend controllers, validation, and error handling as needed.
+
+# SIGN UP (DO NOT CHANGE THE THESE)
+- STUDENT - ID - STU0001 - Test@1234
+- FACULTY - ID - FAC0001 - Test@1234 - HEAD OF ORGANIZATION Library & Study Spaces
+- FACULTY - ID - FAC0002 - Test@1234 - HEAD OF ORGANIZATION Academic Support
+- FACULTY - ID - FAC0003 - Test@1234 - HEAD OF ORGANIZATION Career Services
+- FACULTY - ID - FAC0004 - Test@1234 - HEAD OF ORGANIZATION Health & Wellness
+- FACULTY - ID - FAC0005 - Test@1234 - HEAD OF ORGANIZATION IT Services
+- FACULTY - ID - FAC0006 - Test@1234 - HEAD OF ORGANIZATION Activities
+- ADMIN - ID - ADM0001 - Test@1234 
