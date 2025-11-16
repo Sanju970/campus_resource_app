@@ -835,7 +835,13 @@ const fetchEvents = async () => {
                 </div>
                 <CardTitle className="text-lg">{event.title}</CardTitle>
                 <CardDescription>{event.description}</CardDescription>
+                {statusLabel && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {statusLabel}
+                  </p>
+                )}
               </CardHeader>
+              
 
               <CardContent className="space-y-4">
                 <div className="space-y-2 text-sm">
