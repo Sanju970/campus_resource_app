@@ -402,15 +402,6 @@ export default function EventsPage() {
     const start = new Date(combinedStart);
     const end = new Date(combinedEnd);
 
-    if (start < now) {
-      toast.error('Start time must be in the future');
-      return;
-    }
-    if (end <= start) {
-      toast.error('End time must be after start time');
-      return;
-    }
-
     const event = {
       ...newEvent,
       start_datetime: combinedStart,
@@ -900,7 +891,7 @@ export default function EventsPage() {
               className={cardClasses}
               style={isRegistered ? { backgroundColor: '#ecfdf3' } : undefined} // 👈 green tint
             >
-              
+
               <CardHeader>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex flex-wrap gap-2">
