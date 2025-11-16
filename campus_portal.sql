@@ -177,11 +177,15 @@ VALUES
 
 -- Sample Announcements
 INSERT INTO announcements (title, content, priority, created_by)
-VALUES 
-('Library Hours Extended', 'The library will now be open until 10 PM on weekdays.', 'medium', 1),
-('Campus Maintenance', 'The main campus parking lot will be closed for maintenance.', 'high', 1),
-('Guest Lecture on AI', 'Join us for a guest lecture on Artificial Intelligence by Dr. Smith.', 'urgent', 1),
-('Cafeteria Menu Update', 'New vegetarian options available from next week.', 'low', 1);
+VALUES
+('Faculty Meeting Scheduled', 'A mandatory faculty meeting will be held in the Seminar Hall on Friday at 3 PM.', 'high', 2),
+('Research Grant Applications', 'Faculty members are encouraged to apply for the upcoming government-funded research grants.', 'medium', 2),
+('Faculty Development Workshop', 'A workshop on modern teaching techniques will be conducted next Monday.', 'low', 2),
+('Performance Review Reminder', 'Faculty are reminded to submit their annual performance reports by the end of this month.', 'urgent', 2),
+('New Publication Guidelines', 'Updated guidelines for publishing research papers have been released by the Academic Council.', 'medium', 2),
+('Conference Travel Support', 'Faculty can now apply for travel reimbursement for attending international conferences.', 'low', 2),
+('Curriculum Review Committee', 'Faculty volunteers are requested to join the curriculum review committee for the upcoming academic year.', 'medium', 2),
+('Faculty Leave Policy Update', 'The leave policy for faculty has been revised. Please check the HR portal for details.', 'high', 2);
 
 -- ============================================================
 -- END OF SCRIPT
