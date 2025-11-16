@@ -900,17 +900,7 @@ export default function EventsPage() {
               className={cardClasses}
               style={isRegistered ? { backgroundColor: '#ecfdf3' } : undefined} // 👈 green tint
             >
-
-              <CardHeader>
-                
-                <CardTitle className="text-lg">{event.title}</CardTitle>
-                <CardDescription>{event.description}</CardDescription>
-                {statusLabel && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {statusLabel}
-                  </p>
-                )}
-              </CardHeader>
+              
               <CardHeader>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex flex-wrap gap-2">
