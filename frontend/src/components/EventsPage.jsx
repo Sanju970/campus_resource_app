@@ -373,7 +373,7 @@ const fetchFavoriteEvents = async () => {
     }
   };
 
-  // ---------------- Favorite (with backend) ----------------
+// ---------------- Favorite (with backend) ----------------
 const toggleFavorite = async (eventId) => {
   const isFavorite = favoriteEvents.includes(eventId);
 
@@ -387,7 +387,7 @@ const toggleFavorite = async (eventId) => {
       });
 
       setFavoriteEvents((prev) => [...prev, eventId]);
-      toast.success('Added to favorites');
+      toast.success('Event added to favorites');
     } catch (err) {
       if (err.response?.status === 409) {
         // duplicate – already exists in DB
@@ -401,11 +401,25 @@ const toggleFavorite = async (eventId) => {
       }
     }
   } else {
-    // For now: only update UI. We can wire DELETE later.
-    setFavoriteEvents((prev) => prev.filter((id) => id !== eventId));
-    toast.info('Removed from favorites (UI only for now)');
+    // REMOVE from favorites: delete from DB
+    try {
+      await axios.delete('http://localhost:5000/api/favorites', {
+        data: {
+          user_id: user.user_id,
+          item_type: 'event',
+          item_id: eventId,
+        },
+      });
+
+      setFavoriteEvents((prev) => prev.filter((id) => id !== eventId));
+      toast.info('Event removed from favorites');
+    } catch (err) {
+      console.error('Error removing favorite:', err);
+      toast.error('Could not remove favorite');
+    }
   }
 };
+
 
 
   // ---------------- Create Event ----------------
