@@ -445,6 +445,9 @@ const fetchEvents = async () => {
 
       // Remove from local list (since it's no longer pending)
       setEvents(events.filter((e) => e.event_id !== eventId));
+      setFacultyPendingEvents(
+        facultyPendingEvents.filter((e) => e.event_id !== eventId)
+      );
       toast.success('Event approved');
     } catch (err) {
       console.error(err);
@@ -462,6 +465,9 @@ const fetchEvents = async () => {
 
       // Remove from local list (since it's no longer pending)
       setEvents(events.filter((e) => e.event_id !== eventId));
+      setFacultyPendingEvents(
+        facultyPendingEvents.filter((e) => e.event_id !== eventId)
+      );
       toast.info('Event rejected');
     } catch (err) {
       console.error(err);
