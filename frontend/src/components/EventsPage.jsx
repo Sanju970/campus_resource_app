@@ -634,6 +634,29 @@ const toggleFavorite = async (eventId) => {
     event.registered_count && event.capacity
       ? event.registered_count >= event.capacity
       : false;
+    // ---------------- Stats for footer ----------------
+    const totalEventsCount = combinedEvents.filter((event) => {
+    const isApprover = Number(event.approved_by) === Number(user.user_id);
+    const needsMyApproval = isApprover && event.status === 'pending';
+
+    // For students: only approved events are counted
+    // For faculty: approved + events pending their approval
+    if (user.role === 'faculty') {
+      return event.status === 'approved' || needsMyApproval;
+    }
+    return event.status === 'approved';
+  }).length;
+
+  const createdEventsCount = combinedEvents.filter(
+    (event) => Number(event.created_by) === Number(user.user_id)
+  ).length;
+
+  // "My events" = events I'm registered for AND approved
+  const registeredEventsCount = combinedEvents.filter(
+    (event) =>
+      registeredEvents.includes(event.event_id) &&
+      event.status === 'approved'
+  ).length;
 
   // ---------------- JSX ----------------
   return (
@@ -1125,13 +1148,52 @@ const toggleFavorite = async (eventId) => {
         })}
       </div>
 
-      {filteredEvents.length === 0 && (
+            {filteredEvents.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
             No events found matching your criteria.
           </p>
         </div>
       )}
+
+{/* Quick stats footer */}
+<div className="w-full mt-2 border-t pt-4 pb-4">
+  <div className="max-w-5xl mx-auto flex justify-between px-10">
+
+    {/* Total Events */}
+    <div className="flex-1 flex flex-col items-center justify-center">
+      <div className="font-semibold" style={{ fontSize: '2rem', lineHeight: '1' }}>
+        {totalEventsCount}
+      </div>
+      <div className="text-base text-muted-foreground mt-1">
+        Total Events
+      </div>
     </div>
+
+    {/* Events Created */}
+    <div className="flex-1 flex flex-col items-center justify-center">
+      <div className="font-semibold" style={{ fontSize: '2rem', lineHeight: '1' }}>
+        {createdEventsCount}
+      </div>
+      <div className="text-base text-muted-foreground mt-1">
+        Events Created
+      </div>
+    </div>
+
+    {/* Events Registered */}
+    <div className="flex-1 flex flex-col items-center justify-center">
+      <div className="font-semibold" style={{ fontSize: '2rem', lineHeight: '1' }}>
+        {registeredEventsCount}
+      </div>
+      <div className="text-base text-muted-foreground mt-1">
+        Events Registered
+      </div>
+    </div>
+
+  </div>
+</div>
+
+    </div>
+
   );
 }
