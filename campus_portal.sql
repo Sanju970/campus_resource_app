@@ -84,7 +84,7 @@ CREATE TABLE announcements (
 CREATE TABLE favorites (
     favorite_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    item_type ENUM('event','announcement','resource') NOT NULL,
+    item_type ENUM('event','announcement') NOT NULL,
     item_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_favorite UNIQUE (user_id, item_type, item_id),

@@ -221,11 +221,30 @@ export default function EventsPage() {
       console.error('Error fetching registrations:', err);
     }
   };
+  // ---------------- Fetch Favorite Events from backend ----------------
+const fetchFavoriteEvents = async () => {
+  try {
+    const res = await axios.get(
+      `http://localhost:5000/api/favorites/user/${user.user_id}`
+    );
+
+    // keep only favorites where item_type = 'event'
+    const favEventIds = res.data
+      .filter((fav) => fav.item_type === 'event')
+      .map((fav) => Number(fav.item_id));
+
+    setFavoriteEvents(favEventIds);
+  } catch (err) {
+    console.error('Error fetching favorite events:', err);
+  }
+};
+
 
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
     fetchFacultyPendingEvents();
+    fetchFavoriteEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -354,16 +373,40 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Favorite (local only) ----------------
-  const toggleFavorite = (eventId) => {
-    if (favoriteEvents.includes(eventId)) {
-      setFavoriteEvents(favoriteEvents.filter((id) => id !== eventId));
-      toast.info('Removed from favorites');
-    } else {
-      setFavoriteEvents([...favoriteEvents, eventId]);
+  // ---------------- Favorite (with backend) ----------------
+const toggleFavorite = async (eventId) => {
+  const isFavorite = favoriteEvents.includes(eventId);
+
+  if (!isFavorite) {
+    // ADD to favorites: insert into DB
+    try {
+      await axios.post('http://localhost:5000/api/favorites', {
+        user_id: user.user_id,
+        item_type: 'event',
+        item_id: eventId,
+      });
+
+      setFavoriteEvents((prev) => [...prev, eventId]);
       toast.success('Added to favorites');
+    } catch (err) {
+      if (err.response?.status === 409) {
+        // duplicate – already exists in DB
+        toast.info('Already in favorites');
+        if (!favoriteEvents.includes(eventId)) {
+          setFavoriteEvents((prev) => [...prev, eventId]);
+        }
+      } else {
+        console.error('Error adding favorite:', err);
+        toast.error('Could not add favorite');
+      }
     }
-  };
+  } else {
+    // For now: only update UI. We can wire DELETE later.
+    setFavoriteEvents((prev) => prev.filter((id) => id !== eventId));
+    toast.info('Removed from favorites (UI only for now)');
+  }
+};
+
 
   // ---------------- Create Event ----------------
   const handleCreateEvent = async () => {
