@@ -114,12 +114,17 @@ export default function EventsPage() {
   const [registeredEvents, setRegisteredEvents] = useState([]);
   const [favoriteEvents, setFavoriteEvents] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [showMyEventsOnly, setShowMyEventsOnly] = useState(false);
+
+  // NEW: separate view flags
+  const [showCreatedEventsOnly, setShowCreatedEventsOnly] = useState(false);
+  const [showRegisteredEventsOnly, setShowRegisteredEventsOnly] =
+    useState(false);
+
   // For faculty: events assigned to them for approval
   const [facultyPendingEvents, setFacultyPendingEvents] = useState([]);
+
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-
 
   // New event form state
   const [newEvent, setNewEvent] = useState({
@@ -134,69 +139,60 @@ export default function EventsPage() {
     instructor_email: '',
   });
 
-  // helper to format current time for <input type="datetime-local" />
-const getCurrentDateTimeLocal = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${d}T${hh}:${mm}`;
-};
-const [minDateTime] = useState(() => getCurrentDateTimeLocal());
+  // helper to format current time for <input type="date" /> min
+  const getCurrentDateTimeLocal = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+  };
+  const [minDateTime] = useState(() => getCurrentDateTimeLocal());
 
-
-  // You can keep this simple; everyone can create
   const canCreateOrApprove = true;
 
   // ---------------- Fetch Events ----------------
-const fetchEvents = async () => {
-  try {
-    // 🧑‍🎓 STUDENT (and others that are not faculty)
-    if (user.role !== 'faculty') {
-      const res = await fetch(
-        `http://localhost:5000/api/events?user_id=${user.user_id}`
-      );
-      if (!res.ok) throw new Error('Network error');
-      const data = await res.json();
-      setEvents(data);
-      return;
+  const fetchEvents = async () => {
+    try {
+      if (user.role !== 'faculty') {
+        const res = await fetch(
+          `http://localhost:5000/api/events?user_id=${user.user_id}`
+        );
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        setEvents(data);
+        return;
+      }
+
+      // faculty: combine all events + pending
+      const [allRes, pendingRes] = await Promise.all([
+        fetch(`http://localhost:5000/api/events?user_id=${user.user_id}`),
+        fetch(
+          `http://localhost:5000/api/events/faculty/${user.user_id}/pending`
+        ),
+      ]);
+
+      if (!allRes.ok || !pendingRes.ok) throw new Error('Network error');
+
+      const allEventsData = await allRes.json();
+      const pendingEventsData = await pendingRes.json();
+
+      const combined = [
+        ...pendingEventsData,
+        ...allEventsData.filter(
+          (e) => !pendingEventsData.some((p) => p.event_id === e.event_id)
+        ),
+      ];
+
+      setEvents(combined);
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      toast.error('Failed to fetch events');
     }
+  };
 
-    // 👩‍🏫 FACULTY – combine:
-    // 1) main events list (approved + own)
-    // 2) events pending their approval
-    const [allRes, pendingRes] = await Promise.all([
-      fetch(
-        `http://localhost:5000/api/events?user_id=${user.user_id}`
-      ),
-      fetch(
-        `http://localhost:5000/api/events/faculty/${user.user_id}/pending`
-      ),
-    ]);
-
-    if (!allRes.ok || !pendingRes.ok) throw new Error('Network error');
-
-    const allEventsData = await allRes.json();
-    const pendingEventsData = await pendingRes.json();
-
-    // Merge pending + all, avoiding duplicates by event_id
-    const combined = [
-      ...pendingEventsData,
-      ...allEventsData.filter(
-        (e) => !pendingEventsData.some((p) => p.event_id === e.event_id)
-      ),
-    ];
-
-    setEvents(combined);
-  } catch (err) {
-    console.error('Error fetching events:', err);
-    toast.error('Failed to fetch events');
-  }
-};
-
-  // ---------------- Fetch events that need this faculty's approval ----------------
   const fetchFacultyPendingEvents = async () => {
     if (user.role !== 'faculty') return;
 
@@ -213,7 +209,6 @@ const fetchEvents = async () => {
     }
   };
 
-  // ---------------- Fetch Registered Events (all roles) ----------------
   const fetchRegisteredEvents = async () => {
     try {
       const res = await fetch(
@@ -227,8 +222,6 @@ const fetchEvents = async () => {
     }
   };
 
-
-  // ---------------- Use Effect ----------------
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
@@ -237,37 +230,30 @@ const fetchEvents = async () => {
   }, []);
 
   // ---------------- Filters ----------------
-  // Combine base events for faculty "My Events" view:
-  // - events I created (from /api/events)
-  // - events needing my approval (from /faculty/:id/pending)
-  const combinedEvents = showMyEventsOnly && user.role === 'faculty'
-    ? [
-        // my created events
-        ...events.filter(
-          (e) => Number(e.created_by) === Number(user.user_id)
-        ),
-        // plus pending approvals that weren't already in events[]
-        ...facultyPendingEvents.filter(
-          (p) => !events.some((e) => e.event_id === p.event_id)
-        ),
-      ]
-    : events;
+  const combinedEvents =
+    user.role === 'faculty'
+      ? [
+          ...events,
+          ...facultyPendingEvents.filter(
+            (p) => !events.some((e) => e.event_id === p.event_id)
+          ),
+        ]
+      : events;
 
   const filteredEvents = combinedEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
+    const isApprover = Number(event.approved_by) === Number(user.user_id);
     const needsMyApproval =
-      Number(event.approved_by) === Number(user.user_id) &&
-      event.status === 'pending';
+      isApprover && event.status === 'pending';
+    const isRegistered = registeredEvents.includes(event.event_id);
 
-    // "My Events" behavior:
-    // - Student: only events I created
-    // - Faculty: events I created OR events needing my approval
-    if (showMyEventsOnly) {
-      if (user.role === 'faculty') {
-        if (!isCreator && !needsMyApproval) return false;
-      } else {
-        if (!isCreator) return false;
-      }
+    // View modes
+    if (showCreatedEventsOnly && !isCreator) {
+      return false;
+    }
+
+    if (showRegisteredEventsOnly && !isRegistered) {
+      return false;
     }
 
     const matchesSearch =
@@ -279,10 +265,12 @@ const fetchEvents = async () => {
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // In All Events view, show only approved events.
-    // In My Events view, show all of MY events (any status).
-    const matchesStatus = showMyEventsOnly
+    const inMyView = showCreatedEventsOnly || showRegisteredEventsOnly;
+
+    const matchesStatus = inMyView
       ? true
+      : user.role === 'faculty'
+      ? event.status === 'approved' || needsMyApproval
       : event.status === 'approved';
 
     return matchesSearch && matchesCategory && matchesStatus;
@@ -291,31 +279,66 @@ const fetchEvents = async () => {
   // ---------------- RSVP (students + faculty) ----------------
   const handleRSVP = async (eventId) => {
     try {
+      let res;
+
       if (registeredEvents.includes(eventId)) {
         // Cancel RSVP
-        await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
+        res = await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.user_id }),
         });
-        setRegisteredEvents(registeredEvents.filter((id) => id !== eventId));
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || 'Failed to cancel RSVP');
+        }
+
+        const data = await res.json();
+
+        setRegisteredEvents((prev) => prev.filter((id) => id !== eventId));
+
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.event_id === eventId
+              ? { ...e, registered_count: data.registered_count }
+              : e
+          )
+        );
+
         toast.success('RSVP cancelled successfully');
       } else {
         // Register
-        await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
+        res = await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.user_id }),
         });
-        setRegisteredEvents([...registeredEvents, eventId]);
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || 'Failed to register');
+        }
+
+        const data = await res.json();
+
+        setRegisteredEvents((prev) => [...prev, eventId]);
+
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.event_id === eventId
+              ? { ...e, registered_count: data.registered_count }
+              : e
+          )
+        );
+
         toast.success('RSVP confirmed!');
       }
     } catch (err) {
       console.error('RSVP error:', err);
-      toast.error('Failed to process RSVP');
+      toast.error(err.message || 'Failed to process RSVP');
     }
   };
-
 
   // ---------------- Favorite (local only) ----------------
   const toggleFavorite = (eventId) => {
@@ -341,11 +364,13 @@ const fetchEvents = async () => {
       instructor_email,
     } = newEvent;
 
-    const startDate = date_time;  // still using same variable
+    const startDate = date_time;
     const endDate = end_time;
 
-    const combinedStart = startDate && startTime ? `${startDate}T${startTime}` : '';
-    const combinedEnd = endDate && endTime ? `${endDate}T${endTime}` : '';
+    const combinedStart =
+      startDate && startTime ? `${startDate}T${startTime}` : '';
+    const combinedEnd =
+      endDate && endTime ? `${endDate}T${endTime}` : '';
 
     if (
       !title ||
@@ -354,44 +379,47 @@ const fetchEvents = async () => {
       !end_time ||
       !location ||
       !capacity ||
-      !category_id
+      !category_id ||
+      !startTime ||
+      !endTime
     ) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    // Capacity range check: 1–1000
-  const capacityNum = parseInt(capacity, 10);
+    const capacityNum = parseInt(capacity, 10);
 
-  if (
-    Number.isNaN(capacityNum) ||
-    capacityNum < 1 ||
-    capacityNum > 1000
-  ) {
-    toast.error('Capacity must be between 1 and 1000');
-    return;
-  };
+    if (
+      Number.isNaN(capacityNum) ||
+      capacityNum < 1 ||
+      capacityNum > 1000
+    ) {
+      toast.error('Capacity must be between 1 and 1000');
+      return;
+    }
 
-  // ---- Date/Time Validation ----
-  const now = new Date();
-  const start = new Date(date_time);
-  const end = new Date(end_time);
+    const now = new Date();
+    const start = new Date(combinedStart);
+    const end = new Date(combinedEnd);
 
-  if (start < now) {
-    toast.error('Start time must be in the future');
-    return;
-  }
-  if (end <= start) {
-    toast.error('End time must be after start time');
-    return;
-  }
+    if (start < now) {
+      toast.error('Start time must be in the future');
+      return;
+    }
+    if (end <= start) {
+      toast.error('End time must be after start time');
+      return;
+    }
 
-  const event = {
-    ...newEvent,
-    capacity: capacityNum,
-    created_by: user.user_id,
-    registered_count: 0,
-  };
+    const event = {
+      ...newEvent,
+      start_datetime: combinedStart,
+      end_datetime: combinedEnd,
+      capacity: capacityNum,
+      created_by: user.user_id,
+      registered_count: 0,
+      status: user.role === 'student' ? 'pending' : 'approved',
+    };
 
     try {
       const res = await fetch('http://localhost:5000/api/events', {
@@ -406,10 +434,9 @@ const fetchEvents = async () => {
       }
 
       const savedEvent = await res.json();
-      setEvents([savedEvent, ...events]);
+      setEvents((prev) => [savedEvent, ...prev]);
       setIsCreateDialogOpen(false);
 
-      // Reset form
       setNewEvent({
         title: '',
         description: '',
@@ -421,8 +448,14 @@ const fetchEvents = async () => {
         registration_required: false,
         instructor_email: '',
       });
+      setStartTime('');
+      setEndTime('');
 
-      toast.success('Event submitted for approval');
+      if (user.role === 'student') {
+        toast.success('Event submitted for approval');
+      } else {
+        toast.success('Event created successfully');
+      }
     } catch (err) {
       console.error('Error creating event:', err);
       toast.error(err.message || 'Failed to create event');
@@ -438,8 +471,18 @@ const fetchEvents = async () => {
         method: 'PATCH',
       });
 
-      // Remove from local list (since it's no longer pending)
-      setEvents(events.filter((e) => e.event_id !== eventId));
+      setEvents((prevEvents) =>
+        prevEvents.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'approved' } : e
+        )
+      );
+
+      setFacultyPendingEvents((prev) =>
+        prev.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'approved' } : e
+        )
+      );
+
       toast.success('Event approved');
     } catch (err) {
       console.error(err);
@@ -455,8 +498,18 @@ const fetchEvents = async () => {
         method: 'PATCH',
       });
 
-      // Remove from local list (since it's no longer pending)
-      setEvents(events.filter((e) => e.event_id !== eventId));
+      setEvents((prevEvents) =>
+        prevEvents.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'rejected' } : e
+        )
+      );
+
+      setFacultyPendingEvents((prev) =>
+        prev.map((e) =>
+          e.event_id === eventId ? { ...e, status: 'rejected' } : e
+        )
+      );
+
       toast.info('Event rejected');
     } catch (err) {
       console.error(err);
@@ -464,19 +517,56 @@ const fetchEvents = async () => {
     }
   };
 
-  const formatDateTime = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return dateString;
+  // ---------------- Cancel Event (creator only) ----------------
+  const handleCancelEvent = async (eventId) => {
+    const eventToCancel = events.find((e) => e.event_id === eventId);
+    if (!eventToCancel) return;
 
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-};
+    const isCreator =
+      Number(eventToCancel.created_by) === Number(user.user_id);
+    const isFacultyOrAdmin =
+      user.role === 'faculty' || user.role === 'admin';
+
+    if (!isCreator || !isFacultyOrAdmin) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/events/${eventId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.message || 'Failed to cancel event';
+        throw new Error(message);
+      }
+
+      setEvents((prevEvents) =>
+        prevEvents.filter((e) => e.event_id !== eventId)
+      );
+
+      toast.info('Event cancelled');
+    } catch (err) {
+      console.error('Cancel event error:', err);
+      toast.error('Failed to cancel event');
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
 
   const isEventFull = (event) =>
     event.registered_count && event.capacity
@@ -496,7 +586,10 @@ const fetchEvents = async () => {
         </div>
 
         {canCreateOrApprove && (
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" /> Create Event
@@ -542,7 +635,10 @@ const fetchEvents = async () => {
                       value={newEvent.date_time}
                       min={minDateTime.slice(0, 10)}
                       onChange={(e) =>
-                        setNewEvent({ ...newEvent, date_time: e.target.value })
+                        setNewEvent({
+                          ...newEvent,
+                          date_time: e.target.value,
+                        })
                       }
                       className="h-9 px-3 py-1 text-sm"
                     />
@@ -554,7 +650,7 @@ const fetchEvents = async () => {
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
                     >
-                      <option value="">Select Time</option>   
+                      <option value="">Select Time</option>
                       {timeOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -567,12 +663,14 @@ const fetchEvents = async () => {
                   <div className="space-y-2">
                     <Label>End Date</Label>
                     <Input
-
                       type="date"
                       value={newEvent.end_time}
                       min={minDateTime.slice(0, 10)}
                       onChange={(e) =>
-                        setNewEvent({ ...newEvent, end_time: e.target.value })
+                        setNewEvent({
+                          ...newEvent,
+                          end_time: e.target.value,
+                        })
                       }
                       className="h-9 px-3 py-1 text-sm"
                     />
@@ -584,7 +682,7 @@ const fetchEvents = async () => {
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
                     >
-                      <option value="">Select Time</option>   
+                      <option value="">Select Time</option>
                       {timeOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -612,7 +710,10 @@ const fetchEvents = async () => {
                       step={1}
                       value={newEvent.capacity}
                       onChange={(e) =>
-                        setNewEvent({ ...newEvent, capacity: e.target.value })
+                        setNewEvent({
+                          ...newEvent,
+                          capacity: e.target.value,
+                        })
                       }
                     />
                   </div>
@@ -674,44 +775,64 @@ const fetchEvents = async () => {
             className="pl-10"
           />
         </div>
-      <div className="flex flex-wrap gap-2">
-        {/* All Events */}
+        <div className="flex flex-wrap gap-2">
+          {/* All Events */}
           <Button
-            variant={!showMyEventsOnly && selectedCategory === null ? 'default' : 'outline'}
+            variant={
+              !showCreatedEventsOnly &&
+              !showRegisteredEventsOnly &&
+              selectedCategory === null
+                ? 'default'
+                : 'outline'
+            }
             size="sm"
             onClick={() => {
-              setShowMyEventsOnly(false);
+              setShowCreatedEventsOnly(false);
+              setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
             }}
           >
             All Events
           </Button>
 
-          {/* My Events (only events created by this user) */}
+          {/* My Created Events */}
           <Button
-            variant={showMyEventsOnly ? 'default' : 'outline'}
+            variant={showCreatedEventsOnly ? 'default' : 'outline'}
             size="sm"
             onClick={() => {
-              setShowMyEventsOnly(true);
-              setSelectedCategory(null); // when switching to My Events, ignore category filter
+              setShowCreatedEventsOnly(true);
+              setShowRegisteredEventsOnly(false);
+              setSelectedCategory(null);
+            }}
+          >
+            My Created Events
+          </Button>
+
+          {/* My Events (registered) */}
+          <Button
+            variant={showRegisteredEventsOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setShowRegisteredEventsOnly(true);
+              setShowCreatedEventsOnly(false);
+              setSelectedCategory(null);
             }}
           >
             My Events
           </Button>
 
-          {/* Category filters (only for All Events view) */}
+          {/* Category filters (only for All Events view visually, but we keep them active) */}
           {eventCategories.map((category) => (
             <Button
               key={category.id}
               variant={
-                !showMyEventsOnly && selectedCategory === category.id
-                  ? 'default'
-                  : 'outline'
+                selectedCategory === category.id ? 'default' : 'outline'
               }
               size="sm"
               onClick={() => {
-                setShowMyEventsOnly(false); // selecting a category goes back to All Events view
-                setSelectedCategory(category.id);
+                setSelectedCategory((prev) =>
+                  prev === category.id ? null : category.id
+                );
               }}
             >
               {category.name}
@@ -730,18 +851,22 @@ const fetchEvents = async () => {
           const isFavorite = favoriteEvents.includes(event.event_id);
           const isFull = isEventFull(event);
           const isCreator = Number(event.created_by) === Number(user.user_id);
+          const isApprover = Number(event.approved_by) === Number(user.user_id);
+
+          const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
+            isRegistered ? 'border-green-500' : 'border-gray-200'
+          }`;
+
 
           let statusLabel = null;
           if (isCreator) {
             if (event.status === 'pending') {
-                // For creator: show department-style wording
-                const departmentLabel = category
-                  ? `${category.name} department`
-                  : 'the department';
+              const departmentLabel = category
+                ? `${category.name} department`
+                : 'the department';
 
-                statusLabel = `Sent for approval to ${departmentLabel}`;
-              } 
-             else if (event.status === 'approved') {
+              statusLabel = `Sent for approval to ${departmentLabel}`;
+            } else if (event.status === 'approved') {
               if (event.approver_uid || event.approver_name) {
                 statusLabel = `Approved by ${
                   event.approver_name || event.approver_uid
@@ -752,8 +877,15 @@ const fetchEvents = async () => {
             } else if (event.status === 'rejected') {
               statusLabel = 'Rejected';
             }
+          } else if (isApprover) {
+            if (event.status === 'pending') {
+              statusLabel = 'Pending your approval';
+            } else if (event.status === 'approved') {
+              statusLabel = 'Approved';
+            } else if (event.status === 'rejected') {
+              statusLabel = 'Rejected';
+            }
           } else if (event.status && event.status !== 'approved') {
-            // For non-creators, we can still show simple status for pending/rejected
             statusLabel = event.status;
           }
 
@@ -762,22 +894,70 @@ const fetchEvents = async () => {
             event.status === 'pending' &&
             Number(event.approved_by) === Number(user.user_id);
 
-
           return (
             <Card
               key={event.event_id}
-              className="overflow-hidden hover:shadow-lg transition-shadow"
+              className={cardClasses}
+              style={isRegistered ? { backgroundColor: '#ecfdf3' } : undefined} // 👈 green tint
             >
+
+              <CardHeader>
+                
+                <CardTitle className="text-lg">{event.title}</CardTitle>
+                <CardDescription>{event.description}</CardDescription>
+                {statusLabel && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {statusLabel}
+                  </p>
+                )}
+              </CardHeader>
               <CardHeader>
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {/* Category badge */}
                     {category && (
                       <Badge className={category.color}>{category.name}</Badge>
                     )}
-                    {event.status === 'pending' && user.role === 'faculty' && (
-                      <Badge variant="outline">Pending Approval</Badge>
+
+                    {/* CREATED EVENT STATUS – colored chips from DB status */}
+                    {isCreator && event.status && (
+                      <span
+                        className={
+                          `px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ` +
+                          (event.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                            : event.status === 'approved'
+                            ? 'bg-green-100 text-green-800 border-green-300'
+                            : event.status === 'rejected'
+                            ? 'bg-red-100 text-red-800 border-red-300'
+                            : '')
+                        }
+                      >
+                        {event.status === 'pending'
+                          ? 'Pending Approval'
+                          : event.status === 'approved'
+                          ? 'Approved'
+                          : event.status === 'rejected'
+                          ? 'Rejected'
+                          : event.status}
+                      </span>
+                    )}
+
+                    {/* Faculty approver (not creator) – simple pending badge */}
+                    {!isCreator &&
+                      event.status === 'pending' &&
+                      user.role === 'faculty' && (
+                        <Badge variant="outline">Pending Approval</Badge>
+                      )}
+
+                    {/* YOU’RE REGISTERED – green chip */}
+                    {isRegistered && (
+                      <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
+                        You’re Registered
+                      </span>
                     )}
                   </div>
+
                   <Button
                     variant="ghost"
                     size="icon"
@@ -790,9 +970,18 @@ const fetchEvents = async () => {
                     />
                   </Button>
                 </div>
+
                 <CardTitle className="text-lg">{event.title}</CardTitle>
                 <CardDescription>{event.description}</CardDescription>
+
+                {/* Keep this ONLY for non-creators, so creators rely on the colored chip */}
+                {!isCreator && statusLabel && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {statusLabel}
+                  </p>
+                )}
               </CardHeader>
+
 
               <CardContent className="space-y-4">
                 <div className="space-y-2 text-sm">
@@ -815,7 +1004,6 @@ const fetchEvents = async () => {
 
                 {/* Faculty Approve/Reject OR RSVP */}
                 {canApproveThisEvent ? (
-                  // ---------- FACULTY APPROVE ----------
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -834,15 +1022,37 @@ const fetchEvents = async () => {
                     </Button>
                   </div>
                 ) : isCreator ? (
-                  // ---------- CREATOR BADGE ----------
-                  <Badge variant="secondary" className="w-full justify-center">
-                    You created this event
-                  </Badge>
+                  user.role === 'faculty' || user.role === 'admin' ? (
+                    <div className="w-full space-y-2">
+                      <Badge
+                        variant="secondary"
+                        className="w-full justify-center"
+                      >
+                        You created this event
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleCancelEvent(event.event_id)}
+                        className="w-full"
+                      >
+                        <XCircle className="h-0 w-4 mr-1" /> Cancel Event
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="w-full space-y-2">
+                      <Badge
+                        variant="secondary"
+                        className="w-full justify-center"
+                      >
+                        You created this event
+                      </Badge>
+                    </div>
+                  )
                 ) : event.registration_required ? (
-                  // ---------- RSVP for BOTH STUDENT + FACULTY ----------
                   <Button
                     className="w-full"
-                    variant={isRegistered ? 'outline' : 'default'}
+                    variant={isRegistered ? 'destructive' : 'default'}
                     onClick={() => handleRSVP(event.event_id)}
                     disabled={isFull && !isRegistered}
                   >
@@ -853,13 +1063,13 @@ const fetchEvents = async () => {
                       : 'RSVP Now'}
                   </Button>
                 ) : (
-                  // ---------- NO REGISTRATION REQUIRED ----------
-                  <Badge variant="secondary" className="w-full justify-center">
+                  <Badge
+                    variant="secondary"
+                    className="w-full justify-center"
+                  >
                     No Registration Required
                   </Badge>
                 )}
-
-
               </CardContent>
             </Card>
           );

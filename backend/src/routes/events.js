@@ -181,18 +181,24 @@ router.post('/', async (req, res) => {
 router.get('/faculty/:faculty_id/pending', async (req, res) => {
   const facultyId = req.params.faculty_id;
 
+  if (!facultyId) {
+    return res
+      .status(400)
+      .json({ message: 'Invalid faculty id for pending events' });
+  }
+
   const query = `
     SELECT e.*,
       (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
     FROM events e
     WHERE e.approved_by = ?
       AND e.status = 'pending'
-    ORDER BY e.start_datetime DESC
+    ORDER BY e.start_datetime ASC
   `;
 
   try {
-    const [results] = await pool.query(query, [facultyId]);
-    res.json(results);
+    const [rows] = await pool.query(query, [facultyId]);
+    res.json(rows);
   } catch (err) {
     console.error('Faculty pending events fetch error:', err);
     res
@@ -272,6 +278,31 @@ router.patch('/:event_id/reject', async (req, res) => {
     res
       .status(500)
       .json({ message: 'Failed to reject event', error: err.message });
+  }
+});
+
+// ---------------- CANCEL action (creator: faculty/admin) ----------------
+// ---------------- DELETE / CANCEL EVENT (hard delete) ----------------
+router.delete('/:event_id', async (req, res) => {
+  const eventId = req.params.event_id;
+
+  try {
+    // First delete registrations for this event (to avoid FK issues)
+    await pool.query(
+      'DELETE FROM event_registrations WHERE event_id = ?',
+      [eventId]
+    );
+
+    // Then delete the event itself
+    await pool.query('DELETE FROM events WHERE event_id = ?', [eventId]);
+
+    res.json({ message: 'Event deleted successfully' });
+  } catch (err) {
+    console.error('Delete event error:', err);
+    res.status(500).json({
+      message: 'Failed to delete event',
+      error: err.message,
+    });
   }
 });
 
