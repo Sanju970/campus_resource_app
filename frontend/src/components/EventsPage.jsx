@@ -920,18 +920,17 @@ export default function EventsPage() {
                     )}
 
                     {/* CREATED EVENT STATUS – colored chips from DB status */}
-                    {isCreator && event.status && (
+                    {isCreator && (
                       <span
-                        className={
-                          `px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ` +
-                          (event.status === 'pending'
+                        className={`px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ${
+                          event.status === 'pending'
                             ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
                             : event.status === 'approved'
                             ? 'bg-green-100 text-green-800 border-green-300'
                             : event.status === 'rejected'
                             ? 'bg-red-100 text-red-800 border-red-300'
-                            : '')
-                        }
+                            : ''
+                        }`}
                       >
                         {event.status === 'pending'
                           ? 'Pending Approval'
@@ -950,7 +949,7 @@ export default function EventsPage() {
                         <Badge variant="outline">Pending Approval</Badge>
                       )}
 
-                    {/* YOU’RE REGISTERED – green chip */}
+                    {/* YOU’RE REGISTERED – green chip (your working pattern) */}
                     {isRegistered && (
                       <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
                         You’re Registered
@@ -974,11 +973,9 @@ export default function EventsPage() {
                 <CardTitle className="text-lg">{event.title}</CardTitle>
                 <CardDescription>{event.description}</CardDescription>
 
-                {/* Keep this ONLY for non-creators, so creators rely on the colored chip */}
+                {/* Only non-creators get the text status line */}
                 {!isCreator && statusLabel && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {statusLabel}
-                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{statusLabel}</p>
                 )}
               </CardHeader>
 

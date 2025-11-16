@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db'); // this should be a mysql2/promise pool
 
+// ---------------- NOTIFICATIONS HELPER ----------------
+async function createNotification(userId, message) {
+  if (!userId || !message) return;
+
+  try {
+    await pool.query(
+      'INSERT INTO notifications (user_id, message, is_read) VALUES (?, ?, 0)',
+      [userId, message]
+    );
+  } catch (err) {
+    console.error('Notification insert error:', err);
+  }
+}
+
+
 // ---------------- CATEGORY / FACULTY MAPPING ----------------
 
 // category_id -> display name
@@ -135,7 +150,7 @@ router.post('/', async (req, res) => {
          created_by, approved_by, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-
+    
     const [results] = await pool.query(insertQuery, [
       title,
       description,
@@ -152,8 +167,27 @@ router.post('/', async (req, res) => {
       finalStatus,
     ]);
 
+    const newEventId = results.insertId;
+
+    // 🔔 NOTIFICATIONS ON CREATE
+    // 1) If event is pending and we have an approver, notify that faculty
+    if (finalStatus === 'pending' && approvedByUserId) {
+      await createNotification(
+        approvedByUserId,
+        `New event "${title}" needs your approval.`
+      );
+    }
+
+    // 2) Always notify the creator
+    await createNotification(
+      created_by,
+      finalStatus === 'pending'
+        ? `Your event "${title}" was submitted for approval.`
+        : `Your event "${title}" has been created.`
+    );
+
     res.status(201).json({
-      event_id: results.insertId,
+      event_id: newEventId,
       title,
       description,
       start_datetime: startTime,
@@ -169,6 +203,7 @@ router.post('/', async (req, res) => {
       status: finalStatus,
       registered_count: 0,
     });
+
   } catch (err) {
     console.error('Error creating event:', err);
     res
@@ -214,12 +249,25 @@ router.get('/faculty/:faculty_id/pending', async (req, res) => {
 router.post('/:event_id/rsvp', async (req, res) => {
   const eventId = req.params.event_id;
   const { user_id } = req.body;
-  const query =
+
+  const insertQuery =
     'INSERT INTO event_registrations (event_id, user_id) VALUES (?, ?)';
 
   try {
-    await pool.query(query, [eventId, user_id]);
-    res.json({ message: 'RSVP successful' });
+    // 1) Insert RSVP
+    await pool.query(insertQuery, [eventId, user_id]);
+
+    // 2) Get updated count
+    const [rows] = await pool.query(
+      'SELECT COUNT(*) AS count FROM event_registrations WHERE event_id = ?',
+      [eventId]
+    );
+    const registeredCount = rows[0]?.count || 0;
+
+    res.json({
+      message: 'RSVP successful',
+      registered_count: registeredCount,
+    });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res
@@ -236,12 +284,25 @@ router.post('/:event_id/rsvp', async (req, res) => {
 router.delete('/:event_id/rsvp', async (req, res) => {
   const eventId = req.params.event_id;
   const { user_id } = req.body;
-  const query =
+
+  const deleteQuery =
     'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?';
 
   try {
-    await pool.query(query, [eventId, user_id]);
-    res.json({ message: 'RSVP cancelled successfully' });
+    // 1) Delete RSVP
+    await pool.query(deleteQuery, [eventId, user_id]);
+
+    // 2) Get updated count
+    const [rows] = await pool.query(
+      'SELECT COUNT(*) AS count FROM event_registrations WHERE event_id = ?',
+      [eventId]
+    );
+    const registeredCount = rows[0]?.count || 0;
+
+    res.json({
+      message: 'RSVP cancelled successfully',
+      registered_count: registeredCount,
+    });
   } catch (err) {
     console.error('Cancel RSVP error:', err);
     res
