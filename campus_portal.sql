@@ -26,6 +26,8 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     role_id INT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    reset_token VARCHAR(255) DEFAULT NULL,
+    reset_token_expire BIGINT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (role_id) REFERENCES roles(role_id)

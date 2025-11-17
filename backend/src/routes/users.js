@@ -2,6 +2,8 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../config/db");
+const sendEmail = require('../config/sendEmail');
+
 
 const router = express.Router();
 
@@ -105,6 +107,31 @@ router.post("/admin/create", async (req, res) => {
       autoRole,
     ]);
 
+    // ------------- SEND EMAIL BEFORE RETURN ---------------
+    try {
+      await sendEmail({
+        to: email.toLowerCase(),
+        subject: "🎉 Your Campus Portal Account is Ready",
+        html: `
+          <h2>Hello ${first_name},</h2>
+          <p>An administrator has created an account for you.</p>
+          <p>Your temporary login details:</p>
+          <ul>
+            <li><strong>User ID:</strong> ${cleanUid}</li>
+            <li><strong>Email:</strong> ${email}</li>
+            <li><strong>Temporary Password:</strong> ${plainPassword}</li>
+          </ul>
+          <p>Please log in and change your password immediately.</p>
+          <br>
+          <p>Regards,<br>Campus Portal Team</p>
+        `
+      });
+    } catch (err) {
+      console.error("Email send failed:", err);
+      // do NOT break user creation if email fails
+    }
+
+    // ------------- NOW RETURN SUCCESS RESPONSE -------------
     return res.status(201).json({
       message: "User created successfully",
       user: {
@@ -117,11 +144,13 @@ router.post("/admin/create", async (req, res) => {
         dummy_password: plainPassword,
       },
     });
+
   } catch (err) {
     console.error("Admin create user error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 });
+
 
 /* ============================================================
    ADMIN: DEACTIVATE USER (soft delete)

@@ -17,6 +17,7 @@ import AIChat from './components/AIChat';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState as useReactState } from 'react';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
 
 
 function AppContent() {
@@ -51,6 +52,7 @@ function AppContent() {
       {/* PUBLIC ROUTES */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
       {/* If not logged in, redirect everything else to login */}
       {!user ? (
@@ -72,7 +74,6 @@ function AppContent() {
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/favorites" element={<FavoritesPage />} />
                 <Route path="/my-events" element={<EventsPage />} />
-
                 <Route
                   path="/admin"
                   element={
