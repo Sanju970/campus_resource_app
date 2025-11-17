@@ -245,79 +245,34 @@ router.get('/faculty/:faculty_id/pending', async (req, res) => {
   }
 });
 
-// ---------------- RSVP endpoints ----------------
-router.post('/:event_id/rsvp', async (req, res) => {
-  const eventId = req.params.event_id;
-  const { user_id } = req.body;
 
-  const insertQuery =
-    'INSERT INTO event_registrations (event_id, user_id) VALUES (?, ?)';
-
-  try {
-    // 1) Insert RSVP
-    await pool.query(insertQuery, [eventId, user_id]);
-
-    // 2) Get updated count
-    const [rows] = await pool.query(
-      'SELECT COUNT(*) AS count FROM event_registrations WHERE event_id = ?',
-      [eventId]
-    );
-    const registeredCount = rows[0]?.count || 0;
-
-    res.json({
-      message: 'RSVP successful',
-      registered_count: registeredCount,
-    });
-  } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') {
-      return res
-        .status(400)
-        .json({ message: 'Already registered for this event' });
-    }
-    console.error('RSVP error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to register', error: err.message });
-  }
-});
-
-router.delete('/:event_id/rsvp', async (req, res) => {
-  const eventId = req.params.event_id;
-  const { user_id } = req.body;
-
-  const deleteQuery =
-    'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?';
-
-  try {
-    // 1) Delete RSVP
-    await pool.query(deleteQuery, [eventId, user_id]);
-
-    // 2) Get updated count
-    const [rows] = await pool.query(
-      'SELECT COUNT(*) AS count FROM event_registrations WHERE event_id = ?',
-      [eventId]
-    );
-    const registeredCount = rows[0]?.count || 0;
-
-    res.json({
-      message: 'RSVP cancelled successfully',
-      registered_count: registeredCount,
-    });
-  } catch (err) {
-    console.error('Cancel RSVP error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to cancel RSVP', error: err.message });
-  }
-});
-
-// ---------------- APPROVE / REJECT actions ----------------
+// ---------------- APPROVE EVENT ----------------
 router.patch('/:event_id/approve', async (req, res) => {
   const eventId = req.params.event_id;
-  const query = 'UPDATE events SET status = "approved" WHERE event_id = ?';
 
   try {
-    await pool.query(query, [eventId]);
+    // 1) Mark event as approved
+    await pool.query(
+      'UPDATE events SET status = "approved" WHERE event_id = ?',
+      [eventId]
+    );
+
+    // 2) Look up the event so we know who created it
+    const [rows] = await pool.query(
+      'SELECT title, created_by FROM events WHERE event_id = ? LIMIT 1',
+      [eventId]
+    );
+
+    if (rows.length) {
+      const { title, created_by } = rows[0];
+
+      // 🔔 Notify the student who created the event
+      await createNotification(
+        created_by,
+        `Your event "${title}" was approved by faculty.`
+      );
+    }
+
     res.json({ message: 'Event approved successfully' });
   } catch (err) {
     console.error('Approve event error:', err);
@@ -327,12 +282,33 @@ router.patch('/:event_id/approve', async (req, res) => {
   }
 });
 
+// ---------------- REJECT EVENT ----------------
 router.patch('/:event_id/reject', async (req, res) => {
   const eventId = req.params.event_id;
-  const query = 'UPDATE events SET status = "rejected" WHERE event_id = ?';
 
   try {
-    await pool.query(query, [eventId]);
+    // 1) Mark event as rejected
+    await pool.query(
+      'UPDATE events SET status = "rejected" WHERE event_id = ?',
+      [eventId]
+    );
+
+    // 2) Look up the event so we know who created it
+    const [rows] = await pool.query(
+      'SELECT title, created_by FROM events WHERE event_id = ? LIMIT 1',
+      [eventId]
+    );
+
+    if (rows.length) {
+      const { title, created_by } = rows[0];
+
+      // 🔔 Notify the student who created the event
+      await createNotification(
+        created_by,
+        `Your event "${title}" was rejected by faculty.`
+      );
+    }
+
     res.json({ message: 'Event rejected successfully' });
   } catch (err) {
     console.error('Reject event error:', err);
