@@ -1,11 +1,21 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { MapPin, Clock, Mail, ExternalLink } from 'lucide-react';
+import { MapPin, Clock, Mail, ExternalLink, Users, Trash2, Pencil } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { ImageWithFallback } from './FallbackImg/ImageWithFallback';
 
-export default function ResourceCard({ resource, onViewDetails }) {
+export default function ResourceCard({
+  resource,
+  onViewDetails,
+  onJoin,
+  onEdit,
+  onDelete,
+  isMember,
+  isAdminView,
+}) {
+  const joined = Boolean(isMember || resource?.is_member);
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
       {resource?.image && (
@@ -47,19 +57,34 @@ export default function ResourceCard({ resource, onViewDetails }) {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {(resource?.tags || []).map((tag) => (
-            <Badge key={tag} variant="secondary">
-              {tag}
-            </Badge>
-          ))}
-        </div>
+        {/* Optional: tags / keywords */}
+        {Array.isArray(resource?.tags) && resource.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {resource.tags.map((tag) => (
+              <Badge key={tag} variant="outline">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
 
-        <div className="flex gap-2 pt-2">
+        {/* Membership / actions row */}
+        <div className="flex flex-wrap gap-2 pt-2 items-center">
+          {typeof resource.member_count !== 'undefined' && (
+            <div className="flex items-center text-xs text-muted-foreground mr-2">
+              <Users className="h-4 w-4 mr-1" />
+              <span>{resource.member_count} members</span>
+            </div>
+          )}
+
           {resource?.website && (
             <Button variant="outline" size="sm" asChild>
               <a
-                href={`https://${resource.website}`}
+                href={
+                  resource.website.startsWith('http')
+                    ? resource.website
+                    : `https://${resource.website}`
+                }
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -69,14 +94,53 @@ export default function ResourceCard({ resource, onViewDetails }) {
             </Button>
           )}
 
+          {onJoin && (
+            <Button
+              variant={joined ? 'outline' : 'default'}
+              size="sm"
+              disabled={joined}
+              onClick={() => {
+                if (!joined) onJoin(resource);
+              }}
+            >
+              <Users className="h-4 w-4 mr-1" />
+              {joined ? 'Joined' : 'Join Organization'}
+            </Button>
+          )}
+
           {onViewDetails && (
             <Button
-              variant="default"
+              variant="outline"
               size="sm"
               onClick={() => onViewDetails(resource)}
             >
               View Details
             </Button>
+          )}
+
+          {isAdminView && (
+            <>
+              {onEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onEdit(resource)}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => onDelete(resource)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remove
+                </Button>
+              )}
+            </>
           )}
         </div>
       </CardContent>
@@ -86,6 +150,7 @@ export default function ResourceCard({ resource, onViewDetails }) {
 
 ResourceCard.propTypes = {
   resource: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     title: PropTypes.string.isRequired,
     description: PropTypes.string,
     image: PropTypes.string,
@@ -94,6 +159,13 @@ ResourceCard.propTypes = {
     contact: PropTypes.string,
     tags: PropTypes.arrayOf(PropTypes.string),
     website: PropTypes.string,
+    member_count: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    is_member: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
   }).isRequired,
   onViewDetails: PropTypes.func,
+  onJoin: PropTypes.func,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+  isMember: PropTypes.bool,
+  isAdminView: PropTypes.bool,
 };

@@ -136,6 +136,79 @@ CREATE TABLE organization_heads (
   faculty_id VARCHAR(20) NOT NULL
 );
 
+-- ============================================================
+-- 7. ORGANIZATIONS
+-- ============================================================
+
+DROP TABLE IF EXISTS organization_members;
+DROP TABLE IF EXISTS organizations;
+
+CREATE TABLE organizations (
+    org_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(150) NOT NULL,
+    description TEXT,
+    location VARCHAR(255),
+    hours VARCHAR(255),
+    contact VARCHAR(255),
+    website VARCHAR(255),
+    image VARCHAR(500),
+    head_name VARCHAR(150),
+    head_contact VARCHAR(255),
+    created_by INT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE organization_members (
+    org_id INT NOT NULL,
+    user_id INT NOT NULL,
+    role ENUM('member','officer','advisor') DEFAULT 'member',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (org_id, user_id),
+    FOREIGN KEY (org_id) REFERENCES organizations(org_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- Sample organizations (you can tweak these)
+INSERT INTO organizations
+    (title, description, location, hours, contact, website, image, head_name, head_contact, created_by)
+VALUES
+    ('Central Library',
+     'Main campus library with extensive collection of books, journals, and digital resources.',
+     'Building A, 1st–4th Floor',
+     'Mon–Fri: 7am–11pm, Sat–Sun: 9am–9pm',
+     'library@gmail.com | (555) 123-4567',
+     'library.gmail.com',
+     NULL,
+     'Dr. Jane Doe',
+     'jane.doe@university.edu',
+     1),
+    ('Writing Center',
+     'Free peer tutoring for writing assignments, essays, and research papers.',
+     'Student Success Center, Room 201',
+     'Mon–Thu: 9am–8pm, Fri: 9am–5pm',
+     'writing@gmail.com | (555) 111-2222',
+     NULL,
+     'Prof. John Smith',
+     'john.smith@university.edu',
+     2),
+    ('Career Development Center',
+     'Career counseling, resume reviews, interview prep, and job search support.',
+     'Admin Building, 3rd Floor',
+     'Mon–Fri: 8:30am–5pm',
+     'careers@gmail.com | (555) 123-4568',
+     NULL,
+     'Dr. Emily Lee',
+     'emily.lee@university.edu',
+     1);
+
+
 
 INSERT INTO organization_heads (org_id, org_name, faculty_id) VALUES
 (1, 'Library & Study Spaces',  'fac0001'),

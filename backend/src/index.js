@@ -15,6 +15,9 @@ const eventRoutes = require('./routes/events');
 const favoriteRoutes = require('./routes/favorites');
 const notificationRoutes = require('./routes/notifications');
 const registrationRoutes = require('./routes/event_registrations');
+const organizationRoutes = require('./routes/organizations');
+
+
 
 // --- Initialize Express App ---
 const app = express();
@@ -32,13 +35,16 @@ db.getConnection()
   });
 
 // --- Mount All Routes ---
-app.use('/api/auth', authRoutes);              // login, signup, password change
-app.use('/api', userRoutes);                   // admin users create/deactivate/reactivate/fetch
+app.use('/api/auth', authRoutes);
+app.use('/api', userRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/event_registrations', registrationRoutes);
+app.use('/api/organizations', organizationRoutes);
+
+
 
 // --- Root Endpoint ---
 app.get('/', (req, res) => {

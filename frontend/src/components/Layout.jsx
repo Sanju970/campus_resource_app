@@ -23,7 +23,8 @@ export default function Layout({ children, notificationCount = 0 }) {
     { id: 'events', label: 'Events', icon: CalendarDays, path: '/events' },
     { id: 'announcements', label: 'Announcements', icon: Bell, path: '/announcements' },
     { id: 'schedule', label: 'Schedule', icon: Calendar, path: '/schedule' },
-    { id: 'resources', label: 'About us', icon: Info, path: '/resources' },
+    { id: 'organizations', label: 'Organizations', icon: Info, path: '/organizations' },
+
 
   ];
 
