@@ -16,11 +16,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+
 export default function AnnouncementsEventsPage() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState(null);
-  const [filterFavorites, setFilterFavorites] = useState(false);
+  const [filterMine, setFilterMine] = useState(false);
 
   const [announcements, setAnnouncements] = useState([]);
   const [userMap, setUserMap] = useState({});
@@ -222,6 +223,7 @@ export default function AnnouncementsEventsPage() {
     }
   };
 
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -233,6 +235,8 @@ export default function AnnouncementsEventsPage() {
     });
   };
 
+
+  // Filter announcements for All or My and priority
   const filteredAnnouncements = announcements.filter((announcement) => {
     const matchesSearch =
       searchQuery === '' ||
@@ -241,14 +245,16 @@ export default function AnnouncementsEventsPage() {
 
     const matchesPriority = selectedPriority ? announcement.priority === selectedPriority : true;
 
-    const matchesFavorite = filterFavorites ? favoriteAnnouncements.includes(announcement.announcement_id) : true;
+    const matchesMine = filterMine ? announcement.created_by === user?.user_id : true;
 
-    return matchesSearch && matchesPriority && matchesFavorite;
+    return matchesSearch && matchesPriority && matchesMine;
   });
+
 
   const sortedAnnouncements = [...filteredAnnouncements].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
+
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -328,7 +334,6 @@ export default function AnnouncementsEventsPage() {
 
       {/* Search Bar */}
       <div className="relative w-full mb-4 mx-auto md:mx-0 max-w-full md:max-w-none">
-
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
@@ -339,10 +344,23 @@ export default function AnnouncementsEventsPage() {
         />
       </div>
 
-
-
       {/* Filters below search bar */}
-      <div className="flex flex-wrap items-center justify-center gap-3 pb-6 border-b">
+      <div className="flex flex-wrap items-center gap-3 pb-6 border-b justify-start">
+        <Button
+          variant={filterMine ? 'outline' : 'default'}
+          size="sm"
+          onClick={() => setFilterMine(false)}
+        >
+          All Announcements
+        </Button>
+        <Button
+          variant={filterMine ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilterMine(true)}
+        >
+          My Announcements
+        </Button>
+
         {['high', 'medium', 'low'].map((p) => (
           <Button
             key={p}
@@ -353,27 +371,21 @@ export default function AnnouncementsEventsPage() {
             {p.charAt(0).toUpperCase() + p.slice(1)}
           </Button>
         ))}
-
-        {/* <Label htmlFor="favorites-checkbox" className="flex items-center gap-2 cursor-pointer select-none ml-4">
-          <input
-            id="favorites-checkbox"
-            type="checkbox"
-            checked={filterFavorites}
-            onChange={() => setFilterFavorites(!filterFavorites)}
-            className="cursor-pointer accent-blue-600"
-          />
-          <span>Show My Favorites Only</span>
-        </Label> */}
       </div>
 
       {/* Announcements List */}
       <div className="space-y-5">
+        {sortedAnnouncements.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No announcements found matching your criteria.</p>
+          </div>
+        )}
         {sortedAnnouncements.map((announcement) => {
           const poster = userMap[announcement.created_by];
           const isFavorite = favoriteAnnouncements.includes(announcement.announcement_id);
           const isAdminPoster = user?.role === 'admin' && announcement.created_by === user.user_id;
           return (
-            <Card key={announcement.announcement_id} className="shadow-sm ">
+            <Card key={announcement.announcement_id} className="shadow-sm">
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -438,11 +450,6 @@ export default function AnnouncementsEventsPage() {
             </Card>
           );
         })}
-        {sortedAnnouncements.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No announcements found matching your criteria.</p>
-          </div>
-        )}
       </div>
     </div>
   );
