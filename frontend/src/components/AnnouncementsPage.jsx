@@ -4,15 +4,15 @@ import {
   Card, CardContent, CardHeader, CardTitle,
 } from './ui/card';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from './ui/dialog';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { Input } from './ui/input';
 import {
-  Search, Plus, Info, AlertCircle, AlertTriangle, CheckCircle, Heart,
+  Search, Plus, Info, AlertTriangle, CheckCircle, Heart, Pencil, Trash,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,7 +20,6 @@ export default function AnnouncementsEventsPage() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState(null);
-  const [filterMine, setFilterMine] = useState(false);
   const [filterFavorites, setFilterFavorites] = useState(false);
 
   const [announcements, setAnnouncements] = useState([]);
@@ -35,6 +34,7 @@ export default function AnnouncementsEventsPage() {
 
   const [favoriteAnnouncements, setFavoriteAnnouncements] = useState([]);
   const [favoriteObjects, setFavoriteObjects] = useState({});
+  const [editingAnnouncement, setEditingAnnouncement] = useState(null);
 
   const canCreate = user?.role === 'faculty' || user?.role === 'admin';
 
@@ -160,20 +160,62 @@ export default function AnnouncementsEventsPage() {
     }
   };
 
+  const handleDeleteAnnouncement = async (announcementId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/announcements/${announcementId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('API error');
+      setAnnouncements(prev => prev.filter(a => a.announcement_id !== announcementId));
+      toast.success('Announcement deleted');
+    } catch {
+      toast.error('Could not delete announcement');
+    }
+  };
+
+  const handleEditAnnouncement = (announcement) => {
+    setEditingAnnouncement(announcement);
+    setIsCreateDialogOpen(true);
+    setNewAnnouncement({
+      title: announcement.title,
+      content: announcement.content,
+      priority: announcement.priority,
+    });
+  };
+
+  const handleUpdateAnnouncement = async () => {
+    if (!editingAnnouncement) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/announcements/${editingAnnouncement.announcement_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newAnnouncement }),
+      });
+      if (!res.ok) throw new Error('API error');
+      setAnnouncements(prev =>
+        prev.map(a => (a.announcement_id === editingAnnouncement.announcement_id ? { ...a, ...newAnnouncement } : a)),
+      );
+      setEditingAnnouncement(null);
+      setIsCreateDialogOpen(false);
+      setNewAnnouncement({ title: '', content: '', priority: 'medium' });
+      toast.success('Announcement updated!');
+    } catch {
+      toast.error('Could not update announcement');
+    }
+  };
+
   const getPriorityIcon = (priority) => {
     switch (priority) {
-      case 'urgent': return <AlertCircle className="h-4 w-4" />;
       case 'high': return <AlertTriangle className="h-4 w-4" />;
       case 'medium': return <Info className="h-4 w-4" />;
       case 'low': return <CheckCircle className="h-4 w-4" />;
-      default: return <Info className="h-4 w-4" />;
+      default: return null;
     }
   };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'urgent': return 'bg-red-500 text-white';
-      case 'high': return 'bg-orange-500 text-white';
+      case 'high': return 'bg-red-500 text-white';
       case 'medium': return 'bg-blue-500 text-white';
       case 'low': return 'bg-gray-500 text-white';
       default: return 'bg-gray-500 text-white';
@@ -183,11 +225,15 @@ export default function AnnouncementsEventsPage() {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
-  const filteredAnnouncements = announcements.filter(announcement => {
+  const filteredAnnouncements = announcements.filter((announcement) => {
     const matchesSearch =
       searchQuery === '' ||
       announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -195,78 +241,84 @@ export default function AnnouncementsEventsPage() {
 
     const matchesPriority = selectedPriority ? announcement.priority === selectedPriority : true;
 
-    const matchesOwner = filterMine ? announcement.created_by === user?.user_id : true;
-
-    // Show only favorites when checkbox is checked
     const matchesFavorite = filterFavorites ? favoriteAnnouncements.includes(announcement.announcement_id) : true;
 
-    const isNotExpired = new Date(announcement.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    return matchesSearch && matchesPriority && matchesOwner && matchesFavorite && isNotExpired;
+    return matchesSearch && matchesPriority && matchesFavorite;
   });
 
-  const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  const sortedAnnouncements = [...filteredAnnouncements].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-12">
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <h1>Announcements</h1>
+    <div className="p-6 max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+        <div className="space-y-1 flex-1">
+          <h1 className="text-2xl font-semibold">Announcements</h1>
           <p className="text-muted-foreground">Stay updated with important campus announcements</p>
         </div>
         {canCreate && (
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={(open) => {
+              setIsCreateDialogOpen(open);
+              if (!open) {
+                setEditingAnnouncement(null);
+                setNewAnnouncement({ title: '', content: '', priority: 'medium' });
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Create Announcement
+                {editingAnnouncement ? 'Edit Announcement' : 'Create Announcement'}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Create New Announcement</DialogTitle>
+                <DialogTitle>{editingAnnouncement ? 'Edit Announcement' : 'Create New Announcement'}</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 py-4">
+              <div className="space-y-5 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Title</Label>
                   <Input
                     id="title"
                     value={newAnnouncement.title}
-                    onChange={e => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
                     placeholder="e.g., Library Hours Extended"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 mt-4">
                   <Label htmlFor="content">Content</Label>
                   <Textarea
                     id="content"
                     value={newAnnouncement.content}
-                    onChange={e => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
                     placeholder="Announcement details..."
                     rows={5}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {['urgent', 'high', 'medium', 'low'].map(p => (
-                        <Button
-                          key={p}
-                          variant={selectedPriority === p ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setSelectedPriority(selectedPriority === p ? null : p)}
-                        >
-                          {p.charAt(0).toUpperCase() + p.slice(1)}
-                        </Button>
-                      ))}
-                    </div>
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="priority">Priority</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {['low', 'medium', 'high'].map((p) => (
+                      <Button
+                        key={p}
+                        variant={newAnnouncement.priority === p ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setNewAnnouncement({ ...newAnnouncement, priority: p })}
+                      >
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </Button>
+                    ))}
                   </div>
                 </div>
-                <Button onClick={handleCreateAnnouncement} className="w-full">
-                  Publish Announcement
+                <Button
+                  onClick={editingAnnouncement ? handleUpdateAnnouncement : handleCreateAnnouncement}
+                  className="w-full mt-6"
+                >
+                  {editingAnnouncement ? 'Update Announcement' : 'Publish Announcement'}
                 </Button>
               </div>
             </DialogContent>
@@ -274,72 +326,65 @@ export default function AnnouncementsEventsPage() {
         )}
       </div>
 
-      <div className="space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search announcements..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="flex flex-wrap gap-4 items-center">
-          {/* Priority Buttons */}
-          <Button
-            variant={selectedPriority === null ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelectedPriority(null)}
-          >
-            All Priorities
-          </Button>
-          {['urgent', 'high', 'medium', 'low'].map(p => (
-            <Button
-              key={p}
-              variant={selectedPriority === p ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedPriority(selectedPriority === p ? null : p)}
-            >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </Button>
-          ))}
+      {/* Search Bar */}
+      <div className="relative w-full mb-4 mx-auto md:mx-0 max-w-full md:max-w-none">
 
-          {/* My Favorites Checkbox */}
-          <Label htmlFor="favorites-checkbox" className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              id="favorites-checkbox"
-              type="checkbox"
-              checked={filterFavorites}
-              onChange={() => setFilterFavorites(!filterFavorites)}
-              className="cursor-pointer"
-            />
-            Show My Favorites Only
-          </Label>
-
-          {user?.role === 'admin' && (
-            <Button
-              variant={filterMine ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterMine(!filterMine)}
-            >
-              My Announcements
-            </Button>
-          )}
-        </div>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search announcements..."
+          className="w-full pl-10"
+        />
       </div>
 
-      <div className="space-y-4">
-        {sortedAnnouncements.map(announcement => {
+
+
+      {/* Filters below search bar */}
+      <div className="flex flex-wrap items-center justify-center gap-3 pb-6 border-b">
+        {['high', 'medium', 'low'].map((p) => (
+          <Button
+            key={p}
+            variant={selectedPriority === p ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelectedPriority(selectedPriority === p ? null : p)}
+          >
+            {p.charAt(0).toUpperCase() + p.slice(1)}
+          </Button>
+        ))}
+
+        {/* <Label htmlFor="favorites-checkbox" className="flex items-center gap-2 cursor-pointer select-none ml-4">
+          <input
+            id="favorites-checkbox"
+            type="checkbox"
+            checked={filterFavorites}
+            onChange={() => setFilterFavorites(!filterFavorites)}
+            className="cursor-pointer accent-blue-600"
+          />
+          <span>Show My Favorites Only</span>
+        </Label> */}
+      </div>
+
+      {/* Announcements List */}
+      <div className="space-y-5">
+        {sortedAnnouncements.map((announcement) => {
           const poster = userMap[announcement.created_by];
           const isFavorite = favoriteAnnouncements.includes(announcement.announcement_id);
+          const isAdminPoster = user?.role === 'admin' && announcement.created_by === user.user_id;
           return (
-            <Card key={announcement.announcement_id}>
+            <Card key={announcement.announcement_id} className="shadow-sm ">
               <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <CardTitle className="text-lg truncate">{announcement.title}</CardTitle>
+                      <Badge className={getPriorityColor(announcement.priority)}>
+                        <span className="flex items-center gap-1">
+                          {getPriorityIcon(announcement.priority)}
+                          {announcement.priority.toUpperCase()}
+                        </span>
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
                       <span>
@@ -350,29 +395,45 @@ export default function AnnouncementsEventsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 items-center">
-                    <Badge className={getPriorityColor(announcement.priority)}>
-                      <span className="flex items-center gap-1">
-                        {getPriorityIcon(announcement.priority)}
-                        {announcement.priority.toUpperCase()}
-                      </span>
-                    </Badge>
-                  </div>
-                  <div
-                    className="cursor-pointer"
-                    onClick={() =>
-                      isFavorite
-                        ? handleRemoveFavorite(announcement.announcement_id)
-                        : handleAddFavorite(announcement.announcement_id)
-                    }
-                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                  >
-                    <Heart size={24} fill={isFavorite ? 'red' : 'none'} stroke={isFavorite ? 'red' : 'gray'} />
+                    <div
+                      className="cursor-pointer"
+                      onClick={() =>
+                        isFavorite
+                          ? handleRemoveFavorite(announcement.announcement_id)
+                          : handleAddFavorite(announcement.announcement_id)
+                      }
+                      aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                      title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      <Heart size={22} fill={isFavorite ? 'red' : 'none'} stroke={isFavorite ? 'red' : 'gray'} />
+                    </div>
+                    {isAdminPoster && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="p-2"
+                          onClick={() => handleEditAnnouncement(announcement)}
+                          title="Edit announcement"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="p-2"
+                          onClick={() => handleDeleteAnnouncement(announcement.announcement_id)}
+                          title="Delete announcement"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm">{announcement.content}</p>
+                <p className="text-base mt-1 mb-2">{announcement.content}</p>
               </CardContent>
             </Card>
           );

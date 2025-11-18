@@ -3,9 +3,9 @@ import axios from 'axios';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -17,12 +17,11 @@ import {
   Heart,
   Pin,
   AlertCircle,
-  Info,
-  AlertTriangle,
+  AlertTriangle
 } from 'lucide-react';
-import { sampleAnnouncements } from '../types/announcements';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { sampleAnnouncements } from '../types/announcements';
 
 export default function FavoritesPage() {
   const { user } = useAuth();
@@ -31,15 +30,9 @@ export default function FavoritesPage() {
     throw new Error('FavoritesPage must be used within an AuthProvider');
   }
 
-  // IDs of favorite events from DB
   const [favoriteEventIds, setFavoriteEventIds] = useState([]);
-
-  // still using sample announcements for now
-  const [favoriteAnnouncementIds, setFavoriteAnnouncementIds] = useState([
-    '1',
-    '3',
-  ]);
-
+  const [events, setEvents] = useState([]);
+  const [favoriteAnnouncementIds, setFavoriteAnnouncementIds] = useState(['1', '3']);
   const [favoriteMaterialIds, setFavoriteMaterialIds] = useState(() => {
     try {
       const saved = localStorage.getItem('favorite_material_ids');
@@ -49,34 +42,32 @@ export default function FavoritesPage() {
     }
   });
 
-  // all events fetched from backend
-  const [events, setEvents] = useState([]);
-
-  // derive favorite events from events + favoriteEventIds
+  // Derive favorite events from all events + favoriteEventIds
   const favoriteEvents = events.filter((event) =>
     favoriteEventIds.includes(event.event_id)
   );
 
+  // Favorite announcements filtered by sampleAnnouncement data and favoriteAnnouncementIds
   const favoriteAnnouncements = sampleAnnouncements.filter((announcement) =>
     favoriteAnnouncementIds.includes(announcement.id)
   );
 
-  // ---------------- Fetch favorites + events ----------------
   useEffect(() => {
     const fetchFavoritesAndEvents = async () => {
       try {
-        // 1) get favorites for this user
+        // 1) Get favorites for this user from backend
         const favoritesRes = await axios.get(
           `http://localhost:5000/api/favorites/user/${user.user_id}`
         );
 
+        // Extract favorite event ids (convert as needed)
         const favEventIds = favoritesRes.data
           .filter((fav) => fav.item_type === 'event')
           .map((fav) => Number(fav.item_id));
 
         setFavoriteEventIds(favEventIds);
 
-        // 2) get all events (same endpoint as EventsPage)
+        // 2) Get all events (your actual events endpoint with optional user_id param)
         const eventsRes = await axios.get(
           `http://localhost:5000/api/events?user_id=${user.user_id}`
         );
@@ -91,31 +82,26 @@ export default function FavoritesPage() {
     fetchFavoritesAndEvents();
   }, [user.user_id]);
 
+  // Remove favorite event
   const removeFavoriteEvent = async (eventId) => {
-  try {
-    // 1️⃣ Remove from database
-    await axios.delete('http://localhost:5000/api/favorites', {
-      data: {
-        user_id: user.user_id,
-        item_type: 'event',
-        item_id: eventId,
-      },
-    });
+    try {
+      await axios.delete('http://localhost:5000/api/favorites', {
+        data: {
+          user_id: user.user_id,
+          item_type: 'event',
+          item_id: eventId,
+        },
+      });
 
-    // 2️⃣ Update UI state → event disappears from Favorites page
-    setFavoriteEventIds((prev) => prev.filter((id) => id !== eventId));
+      setFavoriteEventIds((prev) => prev.filter((id) => id !== eventId));
+      toast.info('Event removed from favorites');
+    } catch (err) {
+      console.error('Error removing favorite:', err);
+      toast.error('Could not remove favorite');
+    }
+  };
 
-    toast.info('Event removed from favorites');
-  } catch (err) {
-    console.error('Error removing favorite:', err);
-    toast.error('Could not remove favorite');
-  }
-};
-
-
-
-
-
+  // Remove favorite announcement (local state only, since sample data)
   const removeFavoriteAnnouncement = (announcementId) => {
     setFavoriteAnnouncementIds((prev) =>
       prev.filter((id) => id !== announcementId)
@@ -123,6 +109,7 @@ export default function FavoritesPage() {
     toast.info('Announcement removed from favorites');
   };
 
+  // Date formatting helper
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -137,6 +124,7 @@ export default function FavoritesPage() {
     });
   };
 
+  // Priority icon helper for announcements
   const getPriorityIcon = (priority) => {
     switch (priority) {
       case 'urgent':
@@ -148,12 +136,11 @@ export default function FavoritesPage() {
     }
   };
 
+  // Priority color helper for announcements
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'urgent':
-        return 'bg-red-500 text-white';
       case 'high':
-        return 'bg-orange-500 text-white';
+        return 'bg-red-500 text-white';
       case 'medium':
         return 'bg-blue-500 text-white';
       default:
@@ -166,9 +153,7 @@ export default function FavoritesPage() {
       {/* Header */}
       <div className="space-y-2">
         <h1>Favorites</h1>
-        <p className="text-muted-foreground">
-          Your saved events and announcements
-        </p>
+        <p className="text-muted-foreground">Your saved events and announcements</p>
       </div>
 
       <Tabs defaultValue="events" className="w-full">
@@ -218,9 +203,7 @@ export default function FavoritesPage() {
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        {formatDateTime(
-                          event.start_datetime || event.date_time
-                        )}
+                        {formatDateTime(event.start_datetime || event.date_time)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -241,15 +224,13 @@ export default function FavoritesPage() {
           )}
         </TabsContent>
 
-        {/* Favorite Announcements (still using sample data) */}
+        {/* Favorite Announcements */}
         <TabsContent value="announcements" className="space-y-4 mt-6">
           {favoriteAnnouncements.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Heart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  No favorite announcements yet
-                </p>
+                <p className="text-muted-foreground">No favorite announcements yet</p>
                 <p className="text-sm text-muted-foreground mt-2">
                   Click the heart icon on announcements to save them here
                 </p>
@@ -266,24 +247,16 @@ export default function FavoritesPage() {
                           {announcement.is_pinned && (
                             <Pin className="h-4 w-4 text-primary" />
                           )}
-                          <CardTitle className="text-lg">
-                            {announcement.title}
-                          </CardTitle>
+                          <CardTitle className="text-lg">{announcement.title}</CardTitle>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
                           <span>Posted by {announcement.created_by_name}</span>
                           <span>•</span>
-                          <span>
-                            {formatDateTime(announcement.created_date)}
-                          </span>
+                          <span>{formatDateTime(announcement.created_date)}</span>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Badge
-                          className={getPriorityColor(
-                            announcement.priority
-                          )}
-                        >
+                        <Badge className={getPriorityColor(announcement.priority)}>
                           <span className="flex items-center gap-1">
                             {getPriorityIcon(announcement.priority)}
                             {announcement.priority.toUpperCase()}
@@ -292,9 +265,9 @@ export default function FavoritesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() =>
-                            removeFavoriteAnnouncement(announcement.id)
-                          }
+                          onClick={() => removeFavoriteAnnouncement(announcement.id)}
+                          aria-label="Remove announcement from favorites"
+                          title="Remove announcement from favorites"
                         >
                           <Heart className="h-4 w-4 fill-red-500 text-red-500" />
                         </Button>
@@ -318,12 +291,8 @@ export default function FavoritesPage() {
           <div className="text-sm text-muted-foreground">Favorite Events</div>
         </div>
         <div className="text-center space-y-1">
-          <div className="text-3xl font-semibold">
-            {favoriteAnnouncements.length}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Favorite Announcements
-          </div>
+          <div className="text-3xl font-semibold">{favoriteAnnouncements.length}</div>
+          <div className="text-sm text-muted-foreground">Favorite Announcements</div>
         </div>
       </div>
     </div>

@@ -87,5 +87,18 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router.patch('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, content, priority } = req.body;
+  try {
+    await db.query(
+      'UPDATE announcements SET title=?, content=?, priority=? WHERE announcement_id=?',
+      [title, content, priority, id]
+    );
+    res.json({ message: 'Announcement updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
