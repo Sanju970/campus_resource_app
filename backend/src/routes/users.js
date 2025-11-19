@@ -308,4 +308,26 @@ router.get('/user/:id', async (req, res) => {
   }
 });
 
+// UPDATE EMAIL NOTIFICATION PREFERENCE
+router.post("/user/update-notifications", async (req, res) => {
+  try {
+    const { user_id, enabled } = req.body;
+
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ message: "Invalid value" });
+    }
+
+    await db.query(
+      "UPDATE users SET email_notifications = ? WHERE user_id = ?",
+      [enabled, user_id]
+    );
+
+    return res.json({ message: "Notification preference updated" });
+  } catch (err) {
+    console.error("Notification update error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 module.exports = router;

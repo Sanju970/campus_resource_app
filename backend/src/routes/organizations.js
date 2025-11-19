@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
-// Helper: get role_name for a user_id
+/* ------------------------------------------------------------
+   Helper: Get role_name for a user
+------------------------------------------------------------ */
 async function getUserRoleName(userId) {
   const [rows] = await db.query(
     `
@@ -17,8 +19,7 @@ async function getUserRoleName(userId) {
 }
 
 /* ============================================================
-   GET all organizations (optionally with membership info)
-   GET /api/organizations?user_id=123
+   GET all organizations (JOIN category + member count)
 ============================================================ */
 router.get("/", async (req, res) => {
   const userId = req.query.user_id || null;
@@ -34,25 +35,35 @@ router.get("/", async (req, res) => {
         o.hours,
         o.contact,
         o.website,
-        o.image,
         o.head_name,
         o.head_contact,
+
+        oc.category_key,
+        oc.category_name,
+        o.category_id,
+
         o.is_active,
-        COALESCE(members.member_count, 0) AS member_count,
-        CASE
+        COALESCE(m.member_count, 0) AS member_count,
+
+        CASE 
           WHEN ? IS NULL THEN 0
-          ELSE COALESCE((
-            SELECT 1
+          ELSE (
+            SELECT COUNT(*) 
             FROM organization_members om
             WHERE om.org_id = o.org_id AND om.user_id = ?
-          ), 0)
+          )
         END AS is_member
+
       FROM organizations o
+      LEFT JOIN organization_categories oc
+        ON oc.category_id = o.category_id
+
       LEFT JOIN (
         SELECT org_id, COUNT(*) AS member_count
         FROM organization_members
         GROUP BY org_id
-      ) AS members ON members.org_id = o.org_id
+      ) m ON m.org_id = o.org_id
+
       WHERE o.is_active = 1
       ORDER BY o.title;
     `,
@@ -67,8 +78,7 @@ router.get("/", async (req, res) => {
 });
 
 /* ============================================================
-   CREATE organization (faculty + admin ONLY)
-   POST /api/organizations
+   CREATE organization (ADMIN ONLY)
 ============================================================ */
 router.post("/", async (req, res) => {
   try {
@@ -79,32 +89,32 @@ router.post("/", async (req, res) => {
       hours,
       contact,
       website,
-      image,
       head_name,
       head_contact,
+      category_id,
       created_by,
     } = req.body;
 
-    if (!title || !created_by) {
+    if (!title || !created_by || !category_id) {
       return res.status(400).json({
-        message: "Title and created_by (user_id) are required",
+        message: "Title, category_id, and created_by are required",
       });
     }
 
     const roleName = await getUserRoleName(created_by);
-    if (!["faculty", "admin"].includes(roleName)) {
+    if (roleName !== "admin") {
       return res.status(403).json({
-        message: "Only faculty or admin can create organizations",
+        message: "Only admin can create organizations",
       });
     }
 
     const [result] = await db.query(
       `
       INSERT INTO organizations
-        (title, description, location, hours, contact, website, image,
-         head_name, head_contact, created_by)
+      (title, description, location, hours, contact, website,
+       head_name, head_contact, category_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
+      `,
       [
         title,
         description || null,
@@ -112,9 +122,9 @@ router.post("/", async (req, res) => {
         hours || null,
         contact || null,
         website || null,
-        image || null,
         head_name || null,
         head_contact || null,
+        category_id,
         created_by,
       ]
     );
@@ -130,8 +140,7 @@ router.post("/", async (req, res) => {
 });
 
 /* ============================================================
-   UPDATE organization (faculty + admin ONLY)
-   PUT /api/organizations/:id
+   UPDATE organization (ADMIN ONLY)
 ============================================================ */
 router.put("/:id", async (req, res) => {
   try {
@@ -143,20 +152,20 @@ router.put("/:id", async (req, res) => {
       hours,
       contact,
       website,
-      image,
       head_name,
       head_contact,
+      category_id,
       updated_by,
     } = req.body;
 
     if (!updated_by) {
-      return res.status(400).json({ message: "updated_by (user_id) is required" });
+      return res.status(400).json({ message: "updated_by is required" });
     }
 
     const roleName = await getUserRoleName(updated_by);
-    if (!["faculty", "admin"].includes(roleName)) {
+    if (roleName !== "admin") {
       return res.status(403).json({
-        message: "Only faculty or admin can update organizations",
+        message: "Only admin can update organizations",
       });
     }
 
@@ -170,11 +179,11 @@ router.put("/:id", async (req, res) => {
         hours = ?,
         contact = ?,
         website = ?,
-        image = ?,
         head_name = ?,
-        head_contact = ?
+        head_contact = ?,
+        category_id = ?
       WHERE org_id = ?
-    `,
+      `,
       [
         title,
         description || null,
@@ -182,9 +191,9 @@ router.put("/:id", async (req, res) => {
         hours || null,
         contact || null,
         website || null,
-        image || null,
         head_name || null,
         head_contact || null,
+        category_id,
         orgId,
       ]
     );
@@ -198,7 +207,6 @@ router.put("/:id", async (req, res) => {
 
 /* ============================================================
    DELETE organization (ADMIN ONLY)
-   DELETE /api/organizations/:id
 ============================================================ */
 router.delete("/:id", async (req, res) => {
   try {
@@ -216,9 +224,8 @@ router.delete("/:id", async (req, res) => {
       });
     }
 
-    // Soft delete: mark inactive so records remain
     await db.query(
-      "UPDATE organizations SET is_active = 0 WHERE org_id = ?",
+      `UPDATE organizations SET is_active = 0 WHERE org_id = ?`,
       [orgId]
     );
 
@@ -230,44 +237,56 @@ router.delete("/:id", async (req, res) => {
 });
 
 /* ============================================================
-   JOIN organization (Students can join; others allowed too)
-   POST /api/organizations/:id/join
+   JOIN organization
 ============================================================ */
 router.post("/:id/join", async (req, res) => {
   try {
     const orgId = req.params.id;
     const { user_id } = req.body;
 
-    if (!user_id) {
+    if (!user_id)
       return res.status(400).json({ message: "user_id is required" });
-    }
 
-    // Prevent duplicate membership
-    const [existing] = await db.query(
-      `
-      SELECT 1
-      FROM organization_members
-      WHERE org_id = ? AND user_id = ?
-    `,
+    const [exists] = await db.query(
+      `SELECT 1 FROM organization_members WHERE org_id = ? AND user_id = ?`,
       [orgId, user_id]
     );
 
-    if (existing.length) {
-      return res.status(200).json({ message: "Already a member" });
-    }
+    if (exists.length)
+      return res.json({ message: "Already a member" });
 
     await db.query(
       `
       INSERT INTO organization_members (org_id, user_id, role)
       VALUES (?, ?, 'member')
-    `,
+      `,
       [orgId, user_id]
     );
 
-    res.status(201).json({ message: "Joined organization" });
+    res.json({ message: "Joined organization" });
   } catch (err) {
-    console.error("POST /organizations/:id/join error:", err);
+    console.error("JOIN error:", err);
     res.status(500).json({ message: "Failed to join organization" });
+  }
+});
+
+/* ============================================================
+   LEAVE organization
+============================================================ */
+router.post("/:id/leave", async (req, res) => {
+  try {
+    const orgId = req.params.id;
+    const { user_id } = req.body;
+
+    await db.query(
+      `DELETE FROM organization_members WHERE org_id = ? AND user_id = ?`,
+      [orgId, user_id]
+    );
+
+    res.json({ message: "Left organization" });
+  } catch (err) {
+    console.error("LEAVE error:", err);
+    res.status(500).json({ message: "Failed to leave organization" });
   }
 });
 

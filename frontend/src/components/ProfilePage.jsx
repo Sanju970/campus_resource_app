@@ -174,6 +174,48 @@ function ChangePasswordSection() {
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  function NotificationToggle() {
+    const { user, setUser } = useAuth();
+    const [enabled, setEnabled] = useState(user?.email_notifications);
+    const [loading, setLoading] = useState(false);
+
+    const handleToggle = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.post(
+          "http://localhost:5000/api/user/update-notifications",
+          {
+            user_id: user.user_id,
+            enabled: !enabled,
+          }
+        );
+
+        toast.success(res.data.message);
+
+        // update React & localStorage
+        const updated = { ...user, email_notifications: !enabled };
+        setUser(updated);
+        localStorage.setItem("user", JSON.stringify(updated));
+
+        setEnabled(!enabled);
+      } catch (err) {
+        toast.error("Failed to update setting");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleToggle}
+        disabled={loading}
+      >
+        {enabled ? "Disable" : "Enable"}
+      </Button>
+    );
+  }
 
   const getRoleIcon = () => {
     switch (user?.role) {
@@ -261,14 +303,16 @@ export default function ProfilePage() {
           <CardDescription>Manage your account preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-t pt-4">
             <div>
               <p>Email Notifications</p>
               <p className="text-sm text-muted-foreground">
                 Receive updates about your account
               </p>
             </div>
-            <Button variant="outline" size="sm">Configure</Button>
+            <Button variant="outline" size="sm">
+                <NotificationToggle />
+            </Button>
           </div>
 
           <div className="flex items-center justify-between border-t pt-4">

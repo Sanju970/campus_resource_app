@@ -28,6 +28,7 @@ CREATE TABLE users (
     is_active BOOLEAN DEFAULT TRUE,
     reset_token VARCHAR(255) DEFAULT NULL,
     reset_token_expire BIGINT DEFAULT NULL,
+    email_notifications BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (role_id) REFERENCES roles(role_id)
@@ -141,9 +142,22 @@ CREATE TABLE organization_heads (
 -- ============================================================
 -- 7. ORGANIZATIONS
 -- ============================================================
-
+DROP TABLE IF EXISTS organization_categories;
 DROP TABLE IF EXISTS organization_members;
 DROP TABLE IF EXISTS organizations;
+-- ============================================================
+-- ORGANIZATION CATEGORY TABLE 
+-- ============================================================
+
+CREATE TABLE organization_categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    category_key VARCHAR(50) UNIQUE NOT NULL, 
+    category_name VARCHAR(150) NOT NULL 
+);
+
+-- ============================================================
+-- ORGANIZATIONS TABLE
+-- ============================================================
 
 CREATE TABLE organizations (
     org_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -153,17 +167,22 @@ CREATE TABLE organizations (
     hours VARCHAR(255),
     contact VARCHAR(255),
     website VARCHAR(255),
-    image VARCHAR(500),
     head_name VARCHAR(150),
     head_contact VARCHAR(255),
+    category_id INT, 
     created_by INT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(user_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id)
 );
+
+-- ============================================================
+-- ORGANIZATION MEMBERS TABLE
+-- ============================================================
 
 CREATE TABLE organization_members (
     org_id INT NOT NULL,
@@ -176,49 +195,6 @@ CREATE TABLE organization_members (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
-
--- Sample organizations (you can tweak these)
-INSERT INTO organizations
-    (title, description, location, hours, contact, website, image, head_name, head_contact, created_by)
-VALUES
-    ('Central Library',
-     'Main campus library with extensive collection of books, journals, and digital resources.',
-     'Building A, 1st–4th Floor',
-     'Mon–Fri: 7am–11pm, Sat–Sun: 9am–9pm',
-     'library@gmail.com | (555) 123-4567',
-     'library.gmail.com',
-     NULL,
-     'Dr. Jane Doe',
-     'jane.doe@university.edu',
-     1),
-    ('Writing Center',
-     'Free peer tutoring for writing assignments, essays, and research papers.',
-     'Student Success Center, Room 201',
-     'Mon–Thu: 9am–8pm, Fri: 9am–5pm',
-     'writing@gmail.com | (555) 111-2222',
-     NULL,
-     'Prof. John Smith',
-     'john.smith@university.edu',
-     2),
-    ('Career Development Center',
-     'Career counseling, resume reviews, interview prep, and job search support.',
-     'Admin Building, 3rd Floor',
-     'Mon–Fri: 8:30am–5pm',
-     'careers@gmail.com | (555) 123-4568',
-     NULL,
-     'Dr. Emily Lee',
-     'emily.lee@university.edu',
-     1);
-
-
-
-INSERT INTO organization_heads (org_id, org_name, faculty_id) VALUES
-(1, 'Library & Study Spaces',  'fac0001'),
-(2, 'Academic Support',        'fac0002'),
-(3, 'Career Services',         'fac0003'),
-(4, 'Health & Wellness',       'fac0004'),
-(5, 'IT Services',             'fac0005'),
-(6, 'Activities',              'fac0006');
 
 
 -- ============================================================
@@ -256,6 +232,52 @@ VALUES
 
 ('Bob', 'Student', 'stu0001', 'stu0001@gmail.com',
  '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
+
+
+
+INSERT INTO organization_categories (category_key, category_name)
+VALUES
+    ('library', 'Library & Study Spaces'),
+    ('academic_support', 'Academic Support'),
+    ('career_services', 'Career Services'),
+    ('health_wellness', 'Health & Wellness'),
+    ('it_services', 'IT Services'),
+    ('activities', 'Activities & Student Life');
+
+-- ============================================================
+-- INSERT SAMPLE ORGANIZATIONS
+-- ============================================================
+
+INSERT INTO organizations
+(title, description, location, hours, contact, website,
+ head_name, head_contact, category_id, created_by)
+VALUES
+('Central Library', 'Comprehensive research library...', 'Central Building', '7am-11pm', 
+ 'library@campus.edu', 'https://library.campus.edu', 'Dr. Jane Doe', 'jane.doe@campus.edu', 1, 1),
+
+('Writing Center', 'Tutoring for writing...', 'Success Center 201', '9am-8pm',
+ 'writing@campus.edu', 'https://writing.campus.edu', 'Prof John Smith', 'john.smith@campus.edu', 2, 1),
+
+('Career Development Center', 'Career counseling...', 'Admin Building 3rd floor', '8:30am-5pm',
+ 'careers@campus.edu', 'https://careers.campus.edu', 'Dr Emily Lee', 'emily.lee@campus.edu', 3, 1),
+
+('Health & Wellness Center', 'Health & wellness services...', 'Wellness Center Building', '8am-6pm',
+ 'wellness@campus.edu', 'https://wellness.campus.edu', 'Dr Michael Hart', 'michael.hart@campus.edu', 4, 1),
+
+('IT Services', 'Technology support...', 'IT Building 1st floor', '24/7',
+ 'itsupport@campus.edu', 'https://it.campus.edu', 'Mr Robert Steele', 'robert.steele@campus.edu', 5, 1),
+
+('Student Activities Office', 'Campus events & clubs...', 'Student Union 210', '9am-5pm',
+ 'activities@campus.edu', 'https://activities.campus.edu', 'Ms Karen Mitchell', 'karen.mitchell@campus.edu', 6, 1);
+
+
+INSERT INTO organization_heads (org_id, org_name, faculty_id) VALUES
+(1, 'Library & Study Spaces',  'fac0001'),
+(2, 'Academic Support',        'fac0002'),
+(3, 'Career Services',         'fac0003'),
+(4, 'Health & Wellness',       'fac0004'),
+(5, 'IT Services',             'fac0005'),
+(6, 'Activities',              'fac0006');
 
 
 -- Sample Events (duplicates prevented by unique constraint)
