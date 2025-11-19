@@ -16,7 +16,6 @@ export default function ResourceCard({
   onEdit,
   onDelete,
   isMember,
-  isAdminView,
 }) {
   const navigate = useNavigate();
   const joined = Boolean(isMember || resource?.is_member);
@@ -24,6 +23,7 @@ export default function ResourceCard({
   return (
     <Card className="hover:shadow-lg transition-shadow rounded-xl border border-gray-200 bg-white flex flex-col justify-between">
 
+      {/* HEADER */}
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold leading-tight">
           {resource.title}
@@ -36,8 +36,10 @@ export default function ResourceCard({
         )}
       </CardHeader>
 
+      {/* CONTENT */}
       <CardContent className="space-y-3 text-sm flex flex-col flex-grow">
 
+        {/* LOCATION */}
         {resource.location && (
           <div className="flex items-start gap-2">
             <MapPin className="h-4 w-4 text-gray-500" />
@@ -45,6 +47,7 @@ export default function ResourceCard({
           </div>
         )}
 
+        {/* HOURS */}
         {resource.hours && (
           <div className="flex items-start gap-2">
             <Clock className="h-4 w-4 text-gray-500" />
@@ -52,45 +55,29 @@ export default function ResourceCard({
           </div>
         )}
 
+        {/* CONTACT */}
         {resource.contact && (
           <div className="flex items-start gap-2">
             <Mail className="h-4 w-4 text-gray-500" />
             <span>{resource.contact}</span>
           </div>
         )}
-        {/* HEAD NAME */}
-        {resource.head_user_name && (
-          <div className="flex items-start gap-2 text-sm">
-            <span className="font-semibold">Org Head:</span>
-            <span>{resource.head_user_name}</span>
-          </div>
-        )}
 
-        {/* HEAD CONTACT */}
-        {resource.head_user_email && (
-          <div className="flex items-start gap-2 text-sm">
-            <span className="font-semibold">Head Contact:</span>
-            <a href={`mailto:${resource.head_user_email}`} className="text-blue-600 underline">
-              {resource.head_user_email}
-            </a>
-          </div>
-        )}
-
-        {/* FOOTER SECTION – Matches Events Page */}
+        {/* FOOTER */}
         <div className="pt-3 mt-auto">
 
-          <div className="text-xs text-gray-500 flex gap-1 items-center mb-3">
-            <Users className="h-4 w-4" />
-            {resource.member_count ?? 0} members
-          </div>
-          <div
-            className="text-blue-600 underline cursor-pointer text-sm"
+          {/* VIEW MEMBERS */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full mb-2 flex items-center justify-center gap-2"
             onClick={() => navigate(`/organizations/${resource.id}/members`)}
           >
-            View Members
-          </div>
+            <Users className="h-4 w-4" />
+            View Members ({resource.member_count ?? 0})
+          </Button>
 
-          {/* JOIN */}
+          {/* JOIN / LEAVE */}
           {onJoin && (
             !joined ? (
               <Button
@@ -112,9 +99,8 @@ export default function ResourceCard({
             )
           )}
 
-
-          {/* ADMIN ACTIONS */}
-          {isAdminView && (
+          {/* ORG-ADMIN ACTIONS */}
+          {(onEdit || onDelete) && (
             <div className="flex gap-2 mt-2">
               {onEdit && (
                 <Button
@@ -143,7 +129,6 @@ export default function ResourceCard({
           )}
 
         </div>
-
       </CardContent>
     </Card>
   );
@@ -155,5 +140,4 @@ ResourceCard.propTypes = {
   onEdit: PropTypes.func,
   onDelete: PropTypes.func,
   isMember: PropTypes.bool,
-  isAdminView: PropTypes.bool,
 };

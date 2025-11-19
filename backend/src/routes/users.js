@@ -419,4 +419,24 @@ router.post("/user/update-notifications", async (req, res) => {
   }
 });
 
+/* ============================================================
+   GET ALL ACTIVE USERS (for dropdown)
+============================================================ */
+router.get("/all", async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT user_id, first_name, last_name, user_uid, email
+      FROM users
+      WHERE is_active = 1
+      ORDER BY first_name, last_name
+    `);
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("Fetch all users error:", err);
+    return res.status(500).json({ message: "Failed to load users" });
+  }
+});
+
+
 module.exports = router;
