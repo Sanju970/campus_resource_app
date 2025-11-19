@@ -8,6 +8,7 @@ const sendEmail = require("../config/sendEmail");
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key";
+const DEFAULT_BIO = "This is my profile bio.";
 
 /* ---------------------------------------------------------
    TEST EMAIL
@@ -79,8 +80,8 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(cleanPass, 10);
 
     const sql = `
-      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id, bio)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
 
     await db.query(sql, [
@@ -90,6 +91,7 @@ router.post("/register", async (req, res) => {
       email,
       hashedPassword,
       role_id,
+      DEFAULT_BIO,
     ]);
 
     // 🔥 Send welcome email BEFORE returning response
@@ -120,6 +122,7 @@ router.post("/register", async (req, res) => {
         user_uid: cleanUid,
         email,
         role_id,
+        bio: DEFAULT_BIO,
       },
     });
   } catch (err) {
@@ -136,8 +139,8 @@ router.post("/register", async (req, res) => {
 --------------------------------------------------------- */
 router.post("/login", async (req, res) => {
   try {
-    const { identifier, password } = req.body;
-
+    const { identifier, password } = req.body; // FIXED: removed extra )
+    
     if (!identifier || !password) {
       return res.status(400).json({
         message: "Email/User ID and password are required.",
@@ -145,28 +148,33 @@ router.post("/login", async (req, res) => {
     }
 
     const cleanId = identifier.trim().toLowerCase();
-
+    
     const [rows] = await db.query(
       "SELECT * FROM users WHERE (email = ? OR user_uid = ?) LIMIT 1",
       [cleanId, cleanId]
     );
 
-    if (rows.length === 0)
+    if (rows.length === 0) {
       return res.status(400).json({ message: "Invalid credentials." });
+    }
 
     const user = rows[0];
 
-    if (!user.is_active)
+    if (!user.is_active) {
       return res.status(403).json({
         message: "Your account is deactivated. Contact administrator.",
       });
+    }
 
     const match = await bcrypt.compare(password, user.password_hash);
-    if (!match)
+    
+    if (!match) {
       return res.status(400).json({ message: "Invalid credentials." });
+    }
 
     const token = jwt.sign(
       {
+        user_id: user.user_id,        // ADDED: useful for authorization
         user_uid: user.user_uid,
         email: user.email,
         role_id: user.role_id,

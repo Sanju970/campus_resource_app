@@ -4,8 +4,9 @@ const bcrypt = require("bcryptjs");
 const db = require("../config/db");
 const sendEmail = require('../config/sendEmail');
 
-
 const router = express.Router();
+
+const DEFAULT_BIO = "This is my profile bio.";
 
 /* ============================================================
    ADMIN: FETCH USERS
@@ -15,8 +16,8 @@ router.get("/admin/users", async (req, res) => {
     const includeAll = req.query.all === "true";
 
     const sql = includeAll
-      ? `SELECT user_id, first_name, last_name, user_uid, email, role_id, is_active FROM users`
-      : `SELECT user_id, first_name, last_name, user_uid, email, role_id, is_active 
+      ? `SELECT user_id, first_name, last_name, user_uid, email, bio, role_id, is_active FROM users`
+      : `SELECT user_id, first_name, last_name, user_uid, email, bio, role_id, is_active 
          FROM users WHERE is_active = TRUE`;
 
     const [rows] = await db.query(sql);
@@ -94,8 +95,8 @@ router.post("/admin/create", async (req, res) => {
     const hashed = await bcrypt.hash(plainPassword, 10);
 
     const sql = `
-      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id, bio)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [result] = await db.query(sql, [
@@ -105,6 +106,7 @@ router.post("/admin/create", async (req, res) => {
       email,
       hashed,
       autoRole,
+      DEFAULT_BIO,
     ]);
 
     // ------------- SEND EMAIL BEFORE RETURN ---------------
@@ -141,6 +143,7 @@ router.post("/admin/create", async (req, res) => {
         user_uid: cleanUid,
         email,
         role_id: autoRole,
+        bio: DEFAULT_BIO,
         dummy_password: plainPassword,
       },
     });
@@ -208,7 +211,7 @@ router.patch("/admin/users/:id/activate", async (req, res) => {
 router.patch("/admin/users/:id/update", async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, user_uid } = req.body;
+    const { first_name, last_name, user_uid, bio } = req.body;
 
     if (!first_name || !last_name || !user_uid)
       return res.status(400).json({ message: "All fields are required." });
@@ -242,7 +245,7 @@ router.patch("/admin/users/:id/update", async (req, res) => {
 
     const sql = `
       UPDATE users
-      SET first_name = ?, last_name = ?, email = ?, user_uid = ?, role_id = ?, updated_at = NOW()
+      SET first_name = ?, last_name = ?, email = ?, user_uid = ?, role_id = ?, bio = ?, updated_at = NOW()
       WHERE user_id = ?
     `;
 
@@ -252,6 +255,7 @@ router.patch("/admin/users/:id/update", async (req, res) => {
       cleanEmail,
       cleanUid,
       role_id,
+      bio || DEFAULT_BIO,
       id,
     ]);
 
@@ -291,12 +295,15 @@ router.delete("/admin/users/:id", async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
-// Get user details by user ID
+
+/* ============================================================
+   Get user details by user ID
+============================================================ */
 router.get('/user/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const [results] = await db.query(
-      'SELECT user_id, user_uid, first_name, last_name, email, role_id, is_active, created_at, updated_at FROM users WHERE user_id = ?',
+      'SELECT user_id, user_uid, first_name, last_name, email, bio, role_id, is_active, created_at, updated_at FROM users WHERE user_id = ?',
       [id]
     );
     if (results.length === 0) {
@@ -304,11 +311,94 @@ router.get('/user/:id', async (req, res) => {
     }
     res.json(results[0]);
   } catch (err) {
+    console.error("Get user by id error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// UPDATE EMAIL NOTIFICATION PREFERENCE
+/* ============================================================
+   USER: UPDATE BIO (self-service)
+============================================================ */
+router.post("/user/update-bio", async (req, res) => {
+  try {
+    const { user_id, bio } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ message: "user_id is required" });
+    }
+
+    const newBio =
+      typeof bio === "string" && bio.trim().length > 0
+        ? bio.trim()
+        : DEFAULT_BIO;
+
+    await db.query(
+      "UPDATE users SET bio = ?, updated_at = NOW() WHERE user_id = ?",
+      [newBio, user_id]
+    );
+
+    return res.json({ message: "Bio updated successfully", bio: newBio });
+  } catch (err) {
+    console.error("Update bio error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* ============================================================
+   USER: UPDATE PROFILE (first_name, last_name, bio)
+============================================================ */
+router.post("/user/update-profile", async (req, res) => {
+  try {
+    const { user_id, first_name, last_name, bio } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ message: "user_id is required" });
+    }
+
+    if (!first_name || !last_name) {
+      return res.status(400).json({ message: "First and last name required." });
+    }
+
+    const cleanFirst = first_name.trim();
+    const cleanLast = last_name.trim();
+    const cleanBio =
+      typeof bio === "string" && bio.trim().length > 0
+        ? bio.trim()
+        : "This is my profile bio.";
+
+    const [result] = await db.query(
+      `
+      UPDATE users 
+      SET first_name = ?, last_name = ?, bio = ?, updated_at = NOW()
+      WHERE user_id = ?
+      `,
+      [cleanFirst, cleanLast, cleanBio, user_id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({
+      message: "Profile updated successfully",
+      user: {
+        user_id,
+        first_name: cleanFirst,
+        last_name: cleanLast,
+        bio: cleanBio,
+      },
+    });
+  } catch (err) {
+    console.error("Profile update error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
+/* ============================================================
+   UPDATE EMAIL NOTIFICATION PREFERENCE
+============================================================ */
 router.post("/user/update-notifications", async (req, res) => {
   try {
     const { user_id, enabled } = req.body;
@@ -328,6 +418,5 @@ router.post("/user/update-notifications", async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
-
 
 module.exports = router;

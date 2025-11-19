@@ -8,6 +8,7 @@ import {
 import { Button } from "./ui/button";
 import { MapPin, Clock, Mail, Users, Trash2, Pencil } from "lucide-react";
 import PropTypes from "prop-types";
+import { useNavigate } from "react-router-dom";
 
 export default function ResourceCard({
   resource,
@@ -17,6 +18,7 @@ export default function ResourceCard({
   isMember,
   isAdminView,
 }) {
+  const navigate = useNavigate();
   const joined = Boolean(isMember || resource?.is_member);
 
   return (
@@ -57,19 +59,19 @@ export default function ResourceCard({
           </div>
         )}
         {/* HEAD NAME */}
-        {resource.head_name && (
+        {resource.head_user_name && (
           <div className="flex items-start gap-2 text-sm">
             <span className="font-semibold">Org Head:</span>
-            <span>{resource.head_name}</span>
+            <span>{resource.head_user_name}</span>
           </div>
         )}
 
         {/* HEAD CONTACT */}
-        {resource.head_contact && (
+        {resource.head_user_email && (
           <div className="flex items-start gap-2 text-sm">
             <span className="font-semibold">Head Contact:</span>
-            <a href={`mailto:${resource.head_contact}`} className="text-blue-600 underline">
-              {resource.head_contact}
+            <a href={`mailto:${resource.head_user_email}`} className="text-blue-600 underline">
+              {resource.head_user_email}
             </a>
           </div>
         )}
@@ -80,6 +82,12 @@ export default function ResourceCard({
           <div className="text-xs text-gray-500 flex gap-1 items-center mb-3">
             <Users className="h-4 w-4" />
             {resource.member_count ?? 0} members
+          </div>
+          <div
+            className="text-blue-600 underline cursor-pointer text-sm"
+            onClick={() => navigate(`/organizations/${resource.id}/members`)}
+          >
+            View Members
           </div>
 
           {/* JOIN */}

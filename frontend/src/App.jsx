@@ -18,7 +18,8 @@ import { Toaster } from './components/ui/sonner';
 import { useEffect, useState as useReactState } from 'react';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
-
+import OrganizationMembers from './components/OrganizationMembers';
+import UserPublicProfile from './components/UserPublicProfile';
 
 function AppContent() {
   const { user, setUser } = useAuth();
@@ -74,6 +75,9 @@ function AppContent() {
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/favorites" element={<FavoritesPage />} />
                 <Route path="/my-events" element={<EventsPage />} />
+                <Route path="/organizations/:orgId/members" element={<OrganizationMembers />} />
+                <Route path="/user/:userId" element={<UserPublicProfile />} />
+
                 <Route
                   path="/admin"
                   element={

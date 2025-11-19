@@ -25,6 +25,7 @@ CREATE TABLE users (
     email VARCHAR(150) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role_id INT NOT NULL,
+    bio TEXT DEFAULT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     reset_token VARCHAR(255) DEFAULT NULL,
     reset_token_expire BIGINT DEFAULT NULL,
@@ -34,6 +35,7 @@ CREATE TABLE users (
     FOREIGN KEY (role_id) REFERENCES roles(role_id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 );
+
 
 -- ============================================================
 -- 2. EVENTS
@@ -167,9 +169,8 @@ CREATE TABLE organizations (
     hours VARCHAR(255),
     contact VARCHAR(255),
     website VARCHAR(255),
-    head_name VARCHAR(150),
-    head_contact VARCHAR(255),
-    category_id INT, 
+    head_user_id INT DEFAULT NULL,
+    category_id INT,
     created_by INT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -177,8 +178,11 @@ CREATE TABLE organizations (
         ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(user_id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id)
+    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id),
+    FOREIGN KEY (head_user_id) REFERENCES users(user_id)
+        ON DELETE SET NULL ON UPDATE CASCADE
 );
+
 
 -- ============================================================
 -- ORGANIZATION MEMBERS TABLE
@@ -187,7 +191,7 @@ CREATE TABLE organizations (
 CREATE TABLE organization_members (
     org_id INT NOT NULL,
     user_id INT NOT NULL,
-    role ENUM('member','officer','advisor') DEFAULT 'member',
+    role ENUM('member','head','admin') DEFAULT 'member',
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (org_id, user_id),
     FOREIGN KEY (org_id) REFERENCES organizations(org_id)
@@ -209,28 +213,28 @@ INSERT INTO roles (role_name) VALUES ('student'), ('faculty'), ('admin');
 
 INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
 VALUES
-('System', 'Admin', 'adm0001', 'adm0001@gmail.com',
+('Michael', 'Anderson', 'adm0001', 'adm0001@gmail.com',
  '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3), 
 
-('Alice', 'Faculty', 'fac0006', 'fac0006@gmail.com',
+('Jane', 'Doe', 'fac0006', 'fac0006@gmail.com',
  '$2a$10$0T0VOYrqBqhIlYvT0nRm.OUFwa3.nuDZ8SG/zchbZ9ZsEVll2xpY.', 2),
 
-('Alice', 'Faculty', 'fac0005', 'fac0005@gmail.com',
+('John', 'Smith', 'fac0005', 'fac0005@gmail.com',
  '$2a$10$Opi0eknm8c5n3wlgwXzC5utztgQuuenWWxRFxc8As052U9yiHWUfS', 2), 
 
-('Alice', 'Faculty', 'fac0004', 'fac0004@gmail.com',
+('Emily', 'Lee', 'fac0004', 'fac0004@gmail.com',
  '$2a$10$d1dNmwGVoCaRDZrIoQy29usriQaq0P3FA05A0TxMe0ExKKu/1/cO.', 2),
 
-('Alice', 'Faculty', 'fac0003', 'fac0003@gmail.com',
+('Michael', 'Hart', 'fac0003', 'fac0003@gmail.com',
  '$2a$10$1ZaRyvGA9PbpgvfIxeou5O5cfwe1Hig/2md/i3hElWUy4otxGJA.y', 2),
 
-('Alice', 'Faculty', 'fac0002', 'fac0002@gmail.com',
+('Robert', 'Steele', 'fac0002', 'fac0002@gmail.com',
  '$2a$10$KPyfTBLXS9lSLDXdKmDrYeVcsqsqt4gqTQ7agqLZdvaChXkg8u4Oe', 2),
 
-('Alice', 'Faculty', 'fac0001', 'fac0001@gmail.com',
+('Karen', 'Mitchell', 'fac0001', 'fac0001@gmail.com',
  '$2a$10$jOeOu5nm3qsxZzfTJOJ/YeGoedwZK0alkuU/daw1sFhUwt1bmKsQi', 2),
 
-('Bob', 'Student', 'stu0001', 'stu0001@gmail.com',
+('Bob', 'Lee', 'stu0001', 'stu0001@gmail.com',
  '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
 
 
@@ -250,25 +254,62 @@ VALUES
 
 INSERT INTO organizations
 (title, description, location, hours, contact, website,
- head_name, head_contact, category_id, created_by)
+ head_user_id, category_id, created_by)
 VALUES
 ('Central Library', 'Comprehensive research library...', 'Central Building', '7am-11pm', 
- 'library@campus.edu', 'https://library.campus.edu', 'Dr. Jane Doe', 'jane.doe@campus.edu', 1, 1),
+ 'library@campus.edu', 'https://library.campus.edu', 2, 1, 1),
 
 ('Writing Center', 'Tutoring for writing...', 'Success Center 201', '9am-8pm',
- 'writing@campus.edu', 'https://writing.campus.edu', 'Prof John Smith', 'john.smith@campus.edu', 2, 1),
+ 'writing@campus.edu', 'https://writing.campus.edu', 3, 2, 1),
 
-('Career Development Center', 'Career counseling...', 'Admin Building 3rd floor', '8:30am-5pm',
- 'careers@campus.edu', 'https://careers.campus.edu', 'Dr Emily Lee', 'emily.lee@campus.edu', 3, 1),
+('Career Development Center', 'Career counseling...', 'Admin Building 2rd floor', '8:30am-5pm',
+ 'careers@campus.edu', 'https://careers.campus.edu', 4, 3, 1),
 
 ('Health & Wellness Center', 'Health & wellness services...', 'Wellness Center Building', '8am-6pm',
- 'wellness@campus.edu', 'https://wellness.campus.edu', 'Dr Michael Hart', 'michael.hart@campus.edu', 4, 1),
+ 'wellness@campus.edu', 'https://wellness.campus.edu', 5, 4, 1),
 
 ('IT Services', 'Technology support...', 'IT Building 1st floor', '24/7',
- 'itsupport@campus.edu', 'https://it.campus.edu', 'Mr Robert Steele', 'robert.steele@campus.edu', 5, 1),
+ 'itsupport@campus.edu', 'https://it.campus.edu', 6, 5, 1),
 
 ('Student Activities Office', 'Campus events & clubs...', 'Student Union 210', '9am-5pm',
- 'activities@campus.edu', 'https://activities.campus.edu', 'Ms Karen Mitchell', 'karen.mitchell@campus.edu', 6, 1);
+ 'activities@campus.edu', 'https://activities.campus.edu', 7, 6, 1);
+
+-- ORG 1: Central Library
+INSERT INTO organization_members (org_id, user_id, role)
+VALUES 
+(1, 2, 'head'),
+(1, 1, 'admin');
+
+-- ORG 2: Writing Center
+INSERT INTO organization_members (org_id, user_id, role)
+VALUES 
+(2, 3, 'head'),
+(2, 1, 'admin');
+
+-- ORG 3: Career Development Center
+INSERT INTO organization_members (org_id, user_id, role)
+VALUES 
+(3, 4, 'head'),
+(3, 1, 'admin');
+
+-- ORG 4: Health & Wellness Center
+INSERT INTO organization_members (org_id, user_id, role)
+VALUES 
+(4, 5, 'head'),
+(4, 1, 'admin');
+
+-- ORG 5: IT Services
+INSERT INTO organization_members (org_id, user_id, role)
+VALUES 
+(5, 6, 'head'),
+(5, 1, 'admin');
+
+-- ORG 6: Student Activities Office
+INSERT INTO organization_members (org_id, user_id, role)
+VALUES 
+(6, 7, 'head'),
+(6, 1, 'admin');
+
 
 
 INSERT INTO organization_heads (org_id, org_name, faculty_id) VALUES

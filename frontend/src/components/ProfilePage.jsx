@@ -21,6 +21,7 @@ import {
   EyeOff,
   ChevronDown,
   ChevronUp,
+  PenIcon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -171,6 +172,104 @@ function ChangePasswordSection() {
     </div>
   );
 }
+function EditProfileSection() {
+  const { user, setUser } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  const [first, setFirst] = useState(user?.first_name || "");
+  const [last, setLast] = useState(user?.last_name || "");
+  const [bio, setBio] = useState(user?.bio || "");
+
+  const [loading, setLoading] = useState(false);
+
+  const submitUpdate = async () => {
+    if (!first.trim() || !last.trim()) {
+      return toast.error("First and Last name are required");
+    }
+
+    try {
+      setLoading(true);
+
+      const res = await axios.post(
+        "http://localhost:5000/api/user/update-profile",
+        {
+          user_id: user.user_id,
+          first_name: first,
+          last_name: last,
+          bio,
+        }
+      );
+
+      toast.success(res.data.message);
+
+      // Update user everywhere
+      const updated = {
+        ...user,
+        first_name: first,
+        last_name: last,
+        bio,
+      };
+      setUser(updated);
+      localStorage.setItem("user", JSON.stringify(updated));
+
+      setOpen(false);
+    } catch (err) {
+      toast.error("Could not update profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="border-t pt-4 mt-4">
+      <div
+        className="flex items-center justify-between cursor-pointer select-none"
+        onClick={() => setOpen(!open)}
+      >
+        <div>
+          <p>Edit Profile</p>
+          <p className="text-sm text-muted-foreground">
+            Change your name or bio
+          </p>
+        </div>
+        {open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+      </div>
+
+      {/* Body */}
+      {open && (
+        <div className="mt-4 space-y-3">
+          <div>
+            <Label>First Name</Label>
+            <Input value={first} onChange={(e) => setFirst(e.target.value)} />
+          </div>
+
+          <div>
+            <Label>Last Name</Label>
+            <Input value={last} onChange={(e) => setLast(e.target.value)} />
+          </div>
+
+          <div>
+            <Label>Bio</Label>
+            <Textarea
+              rows={3}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+            />
+          </div>
+
+          <Button
+            onClick={submitUpdate}
+            disabled={loading}
+            variant="outline" size="sm"
+            className="w-full bg-blue-600 text-black hover:bg-blue-700"
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -287,6 +386,10 @@ export default function ProfilePage() {
                   <span>User ID: {user?.user_uid}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <PenIcon className="h-4 w-4 text-muted-foreground" />
+                  <span>Bio: {user?.bio}</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>Joined {new Date(user?.created_at).toLocaleDateString()}</span>
                 </div>
@@ -303,6 +406,7 @@ export default function ProfilePage() {
           <CardDescription>Manage your account preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <EditProfileSection />
           <div className="flex items-center justify-between border-t pt-4">
             <div>
               <p>Email Notifications</p>
@@ -310,9 +414,7 @@ export default function ProfilePage() {
                 Receive updates about your account
               </p>
             </div>
-            <Button variant="outline" size="sm">
-                <NotificationToggle />
-            </Button>
+            <NotificationToggle />
           </div>
 
           <div className="flex items-center justify-between border-t pt-4">

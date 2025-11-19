@@ -118,39 +118,24 @@ export default function OrganizationModal({
           <div>
             <Label>Organization Head (Faculty)</Label>
             <select
-              className="border rounded-md w-full p-2"
-              value={form.head_contact}
-              onChange={(e) => {
-                const selected = faculty.find(
-                  (f) => f.email === e.target.value
-                );
-
+            value={form.head_user_id}
+            onChange={(e) => {
                 setForm({
-                  ...form,
-                  head_contact: e.target.value,
-                  head_name: selected
-                    ? `${selected.first_name} ${selected.last_name}`
-                    : "",
+                ...form,
+                head_user_id: e.target.value
                 });
-              }}
+            }}
             >
+
               <option value="">Select Faculty</option>
               {faculty.map((f) => (
-                <option key={f.user_id} value={f.email}>
-                  {f.first_name} {f.last_name} — {f.email}
+                <option key={f.user_id} value={f.user_id}>
+                {f.first_name} {f.last_name} — {f.email}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <Label>Head Name</Label>
-            <Input
-              value={form.head_name}
-              readOnly
-              className="bg-gray-100"
-            />
-          </div>
 
           {/* BUTTONS */}
           <div className="flex justify-end gap-3 pt-3">

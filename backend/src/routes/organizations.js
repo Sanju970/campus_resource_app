@@ -19,7 +19,7 @@ async function getUserRoleName(userId) {
 }
 
 /* ============================================================
-   GET all organizations (JOIN category + member count)
+   GET all organizations (JOIN category + member count + head user)
 ============================================================ */
 router.get("/", async (req, res) => {
   const userId = req.query.user_id || null;
@@ -35,8 +35,12 @@ router.get("/", async (req, res) => {
         o.hours,
         o.contact,
         o.website,
-        o.head_name,
-        o.head_contact,
+
+        o.head_user_id,
+
+        -- Derived fields for frontend
+        CONCAT(u.first_name, ' ', u.last_name) AS head_user_name,
+        u.email AS head_user_email,
 
         oc.category_key,
         oc.category_name,
@@ -55,6 +59,10 @@ router.get("/", async (req, res) => {
         END AS is_member
 
       FROM organizations o
+
+      LEFT JOIN users u 
+        ON u.user_id = o.head_user_id
+
       LEFT JOIN organization_categories oc
         ON oc.category_id = o.category_id
 
@@ -89,8 +97,7 @@ router.post("/", async (req, res) => {
       hours,
       contact,
       website,
-      head_name,
-      head_contact,
+      head_user_id,
       category_id,
       created_by,
     } = req.body;
@@ -108,12 +115,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // CREATE ORGANIZATION
     const [result] = await db.query(
       `
       INSERT INTO organizations
       (title, description, location, hours, contact, website,
-       head_name, head_contact, category_id, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       head_user_id, category_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         title,
@@ -122,22 +130,49 @@ router.post("/", async (req, res) => {
         hours || null,
         contact || null,
         website || null,
-        head_name || null,
-        head_contact || null,
+        head_user_id || null,
         category_id,
         created_by,
       ]
     );
 
-    res.status(201).json({
+    const orgId = result.insertId;
+
+    /* ============================================================
+       Automatically add MEMBERSHIPS
+    ============================================================ */
+
+    // Add HEAD as role='head'
+    if (head_user_id) {
+      await db.query(
+        `
+        INSERT IGNORE INTO organization_members (org_id, user_id, role)
+        VALUES (?, ?, 'head')
+        `,
+        [orgId, head_user_id]
+      );
+    }
+
+    // Add ADMIN (creator) as role='admin'
+    await db.query(
+      `
+      INSERT IGNORE INTO organization_members (org_id, user_id, role)
+      VALUES (?, ?, 'admin')
+      `,
+      [orgId, created_by]
+    );
+
+    return res.status(201).json({
       message: "Organization created",
-      org_id: result.insertId,
+      org_id: orgId,
     });
+
   } catch (err) {
     console.error("POST /organizations error:", err);
     res.status(500).json({ message: "Failed to create organization" });
   }
 });
+
 
 /* ============================================================
    UPDATE organization (ADMIN ONLY)
@@ -152,8 +187,7 @@ router.put("/:id", async (req, res) => {
       hours,
       contact,
       website,
-      head_name,
-      head_contact,
+      head_user_id,
       category_id,
       updated_by,
     } = req.body;
@@ -179,8 +213,7 @@ router.put("/:id", async (req, res) => {
         hours = ?,
         contact = ?,
         website = ?,
-        head_name = ?,
-        head_contact = ?,
+        head_user_id = ?,
         category_id = ?
       WHERE org_id = ?
       `,
@@ -191,8 +224,7 @@ router.put("/:id", async (req, res) => {
         hours || null,
         contact || null,
         website || null,
-        head_name || null,
-        head_contact || null,
+        head_user_id || null,
         category_id,
         orgId,
       ]
@@ -289,5 +321,41 @@ router.post("/:id/leave", async (req, res) => {
     res.status(500).json({ message: "Failed to leave organization" });
   }
 });
+
+/* ============================================================
+   GET all members of an organization
+============================================================ */
+router.get("/:id/members", async (req, res) => {
+  try {
+    const orgId = req.params.id;
+
+    const [rows] = await db.query(
+      `
+      SELECT 
+        u.user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.bio,
+        om.role AS org_role,
+        r.role_name AS user_role
+      FROM organization_members om
+      JOIN users u ON u.user_id = om.user_id
+      JOIN roles r ON r.role_id = u.role_id
+      WHERE om.org_id = ?
+      ORDER BY 
+        FIELD(om.role, 'head', 'admin', 'advisor', 'member'),
+        u.first_name, u.last_name
+      `,
+      [orgId]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("GET org members error:", err);
+    res.status(500).json({ message: "Failed to load members" });
+  }
+});
+
 
 module.exports = router;

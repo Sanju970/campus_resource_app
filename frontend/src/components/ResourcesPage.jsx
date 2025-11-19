@@ -28,8 +28,7 @@ export default function ResourcesPage() {
     hours: "",
     contact: "",
     website: "",
-    head_name: "",
-    head_contact: "",
+    head_user_id: "",
     category: "",
   });
 
@@ -138,8 +137,7 @@ export default function ResourcesPage() {
       hours: org.hours,
       contact: org.contact,
       website: org.website,
-      head_name: org.head_name,
-      head_contact: org.head_contact,
+      head_user_id: org.head_user_id,
       category: org.category,
     });
     setModalOpen(true);
@@ -226,8 +224,7 @@ export default function ResourcesPage() {
                 hours: "",
                 contact: "",
                 website: "",
-                head_name: "",
-                head_contact: "",
+                head_user_id: "",
                 category: "",
               });
               setModalOpen(true);
