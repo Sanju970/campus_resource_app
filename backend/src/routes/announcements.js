@@ -40,14 +40,30 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
   try {
+    // Insert the announcement
     await db.query(
       'INSERT INTO announcements (title, content, priority, created_by) VALUES (?, ?, ?, ?)',
       [title, content, priority, created_by]
     );
+    // Fetch the inserted announcement for response
     const [inserted] = await db.query(
       'SELECT * FROM announcements WHERE title = ? AND created_by = ? ORDER BY created_at DESC LIMIT 1',
       [title, created_by]
     );
+
+    // Fetch all users for notifications
+    const [users] = await db.query('SELECT user_id FROM users');
+
+    // Prepare notification message
+    const message = `New announcement posted: ${title}`;
+
+    // Insert notifications for all users asynchronously
+    const notificationPromises = users.map(user =>
+      db.query('INSERT INTO notifications (user_id, message) VALUES (?, ?)', [user.user_id, message])
+    );
+    await Promise.all(notificationPromises);
+
+    // Respond with the newly created announcement
     res.json(inserted[0]);
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -58,6 +74,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Update announcement
 router.put('/:id', async (req, res) => {
