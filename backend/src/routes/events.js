@@ -95,6 +95,75 @@ router.get('/registrations/:user_id', async (req, res) => {
   }
 });
 
+// ---------------- RSVP: Register for an event ----------------
+// POST /api/events/:event_id/rsvp
+router.post('/:event_id/rsvp', async (req, res) => {
+  try {
+    const eventId = req.params.event_id;
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ message: 'user_id is required' });
+    }
+
+    // Optional: prevent duplicate registrations
+    await pool.query(
+      `
+      INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
+      VALUES (?, ?, NOW())
+      `,
+      [eventId, user_id]
+    );
+
+    // Return updated registered_count
+    const [rows] = await pool.query(
+      'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
+      [eventId]
+    );
+
+    const registered_count = rows[0]?.registered_count || 0;
+
+    res.json({ registered_count });
+  } catch (err) {
+    console.error('RSVP register error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to register for event', error: err.message });
+  }
+});
+
+// ---------------- RSVP: Cancel registration ----------------
+// DELETE /api/events/:event_id/rsvp
+router.delete('/:event_id/rsvp', async (req, res) => {
+  try {
+    const eventId = req.params.event_id;
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ message: 'user_id is required' });
+    }
+
+    await pool.query(
+      'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?',
+      [eventId, user_id]
+    );
+
+    const [rows] = await pool.query(
+      'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
+      [eventId]
+    );
+
+    const registered_count = rows[0]?.registered_count || 0;
+
+    res.json({ registered_count });
+  } catch (err) {
+    console.error('RSVP cancel error:', err);
+    res
+      .status(500)
+      .json({ message: 'Failed to cancel RSVP', error: err.message });
+  }
+});
+
 // // ---------------- CREATE event ----------------
 // router.post('/', async (req, res) => {
 //   const {

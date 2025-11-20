@@ -115,6 +115,7 @@ export default function EventsPage() {
   const [favoriteEvents, setFavoriteEvents] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [showPastEvents, setShowPastEvents] = useState(false);
 
   // NEW: separate view flags
   const [showCreatedEventsOnly, setShowCreatedEventsOnly] = useState(false);
@@ -249,6 +250,14 @@ const fetchFavoriteEvents = async () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const now = new Date();
+
+  const isPastEvent = (event) => {
+    if (!event.end_datetime) return false;
+    const end = new Date(event.end_datetime);
+    return !Number.isNaN(end.getTime()) && end < now;
+  };
+
   // ---------------- Filters ----------------
   const combinedEvents =
     user.role === 'faculty'
@@ -259,12 +268,40 @@ const fetchFavoriteEvents = async () => {
           ),
         ]
       : events;
+    // First decide the base list: upcoming/ongoing vs past
+  let baseEvents;
 
-  const filteredEvents = combinedEvents.filter((event) => {
+  if (showPastEvents) {
+    // 🔹 Only past events
+    baseEvents = combinedEvents.filter((event) => isPastEvent(event));
+
+    // Role-specific filtering for PAST view
+    baseEvents = baseEvents.filter((event) => {
+      if (user.role === 'student') {
+        // Past events the student registered for
+        return registeredEvents.includes(event.event_id);
+      }
+
+      if (user.role === 'faculty') {
+        // Past events this faculty approved
+        return (
+          Number(event.approved_by) === Number(user.user_id) &&
+          event.status === 'approved'
+        );
+      }
+
+      // Admin: see all past events
+      return true;
+    });
+  } else {
+    // 🔹 Only upcoming/ongoing events
+    baseEvents = combinedEvents.filter((event) => !isPastEvent(event));
+  }
+
+  const filteredEvents = baseEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
     const isApprover = Number(event.approved_by) === Number(user.user_id);
-    const needsMyApproval =
-      isApprover && event.status === 'pending';
+    const needsMyApproval = isApprover && event.status === 'pending';
     const isRegistered = registeredEvents.includes(event.event_id);
 
     // View modes
@@ -287,7 +324,9 @@ const fetchFavoriteEvents = async () => {
 
     const inMyView = showCreatedEventsOnly || showRegisteredEventsOnly;
 
-    const matchesStatus = inMyView
+    const matchesStatus = showPastEvents
+      ? true // in Past view, don’t re-filter by status (we already did role logic above)
+      : inMyView
       ? true
       : user.role === 'faculty'
       ? event.status === 'approved' || needsMyApproval
@@ -1032,7 +1071,8 @@ const handleOpenEditDialog = (event) => {
             variant={
               !showCreatedEventsOnly &&
               !showRegisteredEventsOnly &&
-              selectedCategory === null
+              selectedCategory === null &&
+              !showPastEvents
                 ? 'default'
                 : 'outline'
             }
@@ -1041,10 +1081,12 @@ const handleOpenEditDialog = (event) => {
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
+              setShowPastEvents(false); // ✅ back to upcoming dashboard
             }}
           >
             All Events
           </Button>
+
 
           {/*Created Events*/}
           <Button
@@ -1054,6 +1096,7 @@ const handleOpenEditDialog = (event) => {
               setShowCreatedEventsOnly(true);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
+              setShowPastEvents(false);
             }}
           >
           Created Events
@@ -1067,10 +1110,27 @@ const handleOpenEditDialog = (event) => {
               setShowRegisteredEventsOnly(true);
               setShowCreatedEventsOnly(false);
               setSelectedCategory(null);
+              setShowPastEvents(false);
             }}
           >
             Registered Events
           </Button>
+          
+          {/* Past Events */}
+          <Button
+            variant={showPastEvents ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setShowPastEvents(true);
+              setShowCreatedEventsOnly(false);
+              setShowRegisteredEventsOnly(false);
+              // we keep selectedCategory so they can still filter by category in past view
+            }}
+          >
+            Past Events
+          </Button>
+
+
 
           {/* Category filters (only for All Events view visually, but we keep them active) */}
           {eventCategories.map((category) => (
@@ -1091,234 +1151,325 @@ const handleOpenEditDialog = (event) => {
           ))}
         </div>
       </div>
+   
+      {/* Events list */}
+      {showPastEvents && user.role === 'admin' ? (
+        // -------- ADMIN PAST EVENTS: TABLE VIEW --------
+        <div className="mt-4 space-y-4">
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted">
+                <tr className="text-left">
+                  <th className="px-4 py-2">Title</th>
+                  <th className="px-4 py-2">Category</th>
+                  <th className="px-4 py-2">Start</th>
+                  <th className="px-4 py-2">End</th>
+                  <th className="px-4 py-2">Location</th>
+                  <th className="px-4 py-2">Reg / Cap</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEvents.map((event) => {
+                  const category = eventCategories.find(
+                    (c) => c.id === event.category_id
+                  );
 
-      {/* Events Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEvents.map((event) => {
-          const category = eventCategories.find(
-            (c) => c.id === event.category_id
-          );
-          const isRegistered = registeredEvents.includes(event.event_id);
-          const isFavorite = favoriteEvents.includes(event.event_id);
-          const isFull = isEventFull(event);
-          const isCreator = Number(event.created_by) === Number(user.user_id);
-          const isApprover = Number(event.approved_by) === Number(user.user_id);
-          const isAdmin = user.role === 'admin';
-
-          const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
-            isRegistered ? 'border-green-500' : 'border-gray-200'
-          }`;
-
-
-          let statusLabel = null;
-          if (isCreator) {
-            if (event.status === 'pending') {
-              const departmentLabel = category
-                ? `${category.name} department`
-                : 'the department';
-
-              statusLabel = `Sent for approval to ${departmentLabel}`;
-            } else if (event.status === 'approved') {
-              if (event.approver_uid || event.approver_name) {
-                statusLabel = `Approved by ${
-                  event.approver_name || event.approver_uid
-                }`;
-              } else {
-                statusLabel = 'Approved';
-              }
-            } else if (event.status === 'rejected') {
-              statusLabel = 'Rejected';
-            }
-          } else if (isApprover) {
-            if (event.status === 'pending') {
-              statusLabel = 'Pending your approval';
-            } else if (event.status === 'approved') {
-              statusLabel = 'Approved';
-            } else if (event.status === 'rejected') {
-              statusLabel = 'Rejected';
-            }
-          } else if (event.status && event.status !== 'approved') {
-            statusLabel = event.status;
-          }
-
-          const canApproveThisEvent =
-            user.role === 'faculty' &&
-            event.status === 'pending' &&
-            Number(event.approved_by) === Number(user.user_id);
-
-          return (
-            <Card
-              key={event.event_id}
-              className={cardClasses}
-              style={isRegistered ? { backgroundColor: '#ecfdf3' } : undefined} // 👈 green tint
-            >
-
-              <CardHeader>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex flex-wrap gap-2">
-                    {/* Category badge */}
-                    {category && (
-                      <Badge className={category.color}>{category.name}</Badge>
-                    )}
-
-                    {/* CREATED EVENT STATUS – colored chips from DB status */}
-                    {isCreator && !isAdmin &&(
-                      <span
-                        className={`px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ${
-                          event.status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                            : event.status === 'approved'
-                            ? 'bg-green-100 text-green-800 border-green-300'
-                            : event.status === 'rejected'
-                            ? 'bg-red-100 text-red-800 border-red-300'
-                            : ''
-                        }`}
-                      >
-                        {event.status === 'pending'
-                          ? 'Pending Approval'
-                          : event.status === 'approved'
-                          ? 'Approved'
-                          : event.status === 'rejected'
-                          ? 'Rejected'
-                          : event.status}
-                      </span>
-                    )}
-
-                    {/* Faculty approver (not creator) – simple pending badge */}
-                    {!isCreator &&
-                      event.status === 'pending' &&
-                      user.role === 'faculty' && (
-                        <Badge variant="outline">Pending Approval</Badge>
-                      )}
-
-                    {/* YOU’RE REGISTERED – green chip (your working pattern) */}
-                    {isRegistered && (
-                      <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
-                        You’re Registered
-                      </span>
-                    )}
-                  </div>
-                
-                {!isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => toggleFavorite(event.event_id)}
-                  >
-                    <Heart
-                      className={`h-4 w-4 ${
-                        isFavorite ? 'fill-red-500 text-red-500' : ''
-                      }`}
-                    />
-                  </Button>
-                )}
-                </div>
-
-                <CardTitle className="text-lg">{event.title}</CardTitle>
-                <CardDescription>{event.description}</CardDescription>
-
-                {/* Only non-creators get the text status line */}
-                {!isCreator && statusLabel && (
-                  <p className="mt-1 text-sm text-muted-foreground">{statusLabel}</p>
-                )}
-              </CardHeader>
-
-
-              <CardContent className="space-y-4">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatDateTime(event.start_datetime)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {event.registered_count || 0} / {event.capacity || 0}{' '}
-                      registered
-                    </span>
-                  </div>
-                </div>
-
-                {/* Faculty Approve/Reject OR RSVP */}
-                {isAdmin ? (
-                  <div className="w-full space-y-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleOpenEditDialog(event)}
-                      className="w-full"
+                  return (
+                    <tr
+                      key={event.event_id}
+                      className="border-t hover:bg-muted/50"
                     >
-                      Edit Event
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleCancelEvent(event.event_id)}
-                      className="w-full"
-                    >
-                      <XCircle className="h-4 w-4 mr-1" /> Cancel Event
-                    </Button>
-                    </div>
-                ) : canApproveThisEvent ? (
-                  <div className="w-full space-y-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleApproveEvent(event.event_id)}
-                      className="flex-1"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" /> Approve Event
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleRejectEvent(event.event_id)}
-                      className="flex-1"
-                    >
-                      <XCircle className="h-4 w-4 mr-1" /> Reject Event
-                    </Button>
-                  </div>
-                ) : isCreator ? (
-                  <div className="w-full space-y-2">
-                    <Badge
-                      variant="secondary"
-                      className="w-full justify-center"
-                    >
-                      You created this event
-                    </Badge>
-                  </div>
-                ) : event.registration_required ? (
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    disabled={isFull}
-                    onClick={() => handleRSVP(event.event_id)}
-                  >
-                    {isRegistered ? 'Cancel RSVP' : isFull ? 'Event Full' : 'RSVP Now'}
-                    </Button>
-                ) : (
-                  <Badge
-                    variant="outline"
-                    className="w-full justify-center"
-                  >
-                    No Registration Required
-                  </Badge>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                      <td className="px-4 py-2 font-medium">
+                        {event.title}
+                      </td>
+                      <td className="px-4 py-2">
+                        {category ? category.name : '—'}
+                      </td>
+                      <td className="px-4 py-2">
+                        {formatDateTime(event.start_datetime)}
+                      </td>
+                      <td className="px-4 py-2">
+                        {formatDateTime(event.end_datetime)}
+                      </td>
+                      <td className="px-4 py-2">{event.location}</td>
+                      <td className="px-4 py-2">
+                        {(event.registered_count || 0)}/{event.capacity || 0}
+                      </td>
+                      <td className="px-4 py-2 capitalize">
+                        {event.status || '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEditDialog(event)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleCancelEvent(event.event_id)}
+                        >
+                          Cancel
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-            {filteredEvents.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            No events found matching your criteria.
-          </p>
+          {filteredEvents.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No past events found.
+            </div>
+          )}
         </div>
-      )}
+      ) : (
+        // -------- DEFAULT: CARD GRID (students + faculty + admin for upcoming) --------
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredEvents.map((event) => {
+              const category = eventCategories.find(
+                (c) => c.id === event.category_id
+              );
+              const isRegistered = registeredEvents.includes(event.event_id);
+              const isFavorite = favoriteEvents.includes(event.event_id);
+              const isFull = isEventFull(event);
+              const isCreator =
+                Number(event.created_by) === Number(user.user_id);
+              const isApprover =
+                Number(event.approved_by) === Number(user.user_id);
+              const isAdmin = user.role === 'admin';
+
+              const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
+                isRegistered ? 'border-green-500' : 'border-gray-200'
+              }`;
+
+              let statusLabel = null;
+              if (isCreator) {
+                if (event.status === 'pending') {
+                  const departmentLabel = category
+                    ? `${category.name} department`
+                    : 'the department';
+                  statusLabel = `Sent for approval to ${departmentLabel}`;
+                } else if (event.status === 'approved') {
+                  if (event.approver_uid || event.approver_name) {
+                    statusLabel = `Approved by ${
+                      event.approver_name || event.approver_uid
+                    }`;
+                  } else {
+                    statusLabel = 'Approved';
+                  }
+                } else if (event.status === 'rejected') {
+                  statusLabel = 'Rejected';
+                }
+              } else if (isApprover) {
+                if (event.status === 'pending') {
+                  statusLabel = 'Pending your approval';
+                } else if (event.status === 'approved') {
+                  statusLabel = 'Approved';
+                } else if (event.status === 'rejected') {
+                  statusLabel = 'Rejected';
+                }
+              } else if (event.status && event.status !== 'approved') {
+                statusLabel = event.status;
+              }
+
+              const canApproveThisEvent =
+                user.role === 'faculty' &&
+                event.status === 'pending' &&
+                Number(event.approved_by) === Number(user.user_id);
+
+              return (
+                <Card
+                  key={event.event_id}
+                  className={cardClasses}
+                  style={
+                    isRegistered ? { backgroundColor: '#ecfdf3' } : undefined
+                  }
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex flex-wrap gap-2">
+                        {category && (
+                          <Badge className={category.color}>
+                            {category.name}
+                          </Badge>
+                        )}
+
+                        {isCreator && !isAdmin && (
+                          <span
+                            className={`px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ${
+                              event.status === 'pending'
+                                ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                : event.status === 'approved'
+                                ? 'bg-green-100 text-green-800 border-green-300'
+                                : event.status === 'rejected'
+                                ? 'bg-red-100 text-red-800 border-red-300'
+                                : ''
+                            }`}
+                          >
+                            {event.status === 'pending'
+                              ? 'Pending Approval'
+                              : event.status === 'approved'
+                              ? 'Approved'
+                              : event.status === 'rejected'
+                              ? 'Rejected'
+                              : event.status}
+                          </span>
+                        )}
+
+                        {!isCreator &&
+                          event.status === 'pending' &&
+                          user.role === 'faculty' && (
+                            <Badge variant="outline">Pending Approval</Badge>
+                          )}
+
+                        {isRegistered && (
+                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
+                            You’re Registered
+                          </span>
+                        )}
+                      </div>
+
+                      {!isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleFavorite(event.event_id)}
+                        >
+                          <Heart
+                            className={`h-4 w-4 ${
+                              isFavorite ? 'fill-red-500 text-red-500' : ''
+                            }`}
+                          />
+                        </Button>
+                      )}
+                    </div>
+
+                    <CardTitle className="text-lg">{event.title}</CardTitle>
+                    <CardDescription>{event.description}</CardDescription>
+
+                    {!isCreator && statusLabel && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {statusLabel}
+                      </p>
+                    )}
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {formatDateTime(event.start_datetime)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span>{event.location}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {event.registered_count || 0} /{' '}
+                          {event.capacity || 0} registered
+                        </span>
+                      </div>
+                    </div>
+
+                    {isAdmin ? (
+                      <div className="w-full space-y-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenEditDialog(event)}
+                          className="w-full"
+                        >
+                          Edit Event
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleCancelEvent(event.event_id)}
+                          className="w-full"
+                        >
+                          <XCircle className="h-4 w-4 mr-1" /> Cancel Event
+                        </Button>
+                      </div>
+                    ) : canApproveThisEvent ? (
+                      <div className="w-full space-y-2">
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleApproveEvent(event.event_id)
+                          }
+                          className="flex-1"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                          Event
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            handleRejectEvent(event.event_id)
+                          }
+                          className="flex-1"
+                        >
+                          <XCircle className="h-4 w-4 mr-1" /> Reject
+                          Event
+                        </Button>
+                      </div>
+                    ) : isCreator ? (
+                      <div className="w-full space-y-2">
+                        <Badge
+                          variant="secondary"
+                          className="w-full justify-center"
+                        >
+                          You created this event
+                        </Badge>
+                      </div>
+                    ) : event.registration_required ? (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        disabled={isFull}
+                        onClick={() => handleRSVP(event.event_id)}
+                      >
+                        {isRegistered
+                          ? 'Cancel RSVP'
+                          : isFull
+                          ? 'Event Full'
+                          : 'RSVP Now'}
+                      </Button>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="w-full justify-center"
+                      >
+                        No Registration Required
+                      </Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {filteredEvents.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                No events found matching your criteria.
+              </p>
+            </div>
+          )}
+        </>
+      )}   
 
 {/* Quick stats footer */}
 <div className="w-full mt-2 border-t pt-4 pb-4">
