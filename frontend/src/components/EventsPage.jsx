@@ -1162,7 +1162,7 @@ const handleOpenEditDialog = (event) => {
                     )}
 
                     {/* CREATED EVENT STATUS – colored chips from DB status */}
-                    {isCreator && (
+                    {isCreator && !isAdmin &&(
                       <span
                         className={`px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ${
                           event.status === 'pending'
@@ -1198,7 +1198,8 @@ const handleOpenEditDialog = (event) => {
                       </span>
                     )}
                   </div>
-
+                
+                {!isAdmin && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1210,6 +1211,7 @@ const handleOpenEditDialog = (event) => {
                       }`}
                     />
                   </Button>
+                )}
                 </div>
 
                 <CardTitle className="text-lg">{event.title}</CardTitle>
