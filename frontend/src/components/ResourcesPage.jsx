@@ -49,36 +49,70 @@ export default function ResourcesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
 
-  /* ---------------------- LOAD DATA ---------------------- */
+  const [stats, setStats] = useState(null);
+  const showLastColumn = user?.role !== "student";
+  const roleBasedLabel =
+    user?.role === "faculty"
+      ? "Head Of"
+      : user?.role === "student"
+        ? "Member Of"
+        : "Admin Of";
+
+  /* ---------------------- HELPERS ---------------------- */
+
+  const loadOrganizations = () => {
+    if (!user) return;
+    setLoading(true);
+
+    axios
+      .get("http://localhost:5000/api/organizations", {
+        params: { user_id: user.user_id },
+      })
+      .then((res) => setOrganizations(res.data))
+      .catch(() => toast.error("Failed to load organizations"))
+      .finally(() => setLoading(false));
+  };
+
+  const loadStats = () => {
+    if (!user) return;
+
+    axios
+      .get("http://localhost:5000/api/organizations/dashboard", {
+        params: { user_id: user.user_id },
+      })
+      .then((res) => setStats(res.data))
+      .catch(() => {});
+  };
+
+  /* ---------------------- LOAD STATIC DATA ---------------------- */
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/faculty")
+    axios
+      .get("http://localhost:5000/api/faculty")
       .then((res) => setFaculty(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/organizations/global-admins")
+    axios
+      .get("http://localhost:5000/api/organizations/global-admins")
       .then((res) => setAdmins(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/org-categories")
+    axios
+      .get("http://localhost:5000/api/org-categories")
       .then((res) => setCategories(res.data))
       .catch(() => {});
   }, []);
 
+  /* ---------------------- LOAD ORGS & DASHBOARD ---------------------- */
+
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
-
-    axios.get("http://localhost:5000/api/organizations", {
-      params: { user_id: user.user_id },
-    })
-    .then((res) => setOrganizations(res.data))
-    .catch(() => toast.error("Failed to load organizations"))
-    .finally(() => setLoading(false));
+    loadOrganizations();
+    loadStats();
   }, [user]);
 
   /* ---------------------- FILTER ORGANIZATIONS ---------------------- */
@@ -138,6 +172,9 @@ export default function ResourcesPage() {
 
         toast.success(res.data.message || `Left ${org.title}`);
       }
+
+      // Refresh dashboard after join/leave
+      loadStats();
     } catch (err) {
       toast.error(err.response?.data?.message || "Action failed");
     }
@@ -149,7 +186,7 @@ export default function ResourcesPage() {
     const clean = (hoursString || "").trim();
     if (!clean) return { b1: {}, b2: {} };
 
-    const blocks = clean.split(";").map(b => b.trim()).filter(Boolean);
+    const blocks = clean.split(";").map((b) => b.trim()).filter(Boolean);
 
     const parseBlock = (block) => {
       const [daysPart, timePart] = block.split(":");
@@ -172,12 +209,45 @@ export default function ResourcesPage() {
 
   const isOrgAdmin = (org) => {
     return Boolean(org.is_org_admin);
-    // You can also extend: return org.org_role === "admin"
+  };
+
+  /* ---------------------- LOAD EDIT FORM ---------------------- */
+
+  const loadEditForm = (org, orgRole = "admin") => {
+    const { b1, b2 } = parseHours(org.hours);
+
+    setEditingOrg(org);
+    setForm({
+      title: org.title,
+      description: org.description,
+      location: org.location,
+      hours_days_main: b1.days || "",
+      hours_start_main: b1.start || "",
+      hours_end_main: b1.end || "",
+      hours_days_secondary: b2.days || "",
+      hours_start_secondary: b2.start || "",
+      hours_end_secondary: b2.end || "",
+      contact: org.contact,
+      website: org.website,
+      head_user_id: org.head_user_id,
+      category_id: org.category_id,
+      current_org_role: orgRole,
+      new_admin_id: "",
+    });
+
+    setModalOpen(true);
   };
 
   /* ---------------------- OPEN EDIT MODAL ---------------------- */
 
   const openEdit = async (org) => {
+    // Global admin can always edit
+    if (user.role === "admin") {
+      loadEditForm(org);
+      return;
+    }
+
+    // Otherwise, must be org admin
     if (!isOrgAdmin(org)) {
       toast.error("Only this organization's admin can edit.");
       return;
@@ -188,36 +258,15 @@ export default function ResourcesPage() {
         `http://localhost:5000/api/organizations/${org.id}/members`
       );
 
-      const me = roleRes.data.find(m => m.user_id === user.user_id);
+      const me = roleRes.data.find((m) => m.user_id === user.user_id);
 
       if (me?.org_role !== "admin") {
         toast.error("Only the organization admin can edit.");
         return;
       }
 
-      const { b1, b2 } = parseHours(org.hours);
-
-      setEditingOrg(org);
-      setForm({
-        title: org.title,
-        description: org.description,
-        location: org.location,
-        hours_days_main: b1.days || "",
-        hours_start_main: b1.start || "",
-        hours_end_main: b1.end || "",
-        hours_days_secondary: b2.days || "",
-        hours_start_secondary: b2.start || "",
-        hours_end_secondary: b2.end || "",
-        contact: org.contact,
-        website: org.website,
-        head_user_id: org.head_user_id,
-        category_id: org.category_id,
-        current_org_role: me?.org_role || "",
-        new_admin_id: "",
-      });
-
-      setModalOpen(true);
-    } catch (err) {
+      loadEditForm(org, me.org_role);
+    } catch {
       toast.error("Failed to load organization data.");
     }
   };
@@ -230,12 +279,10 @@ export default function ResourcesPage() {
 
   const handleSave = async () => {
     if (!form.title.trim()) return toast.error("Title is required");
-    if (!form.head_user_id) {
+    if (!form.head_user_id)
       return toast.error("Organization head is required.");
-    }
-    if (!form.category_id) {
-      return toast.error("Please select a category.");
-    }
+    if (!form.category_id) return toast.error("Please select a category.");
+
     const hasMainAll =
       form.hours_days_main &&
       form.hours_start_main &&
@@ -280,7 +327,10 @@ export default function ResourcesPage() {
 
     try {
       if (editingOrg) {
-        if (!isOrgAdmin(editingOrg)) {
+        const isGlobal = user?.role === "admin";
+
+        // For non-global users, still enforce org admin restriction
+        if (!isGlobal && !isOrgAdmin(editingOrg)) {
           toast.error("You are not allowed to edit this organization.");
           return;
         }
@@ -299,6 +349,8 @@ export default function ResourcesPage() {
             }
           );
           toast.success("Admin rights transferred!");
+          // admin_of count for someone will change
+          loadStats();
         }
 
         const refreshed = await axios.get(
@@ -308,10 +360,11 @@ export default function ResourcesPage() {
 
         setOrganizations(refreshed.data);
       } else {
-        const res = await axios.post(
-          "http://localhost:5000/api/organizations",
-          { ...form, hours: hoursFormatted, created_by: user.user_id }
-        );
+        await axios.post("http://localhost:5000/api/organizations", {
+          ...form,
+          hours: hoursFormatted,
+          created_by: user.user_id,
+        });
 
         const refreshed = await axios.get(
           "http://localhost:5000/api/organizations",
@@ -320,21 +373,24 @@ export default function ResourcesPage() {
 
         setOrganizations(refreshed.data);
 
+        // New org affects total_orgs and orgs_created
+        loadStats();
 
         toast.success("Created successfully");
       }
 
       setModalOpen(false);
     } catch (err) {
-      toast.error("Failed to save");
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to save");
     }
   };
 
   /* ---------------------- DELETE ORG ---------------------- */
 
   const handleDelete = async (org) => {
-    if (!isOrgAdmin(org)) {
-      toast.error("Only the organization admin can delete.");
+    if (!isOrgAdmin(org) && user?.role !== "admin") {
+      toast.error("Only the organization admin or a global admin can delete.");
       return;
     }
 
@@ -348,6 +404,9 @@ export default function ResourcesPage() {
 
       setOrganizations((prev) => prev.filter((o) => o.id !== org.id));
 
+      // Deleting org changes total_orgs and possibly admin_of
+      loadStats();
+
       toast.success("Removed");
     } catch {
       toast.error("Failed to delete");
@@ -358,11 +417,10 @@ export default function ResourcesPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Student Organizations</h1>
+          <h1 className="text-3xl font-bold">Campus Organizations</h1>
           <p className="text-sm text-muted-foreground">
             Discover organizations, support centers & campus services.
           </p>
@@ -431,7 +489,9 @@ export default function ResourcesPage() {
           <Button
             key={c.category_key}
             size="sm"
-            variant={selectedCategory === c.category_key ? "default" : "outline"}
+            variant={
+              selectedCategory === c.category_key ? "default" : "outline"
+            }
             onClick={() => setSelectedCategory(c.category_key)}
           >
             {c.category_name}
@@ -441,7 +501,9 @@ export default function ResourcesPage() {
 
       {/* ORGANIZATIONS LIST */}
       {loading ? (
-        <div className="py-16 text-center text-muted-foreground">Loading...</div>
+        <div className="py-16 text-center text-muted-foreground">
+          Loading...
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOrganizations.map((org) => (
@@ -449,12 +511,87 @@ export default function ResourcesPage() {
               key={org.id}
               resource={org}
               onJoin={handleJoin}
-              onEdit={isOrgAdmin(org) ? () => openEdit(org) : undefined}
-              onDelete={isOrgAdmin(org) ? () => handleDelete(org) : undefined}
+              role={user.role}
+              onEdit={
+                // Global admin OR org admin can see Edit button
+                user?.role === "admin" || isOrgAdmin(org)
+                  ? () => openEdit(org)
+                  : undefined
+              }
+              onDelete={
+                // Global admin OR org admin can see Delete button
+                user?.role === "admin" || isOrgAdmin(org)
+                  ? () => handleDelete(org)
+                  : undefined
+              }
               isMember={Boolean(org.is_member)}
             />
           ))}
+        </div>
+      )}
 
+      {/* ------------------ DASHBOARD ------------------ */}
+      {stats && (
+        <div className="w-full mt-10 border-t pt-4 pb-6">
+          <div className="max-w-5xl mx-auto flex justify-between px-10">
+            {/* Total Orgs */}
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div
+                className="font-semibold"
+                style={{ fontSize: "2rem", lineHeight: "1" }}
+              >
+                {stats.total_orgs}
+              </div>
+              <div className="text-base text-muted-foreground mt-1">
+                Total Organizations
+              </div>
+            </div>
+
+            {/* Orgs Created (admins only) */}
+            {user?.role === "admin" && (
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div
+                  className="font-semibold"
+                  style={{ fontSize: "2rem", lineHeight: "1" }}
+                >
+                  {stats.orgs_created}
+                </div>
+                <div className="text-base text-muted-foreground mt-1">
+                  Organizations Created
+                </div>
+              </div>
+            )}
+
+            {/* Orgs Joined (non-admins) */}
+            {user?.role !== "admin" && (
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div
+                  className="font-semibold"
+                  style={{ fontSize: "2rem", lineHeight: "1" }}
+                >
+                  {stats.orgs_joined}
+                </div>
+                <div className="text-base text-muted-foreground mt-1">
+                  Organizations Member
+                </div>
+              </div>
+            )}
+
+            {/* Admin Of / Head Of (no last column for students) */}
+            {showLastColumn && (
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div
+                  className="font-semibold"
+                  style={{ fontSize: "2rem", lineHeight: "1" }}
+                >
+                  {stats.admin_of}
+                </div>
+                <div className="text-base text-muted-foreground mt-1">
+                  {roleBasedLabel}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

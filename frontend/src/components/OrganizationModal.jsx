@@ -29,20 +29,27 @@ export default function OrganizationModal({
   admins = [],
   isEdit = false,
 }) {
-  
-  // Debug logging - remove after fixing
+  // Debug logging - you can remove this later
   console.log("🔍 Debug Info:", {
     isEdit,
     current_org_role: form.current_org_role,
     admins_count: admins.length,
-    form_keys: Object.keys(form)
+    form_keys: Object.keys(form),
   });
 
-  const renderHoursBlock = (label, daysKey, startKey, endKey, isOptional = false) => (
+  const renderHoursBlock = (
+    label,
+    daysKey,
+    startKey,
+    endKey,
+    isOptional = false
+  ) => (
     <div className="space-y-2">
       <Label>
         {label}
-        {isOptional && <span className="text-xs text-muted-foreground"> (optional)</span>}
+        {isOptional && (
+          <span className="text-xs text-muted-foreground"> (optional)</span>
+        )}
       </Label>
 
       <select
@@ -66,8 +73,10 @@ export default function OrganizationModal({
           onChange={(e) => setForm({ ...form, [startKey]: e.target.value })}
         >
           <option value="">Start Time</option>
-          {TIME_OPTIONS.map(t => (
-            <option key={t} value={t}>{t}</option>
+          {TIME_OPTIONS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
 
@@ -77,8 +86,10 @@ export default function OrganizationModal({
           onChange={(e) => setForm({ ...form, [endKey]: e.target.value })}
         >
           <option value="">End Time</option>
-          {TIME_OPTIONS.map(t => (
-            <option key={t} value={t}>{t}</option>
+          {TIME_OPTIONS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
       </div>
@@ -99,29 +110,25 @@ export default function OrganizationModal({
       ? `${form.hours_days_secondary}: ${form.hours_start_secondary} – ${form.hours_end_secondary}`
       : "";
 
-  // Check if user is admin - case insensitive
+  // Check if user is org admin (from form)
   const isAdmin = form.current_org_role?.toLowerCase() === "admin";
   const showAdminTransfer = isEdit && isAdmin && admins.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col p-0">
-
         {/* HEADER */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle>
             {isEdit ? "Edit Organization" : "Create Organization"}
           </DialogTitle>
-          <DialogDescription>
-            Fill in the details below.
-          </DialogDescription>
+          <DialogDescription>Fill in the details below.</DialogDescription>
           <DialogClose className="absolute right-4 top-4 cursor-pointer" />
         </DialogHeader>
 
         {/* BODY */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-5">
-
             {/* TITLE */}
             <div>
               <Label>Organization Title</Label>
@@ -137,7 +144,9 @@ export default function OrganizationModal({
               <Textarea
                 rows={3}
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
               />
             </div>
 
@@ -147,7 +156,9 @@ export default function OrganizationModal({
               <select
                 className="border rounded-md w-full p-2"
                 value={form.category_id}
-                onChange={(e) => setForm({ ...form, category_id: Number(e.target.value) })}
+                onChange={(e) =>
+                  setForm({ ...form, category_id: Number(e.target.value) })
+                }
               >
                 <option value="">Select Category</option>
                 {categories.map((c) => (
@@ -163,7 +174,9 @@ export default function OrganizationModal({
               <Label>Location</Label>
               <Input
                 value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, location: e.target.value })
+                }
               />
             </div>
 
@@ -200,7 +213,9 @@ export default function OrganizationModal({
               <Label>Contact</Label>
               <Input
                 value={form.contact}
-                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, contact: e.target.value })
+                }
               />
             </div>
 
@@ -209,7 +224,9 @@ export default function OrganizationModal({
               <Label>Website</Label>
               <Input
                 value={form.website}
-                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, website: e.target.value })
+                }
               />
             </div>
 
@@ -219,7 +236,9 @@ export default function OrganizationModal({
               <select
                 className="border rounded-md w-full p-2"
                 value={form.head_user_id}
-                onChange={(e) => setForm({ ...form, head_user_id: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, head_user_id: e.target.value })
+                }
               >
                 <option value="">Select Faculty</option>
                 {faculty.map((f) => (
@@ -231,20 +250,24 @@ export default function OrganizationModal({
             </div>
 
             {/* ================= ADMIN TRANSFER ================= */}
-            {/* IMPROVED: More robust conditional rendering */}
             {showAdminTransfer && (
               <div className="space-y-2 border-2 border-orange-300 p-4 rounded-md bg-orange-50">
                 <div className="flex items-center gap-2">
-                  <span className="text-orange-600 font-semibold">⚠️ Admin Transfer Required</span>
+                  <span className="text-orange-600 font-semibold">
+                    ⚠️ Admin Transfer
+                  </span>
                 </div>
-                
+
                 <Label className="font-medium">Transfer Admin Role To:</Label>
 
                 <select
                   className="border rounded-md w-full p-2 bg-white"
                   value={form.new_admin_id || ""}
                   onChange={(e) =>
-                    setForm({ ...form, new_admin_id: Number(e.target.value) })
+                    setForm({
+                      ...form,
+                      new_admin_id: Number(e.target.value),
+                    })
                   }
                 >
                   <option value="">Select New Admin</option>
@@ -257,11 +280,11 @@ export default function OrganizationModal({
                 </select>
 
                 <p className="text-sm text-orange-700 bg-orange-100 border border-orange-200 rounded p-2">
-                  ⚠️ You cannot leave or delete this organization until admin rights are transferred to another member.
+                  ⚠️ You cannot leave or delete this organization until admin
+                  rights are transferred to another member.
                 </p>
               </div>
             )}
-
           </div>
         </div>
 
@@ -277,7 +300,6 @@ export default function OrganizationModal({
             </Button>
           </div>
         </div>
-
       </DialogContent>
     </Dialog>
   );

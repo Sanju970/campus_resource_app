@@ -203,7 +203,9 @@ router.post("/", async (req, res) => {
 
 
 /* ============================================================
-   UPDATE organization (ADMIN ONLY)
+   UPDATE organization 
+   - Global admin: can always update
+   - Otherwise: only org admin/head
 ============================================================ */
 router.put("/:id", async (req, res) => {
   try {
@@ -224,14 +226,22 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "updated_by is required" });
     }
 
-    // Only org admin/head can update this org
-    const canManage = await isOrgManager(orgId, updated_by);
-    if (!canManage) {
-      return res.status(403).json({
-        message: "Only this organization's admin/head can update it",
-      });
+    // 1. Check if user is global admin
+    const roleName = await getUserRoleName(updated_by);
+    const isGlobalAdmin = roleName === "admin";
+
+    // 2. If NOT global admin → must be org admin/head
+    if (!isGlobalAdmin) {
+      const canManage = await isOrgManager(orgId, updated_by);
+      if (!canManage) {
+        return res.status(403).json({
+          message:
+            "Only this organization's admin/head or a global admin can update it",
+        });
+      }
     }
 
+    // 3. Perform update
     await db.query(
       `
       UPDATE organizations
@@ -267,7 +277,9 @@ router.put("/:id", async (req, res) => {
 });
 
 /* ============================================================
-   DELETE organization (ADMIN ONLY)
+   DELETE organization 
+   - Global admin: can always delete
+   - Otherwise: only org admin/head
 ============================================================ */
 router.delete("/:id", async (req, res) => {
   try {
@@ -278,13 +290,20 @@ router.delete("/:id", async (req, res) => {
       return res.status(400).json({ message: "user_id is required" });
     }
 
-    const canManage = await isOrgManager(orgId, user_id);
-    if (!canManage) {
-      return res.status(403).json({
-        message: "Only this organization's admin/head can delete it",
-      });
-    }
+    // 1. Check role
+    const roleName = await getUserRoleName(user_id);
+    const isGlobalAdmin = roleName === "admin";
 
+    // 2. If not global admin, must be org admin/head
+    if (!isGlobalAdmin) {
+      const canManage = await isOrgManager(orgId, user_id);
+      if (!canManage) {
+        return res.status(403).json({
+          message:
+            "Only this organization's admin/head or a global admin can delete it",
+        });
+      }
+    }
 
     await db.query(
       `UPDATE organizations SET is_active = 0 WHERE org_id = ?`,
@@ -333,10 +352,7 @@ router.post("/:id/join", async (req, res) => {
 });
 
 /* ============================================================
-   LEAVE organization
-============================================================ */
-/* ============================================================
-   LEAVE ORGANIZATION (cannot leave if last admin)
+   LEAVE ORGANIZATION (cannot leave if last admin or head)
 ============================================================ */
 router.post("/:id/leave", async (req, res) => {
   try {
@@ -380,7 +396,7 @@ router.post("/:id/leave", async (req, res) => {
     // If head → CANNOT leave at all
     if (role === "head") {
       return res.status(403).json({
-        message: "The organization head cannot leave. Assign a new head via edit screen."
+        message: "The organization head cannot leave. contact organization admin."
       });
     }
 
@@ -540,7 +556,9 @@ router.post("/:id/members/remove", async (req, res) => {
 });
 
 /* ============================================================
-   TRANSFER ADMIN ROLE (Only one valid endpoint)
+   TRANSFER ADMIN ROLE
+   - Global admin: can transfer without being org member
+   - Org admin: can transfer
 ============================================================ */
 router.post("/:id/transfer-admin", async (req, res) => {
   try {
@@ -551,20 +569,27 @@ router.post("/:id/transfer-admin", async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Validate acting user is current org admin
-    const [current] = await db.query(
-      `SELECT role FROM organization_members
-       WHERE org_id = ? AND user_id = ?`,
-      [orgId, acting_user_id]
-    );
+    // 1. Check if acting user is global admin
+    const roleName = await getUserRoleName(acting_user_id);
+    const isGlobalAdmin = roleName === "admin";
 
-    if (!current.length || current[0].role !== "admin") {
-      return res.status(403).json({
-        message: "Only the current organization admin can transfer admin rights",
-      });
+    // 2. If not global admin → must be org admin
+    if (!isGlobalAdmin) {
+      const [current] = await db.query(
+        `SELECT role FROM organization_members
+         WHERE org_id = ? AND user_id = ?`,
+        [orgId, acting_user_id]
+      );
+
+      if (!current.length || current[0].role !== "admin") {
+        return res.status(403).json({
+          message:
+            "Only the organization admin or a global admin can transfer admin rights",
+        });
+      }
     }
 
-    // Validate new admin is a GLOBAL admin (admXXXX)
+    // 3. Target must be a global admin user
     const [candidate] = await db.query(
       `SELECT role_id FROM users WHERE user_id = ?`,
       [new_admin_id]
@@ -576,7 +601,7 @@ router.post("/:id/transfer-admin", async (req, res) => {
       });
     }
 
-    // Promote new admin
+    // 4. Promote new admin
     await db.query(
       `
       INSERT INTO organization_members (org_id, user_id, role)
@@ -586,15 +611,17 @@ router.post("/:id/transfer-admin", async (req, res) => {
       [orgId, new_admin_id]
     );
 
-    // Demote old admin
-    await db.query(
-      `
-      UPDATE organization_members
-      SET role='member'
-      WHERE org_id=? AND user_id=?
-      `,
-      [orgId, acting_user_id]
-    );
+    // 5. Demote old admin (ONLY if not global admin)
+    if (!isGlobalAdmin) {
+      await db.query(
+        `
+        UPDATE organization_members
+        SET role='member'
+        WHERE org_id=? AND user_id=?
+        `,
+        [orgId, acting_user_id]
+      );
+    }
 
     return res.json({ message: "Admin role transferred successfully" });
 
@@ -603,6 +630,7 @@ router.post("/:id/transfer-admin", async (req, res) => {
     res.status(500).json({ message: "Failed to transfer admin" });
   }
 });
+
 
 // GET all global admins (role_id = 3)
 router.get("/global-admins", async (req, res) => {
@@ -620,5 +648,79 @@ router.get("/global-admins", async (req, res) => {
   }
 });
 
+router.get("/dashboard", async (req, res) => {
+  const userId = req.query.user_id;
+
+  // get user type
+  const [[userRole]] = await db.query(
+    `
+    SELECT r.role_name
+    FROM users u
+    JOIN roles r ON r.role_id = u.role_id
+    WHERE u.user_id = ?
+  `,
+    [userId]
+  );
+
+  const role = userRole.role_name;
+
+  // total orgs
+  const [[total]] = await db.query(`
+    SELECT COUNT(*) AS total_orgs FROM organizations WHERE is_active = 1
+  `);
+
+  // orgs created by this user
+  const [[created]] = await db.query(
+    `
+    SELECT COUNT(*) AS orgs_created
+    FROM organizations
+    WHERE created_by = ?
+  `,
+    [userId]
+  );
+
+  // orgs joined as member
+  const [[joined]] = await db.query(
+    `
+    SELECT COUNT(*) AS orgs_joined
+    FROM organization_members
+    WHERE user_id = ? AND role = 'member'
+  `,
+    [userId]
+  );
+
+  let adminOf = 0;
+
+  if (role === "admin") {
+    const [[adminRes]] = await db.query(
+      `
+      SELECT COUNT(*) AS admin_of
+      FROM organization_members
+      WHERE user_id = ? AND role = 'admin'
+    `,
+      [userId]
+    );
+    adminOf = adminRes.admin_of;
+  }
+
+  if (role === "faculty") {
+    const [[headRes]] = await db.query(
+      `
+      SELECT COUNT(*) AS admin_of
+      FROM organization_members
+      WHERE user_id = ? AND role = 'head'
+    `,
+      [userId]
+    );
+    adminOf = headRes.admin_of;
+  }
+
+  res.json({
+    total_orgs: total.total_orgs,
+    orgs_created: created.orgs_created,
+    orgs_joined: joined.orgs_joined,
+    admin_of: adminOf,
+  });
+});
 
 module.exports = router;

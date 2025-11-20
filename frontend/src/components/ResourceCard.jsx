@@ -16,6 +16,7 @@ export default function ResourceCard({
   onEdit,
   onDelete,
   isMember,
+  role,
 }) {
   const navigate = useNavigate();
   const joined = Boolean(isMember || resource?.is_member);
@@ -100,7 +101,7 @@ export default function ResourceCard({
           )}
 
           {/* ORG-ADMIN ACTIONS */}
-          {(onEdit || onDelete) && (
+          {role === "admin" && (onEdit || onDelete) && (
             <div className="flex gap-2 mt-2">
               {onEdit && (
                 <Button
@@ -127,6 +128,7 @@ export default function ResourceCard({
               )}
             </div>
           )}
+
 
         </div>
       </CardContent>
