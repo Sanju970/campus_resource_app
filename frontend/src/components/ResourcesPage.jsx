@@ -230,7 +230,12 @@ export default function ResourcesPage() {
 
   const handleSave = async () => {
     if (!form.title.trim()) return toast.error("Title is required");
-
+    if (!form.head_user_id) {
+      return toast.error("Organization head is required.");
+    }
+    if (!form.category_id) {
+      return toast.error("Please select a category.");
+    }
     const hasMainAll =
       form.hours_days_main &&
       form.hours_start_main &&
@@ -308,16 +313,13 @@ export default function ResourcesPage() {
           { ...form, hours: hoursFormatted, created_by: user.user_id }
         );
 
-        setOrganizations((prev) => [
-          ...prev,
-          {
-            id: res.data.org_id,
-            member_count: 0,
-            is_member: 0,
-            ...form,
-            hours: hoursFormatted,
-          },
-        ]);
+        const refreshed = await axios.get(
+          "http://localhost:5000/api/organizations",
+          { params: { user_id: user.user_id } }
+        );
+
+        setOrganizations(refreshed.data);
+
 
         toast.success("Created successfully");
       }

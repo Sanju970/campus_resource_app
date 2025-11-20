@@ -451,11 +451,28 @@ router.post("/:id/members/add", async (req, res) => {
       });
     }
 
+    // Check if new_user_id already exists
+    const [exists] = await db.query(
+      `
+      SELECT role 
+      FROM organization_members 
+      WHERE org_id = ? AND user_id = ?
+      `,
+      [orgId, new_user_id]
+    );
+
+    if (exists.length > 0) {
+      // Already a member → return correct message
+      return res.status(400).json({
+        message: "This user is already a member of this organization",
+      });
+    }
+
+    // Add new member
     await db.query(
       `
       INSERT INTO organization_members (org_id, user_id, role)
       VALUES (?, ?, 'member')
-      ON DUPLICATE KEY UPDATE role = VALUES(role)
       `,
       [orgId, new_user_id]
     );
@@ -467,6 +484,7 @@ router.post("/:id/members/add", async (req, res) => {
     res.status(500).json({ message: "Failed to add member" });
   }
 });
+
 
 router.post("/:id/members/remove", async (req, res) => {
   try {
