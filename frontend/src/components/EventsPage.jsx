@@ -114,6 +114,7 @@ export default function EventsPage() {
   const [registeredEvents, setRegisteredEvents] = useState([]);
   const [favoriteEvents, setFavoriteEvents] = useState([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   // NEW: separate view flags
   const [showCreatedEventsOnly, setShowCreatedEventsOnly] = useState(false);
@@ -523,6 +524,113 @@ const toggleFavorite = async (eventId) => {
       toast.error(err.message || 'Failed to create event');
     }
   };
+  // ---------------- Update Event (admin) ----------------
+const handleUpdateEvent = async () => {
+  if (!editingEvent) return;
+
+  const {
+    title,
+    description,
+    date_time,
+    end_time,
+    location,
+    capacity,
+    category_id,
+    instructor_email,
+  } = newEvent;
+
+  const startDate = date_time;
+  const endDate = end_time;
+
+  const combinedStart =
+    startDate && startTime ? `${startDate}T${startTime}` : '';
+  const combinedEnd =
+    endDate && endTime ? `${endDate}T${endTime}` : '';
+
+  if (
+    !title ||
+    !description ||
+    !date_time ||
+    !end_time ||
+    !location ||
+    !capacity ||
+    !category_id ||
+    !startTime ||
+    !endTime
+  ) {
+    toast.error('Please fill in all required fields');
+    return;
+  }
+
+  const capacityNum = parseInt(capacity, 10);
+
+  if (Number.isNaN(capacityNum) || capacityNum < 1 || capacityNum > 1000) {
+    toast.error('Capacity must be between 1 and 1000');
+    return;
+  }
+
+  const now = new Date();
+  const start = new Date(combinedStart);
+  const end = new Date(combinedEnd);
+
+  const eventToSend = {
+    title,
+    description,
+    location,
+    capacity: capacityNum,
+    category_id,
+    registration_required: newEvent.registration_required,
+    instructor_email,
+    start_datetime: combinedStart,
+    end_datetime: combinedEnd,
+  };
+
+  try {
+    const res = await fetch(
+      `http://localhost:5000/api/events/${editingEvent.event_id}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventToSend),
+      }
+    );
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      throw new Error(errorBody.message || 'Failed to update event');
+    }
+
+    const updatedEvent = await res.json();
+
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.event_id === updatedEvent.event_id ? updatedEvent : e
+      )
+    );
+
+    // Reset dialog + form
+    setEditingEvent(null);
+    setIsCreateDialogOpen(false);
+    setNewEvent({
+      title: '',
+      description: '',
+      date_time: '',
+      end_time: '',
+      location: '',
+      capacity: '',
+      category_id: '',
+      registration_required: false,
+      instructor_email: '',
+    });
+    setStartTime('');
+    setEndTime('');
+
+    toast.success('Event updated successfully');
+  } catch (err) {
+    console.error('Update event error:', err);
+    toast.error(err.message || 'Failed to update event');
+  }
+};
 
   // ---------------- Approve & Reject (faculty) ----------------
   const handleApproveEvent = async (eventId) => {
@@ -579,42 +687,94 @@ const toggleFavorite = async (eventId) => {
     }
   };
 
-  // ---------------- Cancel Event (creator only) ----------------
-  const handleCancelEvent = async (eventId) => {
-    const eventToCancel = events.find((e) => e.event_id === eventId);
-    if (!eventToCancel) return;
+// ---------------- Cancel/Delete Event ----------------
+const handleCancelEvent = async (eventId) => {
+  const eventToCancel = events.find((e) => e.event_id === eventId);
+  if (!eventToCancel) return;
 
-    const isCreator =
-      Number(eventToCancel.created_by) === Number(user.user_id);
-    const isFacultyOrAdmin =
-      user.role === 'faculty' || user.role === 'admin';
+  const isCreator =
+    Number(eventToCancel.created_by) === Number(user.user_id);
+  const isAdmin = user.role === 'admin';
 
-    if (!isCreator || !isFacultyOrAdmin) return;
+  // ✅ Admin can cancel/delete ANY event
+  // ✅ Non-admins can only cancel their own events
+  if (!isAdmin && !isCreator) return;
 
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/events/${eventId}`,
-        {
-          method: 'DELETE',
-        }
-      );
+  if (!window.confirm('Are you sure you want to delete/cancel this event?')) {
+    return;
+  }
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        const message = body?.message || 'Failed to cancel event';
-        throw new Error(message);
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/events/${eventId}`,
+      {
+        method: 'DELETE',
       }
+    );
 
-      setEvents((prevEvents) =>
-        prevEvents.filter((e) => e.event_id !== eventId)
-      );
-
-      toast.info('Event cancelled');
-    } catch (err) {
-      console.error('Cancel event error:', err);
-      toast.error('Failed to cancel event');
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const message = body?.message || 'Failed to cancel event';
+      throw new Error(message);
     }
+
+    setEvents((prevEvents) =>
+      prevEvents.filter((e) => e.event_id !== eventId)
+    );
+
+    // Also remove from registered list if it was there
+    setRegisteredEvents((prev) =>
+      prev.filter((id) => id !== eventId)
+    );
+
+    toast.success('Event deleted/cancelled successfully');
+  } catch (err) {
+    console.error('Cancel event error:', err);
+    toast.error(err.message || 'Failed to cancel event');
+  }
+};
+
+// ---------------- Admin: open edit dialog ----------------
+const handleOpenEditDialog = (event) => {
+  if (user.role !== 'admin') return;
+
+  // Convert existing datetimes into date + time fields
+  const parseDate = (dt) => {
+    if (!dt) return '';
+    const d = new Date(dt);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   };
+
+  const parseTime = (dt) => {
+    if (!dt) return '';
+    const d = new Date(dt);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  setNewEvent({
+    title: event.title || '',
+    description: event.description || '',
+    date_time: parseDate(event.start_datetime),
+    end_time: parseDate(event.end_datetime),
+    location: event.location || '',
+    capacity: event.capacity || '',
+    category_id: event.category_id || '',
+    registration_required: !!event.registration_required,
+    instructor_email: event.instructor_email || '',
+  });
+
+  setStartTime(parseTime(event.start_datetime));
+  setEndTime(parseTime(event.end_datetime));
+
+  setEditingEvent(event);
+  setIsCreateDialogOpen(true);
+};
+  // ---------------- Helpers ----------------
 
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
@@ -682,9 +842,13 @@ const toggleFavorite = async (eventId) => {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create New Event</DialogTitle>
+                <DialogTitle>
+                {editingEvent ? 'Edit Event' : 'Create New Event'}
+                </DialogTitle>
                 <DialogDescription>
-                  Fill in details to create a new event
+                  {editingEvent
+                  ? 'Update the details of this event'
+                  : 'Fill in details to create a new event'}
                 </DialogDescription>
               </DialogHeader>
 
@@ -839,8 +1003,10 @@ const toggleFavorite = async (eventId) => {
                   <Label htmlFor="registration">Registration Required</Label>
                 </div>
 
-                <Button onClick={handleCreateEvent} className="w-full">
-                  Create Event
+                <Button 
+                onClick={editingEvent ? handleUpdateEvent : handleCreateEvent} className="w-full"
+                >
+                  {editingEvent ? 'Save Changes' : 'Create Event'}
                 </Button>
               </div>
             </DialogContent>
@@ -937,6 +1103,7 @@ const toggleFavorite = async (eventId) => {
           const isFull = isEventFull(event);
           const isCreator = Number(event.created_by) === Number(user.user_id);
           const isApprover = Number(event.approved_by) === Number(user.user_id);
+          const isAdmin = user.role === 'admin';
 
           const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
             isRegistered ? 'border-green-500' : 'border-gray-200'
@@ -1075,14 +1242,32 @@ const toggleFavorite = async (eventId) => {
                 </div>
 
                 {/* Faculty Approve/Reject OR RSVP */}
-                {canApproveThisEvent ? (
-                  <div className="flex gap-2">
+                {isAdmin ? (
+                  <div className="w-full space-y-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleOpenEditDialog(event)}
+                      className="w-full"
+                    >
+                      Edit Event
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleCancelEvent(event.event_id)}
+                      className="w-full"
+                    >
+                      <XCircle className="h-4 w-4 mr-1" /> Cancel Event
+                    </Button>
+                    </div>
+                ) : canApproveThisEvent ? (
+                  <div className="w-full space-y-2">
                     <Button
                       size="sm"
                       onClick={() => handleApproveEvent(event.event_id)}
                       className="flex-1"
                     >
-                      <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                      <CheckCircle className="h-4 w-4 mr-1" /> Approve Event
                     </Button>
                     <Button
                       size="sm"
@@ -1090,53 +1275,30 @@ const toggleFavorite = async (eventId) => {
                       onClick={() => handleRejectEvent(event.event_id)}
                       className="flex-1"
                     >
-                      <XCircle className="h-4 w-4 mr-1" /> Reject
+                      <XCircle className="h-4 w-4 mr-1" /> Reject Event
                     </Button>
                   </div>
                 ) : isCreator ? (
-                  user.role === 'faculty' || user.role === 'admin' ? (
-                    <div className="w-full space-y-2">
-                      <Badge
-                        variant="secondary"
-                        className="w-full justify-center"
-                      >
-                        You  this event
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleCancelEvent(event.event_id)}
-                        className="w-full"
-                      >
-                        <XCircle className="h-0 w-4 mr-1" /> Cancel Event
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="w-full space-y-2">
-                      <Badge
-                        variant="secondary"
-                        className="w-full justify-center"
-                      >
-                        You created this event
-                      </Badge>
-                    </div>
-                  )
+                  <div className="w-full space-y-2">
+                    <Badge
+                      variant="secondary"
+                      className="w-full justify-center"
+                    >
+                      You created this event
+                    </Badge>
+                  </div>
                 ) : event.registration_required ? (
                   <Button
+                    size="sm"
                     className="w-full"
-                    variant={isRegistered ? 'destructive' : 'default'}
+                    disabled={isFull}
                     onClick={() => handleRSVP(event.event_id)}
-                    disabled={isFull && !isRegistered}
                   >
-                    {isFull && !isRegistered
-                      ? 'Event Full'
-                      : isRegistered
-                      ? 'Cancel RSVP'
-                      : 'RSVP Now'}
-                  </Button>
+                    {isRegistered ? 'Cancel RSVP' : isFull ? 'Event Full' : 'RSVP Now'}
+                    </Button>
                 ) : (
                   <Badge
-                    variant="secondary"
+                    variant="outline"
                     className="w-full justify-center"
                   >
                     No Registration Required

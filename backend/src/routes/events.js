@@ -369,6 +369,82 @@ router.get('/faculty/:faculty_id/pending', async (req, res) => {
   }
 });
 
+// ---------------- UPDATE EVENT (admin) ----------------
+router.put('/:event_id', async (req, res) => {
+  const eventId = req.params.event_id;
+
+  const {
+    title,
+    description,
+    start_datetime,
+    end_datetime,
+    location,
+    capacity,
+    category_id,
+    registration_required,
+    instructor_email,
+  } = req.body;
+
+  try {
+    // Update main fields (we are NOT touching created_by or status here)
+    await pool.query(
+      `
+      UPDATE events
+      SET
+        title = ?,
+        description = ?,
+        start_datetime = ?,
+        end_datetime = ?,
+        location = ?,
+        capacity = ?,
+        category_id = ?,
+        registration_required = ?,
+        instructor_email = ?
+      WHERE event_id = ?
+      `,
+      [
+        title,
+        description,
+        start_datetime,
+        end_datetime,
+        location,
+        capacity,
+        category_id,
+        registration_required ? 1 : 0,
+        instructor_email,
+        eventId,
+      ]
+    );
+
+    // Return the updated row with registered_count
+    const [rows] = await pool.query(
+      `
+      SELECT
+        e.*,
+        (
+          SELECT COUNT(*)
+          FROM event_registrations er
+          WHERE er.event_id = e.event_id
+        ) AS registered_count
+      FROM events e
+      WHERE e.event_id = ?
+      `,
+      [eventId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'Event not found after update' });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Update event error:', err);
+    res.status(500).json({
+      message: 'Failed to update event',
+      error: err.message,
+    });
+  }
+});
 
 // ---------------- APPROVE EVENT ----------------
 router.patch('/:event_id/approve', async (req, res) => {
