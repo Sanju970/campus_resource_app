@@ -1130,10 +1130,9 @@ const handleOpenEditDialog = (event) => {
             Past Events
           </Button>
 
-
-
           {/* Category filters (only for All Events view visually, but we keep them active) */}
-          {eventCategories.map((category) => (
+          {user.role !== 'admin' &&
+          eventCategories.map((category) => (
             <Button
               key={category.id}
               variant={
@@ -1336,8 +1335,7 @@ const handleOpenEditDialog = (event) => {
                           </span>
                         )}
                       </div>
-
-                      {!isAdmin && (
+                      
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1349,7 +1347,6 @@ const handleOpenEditDialog = (event) => {
                             }`}
                           />
                         </Button>
-                      )}
                     </div>
 
                     <CardTitle className="text-lg">{event.title}</CardTitle>
