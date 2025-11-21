@@ -138,6 +138,7 @@ export default function EventsPage() {
     category_id: '',
     organization_id: '', 
     registration_required: false,
+    members_only: false, 
     instructor_email: '',
   });
 
@@ -1019,7 +1020,24 @@ const handleOpenEditDialog = (event) => {
                         })
                       }
                     />
-                  </div>
+                 <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    id="registration_required"
+                    checked={newEvent.registration_required}
+                    onChange={(e) =>
+                      setNewEvent({
+                        ...newEvent,
+                        registration_required: e.target.checked,
+                      })
+                    }
+                  />
+                  <Label htmlFor="registration_required" className="mb-0">
+                    Registration Required
+                  </Label>
+                </div>
+              </div>
+                {/* RIGHT COLUMN → Organization + Members Only */}
                   <div className="space-y-2">
                     <Label>Organization</Label>
                     <select
@@ -1042,23 +1060,25 @@ const handleOpenEditDialog = (event) => {
                         </option>
                       ))}
                     </select>
-                  </div>
-                </div>
-
                 <div className="flex items-center gap-2">
                   <input
+                    id="members_only"
                     type="checkbox"
-                    id="registration"
-                    checked={newEvent.registration_required}
+                    checked={newEvent.members_only}
                     onChange={(e) =>
                       setNewEvent({
                         ...newEvent,
-                        registration_required: e.target.checked,
+                        members_only: e.target.checked,
                       })
                     }
                   />
-                  <Label htmlFor="registration">Registration Required</Label>
-                </div>
+                  <Label htmlFor="members_only" className="mb-0">
+                    Members Only
+                  </Label>
+                </div>  
+              </div>
+            </div>
+
 
                 <Button 
                 onClick={editingEvent ? handleUpdateEvent : handleCreateEvent} className="w-full"
