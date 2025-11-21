@@ -109,6 +109,7 @@ export default function EventsPage() {
   }
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [organizations, setOrganizations] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [events, setEvents] = useState([]);
   const [registeredEvents, setRegisteredEvents] = useState([]);
@@ -116,8 +117,6 @@ export default function EventsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showPastEvents, setShowPastEvents] = useState(false);
-
-  // NEW: separate view flags
   const [showCreatedEventsOnly, setShowCreatedEventsOnly] = useState(false);
   const [showRegisteredEventsOnly, setShowRegisteredEventsOnly] =
     useState(false);
@@ -137,6 +136,7 @@ export default function EventsPage() {
     location: '',
     capacity: '',
     category_id: '',
+    organization_id: '', 
     registration_required: false,
     instructor_email: '',
   });
@@ -247,6 +247,7 @@ const fetchFavoriteEvents = async () => {
     fetchRegisteredEvents();
     fetchFacultyPendingEvents();
     fetchFavoriteEvents();
+    fetchOrganizations(); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -334,6 +335,20 @@ const fetchFavoriteEvents = async () => {
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
+  // Fetch organizations for the Organization dropdown
+const fetchOrganizations = async () => {
+  try {
+    const res = await axios.get('http://localhost:5000/api/organizations', {
+      params: { user_id: user.user_id },
+    });
+
+    // Backend returns an array of orgs
+    setOrganizations(res.data || []);
+  } catch (err) {
+    console.error('Error fetching organizations:', err);
+    toast.error('Failed to load organizations');
+  }
+};
 
   // ---------------- RSVP (students + faculty) ----------------
   const handleRSVP = async (eventId) => {
@@ -1006,21 +1021,24 @@ const handleOpenEditDialog = (event) => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Category</Label>
+                    <Label>Organization</Label>
                     <select
                       className="border rounded-md w-full p-2"
-                      value={newEvent.category_id}
-                      onChange={(e) =>
+                      value={newEvent.organization_id || ''}
+                      onChange={(e) => {
+                        const orgId = e.target.value ? Number(e.target.value) : '';
+                        const selectedOrg = organizations.find((org) => org.id === orgId);
                         setNewEvent({
                           ...newEvent,
-                          category_id: Number(e.target.value),
-                        })
-                      }
+                          organization_id: orgId,  
+                          category_id: selectedOrg ? selectedOrg.category_id : '',
+                        });
+                      }}
                     >
-                      <option value="">Select Category</option>
-                      {eventCategories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
+                      <option value="">Select Organization</option>
+                      {organizations.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.title}
                         </option>
                       ))}
                     </select>
