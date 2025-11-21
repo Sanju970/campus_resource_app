@@ -42,7 +42,7 @@ It was developed for **Phase 2 – Front-End Development** using **Vite + React 
 | EventsPage.jsx | Displays upcoming campus events. |
 | AnnouncementsPage.jsx | Lists announcements and notices. |
 | MaterialsPage.jsx | Repository of learning materials. |
-| ResourcesPage.jsx | Resource cards with categorized links. |
+| OrganizationsPage.jsx | Resource cards with categorized links. |
 | SchedulePage.jsx | Weekly class or event schedule. |
 | ProfilePage.jsx | View and edit user information. |
 | NotificationsPage.jsx | View alerts and messages. |

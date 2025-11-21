@@ -126,9 +126,8 @@ Celina Ann Thomas - 1002234178 */
 
 @layer base {
   * {
-    border: 1px solid var(--border);
-    outline: 2px solid var(--ring);
-    outline-offset: 0;
+    border: none;
+    outline: none;
   }
 
   body {

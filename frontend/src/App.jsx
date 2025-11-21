@@ -7,7 +7,7 @@ import HomePage from './components/HomePage';
 import EventsPage from './components/EventsPage';
 import AnnouncementsPage from './components/AnnouncementsPage';
 import MaterialsPage from './components/MaterialsPage';
-import ResourcesPage from './components/ResourcesPage';
+import OrganizationsPage from './components/OrganizationsPage';
 import SchedulePage from './components/SchedulePage';
 import ProfilePage from './components/ProfilePage';
 import NotificationsPage from './components/NotificationsPage';
@@ -18,7 +18,7 @@ import { Toaster } from './components/ui/sonner';
 import { useEffect, useState as useReactState } from 'react';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
-import OrganizationMembers from './components/OrganizationMembers';
+import OrganizationDetails from './components/OrganizationDetails';
 import UserPublicProfile from './components/UserPublicProfile';
 
 function AppContent() {
@@ -69,13 +69,13 @@ function AppContent() {
                 <Route path="/events" element={<EventsPage />} />
                 <Route path="/announcements" element={<AnnouncementsPage />} />
                 <Route path="/materials" element={<MaterialsPage />} />
-                <Route path="/organizations" element={<ResourcesPage />} />
+                <Route path="/organizations" element={<OrganizationsPage />} />
                 <Route path="/schedule" element={<SchedulePage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/favorites" element={<FavoritesPage />} />
                 <Route path="/my-events" element={<EventsPage />} />
-                <Route path="/organizations/:orgId/members" element={<OrganizationMembers />} />
+                <Route path="/organizations/:orgId" element={<OrganizationDetails />} />
                 <Route path="/user/:userId" element={<UserPublicProfile />} />
 
                 <Route

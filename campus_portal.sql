@@ -3,7 +3,6 @@
 -- AUTHOR: Group4 (Phase 3)
 -- ============================================================
 
--- Drop and recreate database fresh
 DROP DATABASE IF EXISTS campus_portal;
 CREATE DATABASE campus_portal;
 USE campus_portal;
@@ -33,38 +32,31 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (role_id) REFERENCES roles(role_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE
 );
-
 
 -- ============================================================
 -- 2. EVENTS
 -- ============================================================
 
-DROP TABLE IF EXISTS `events`;
-CREATE TABLE `events` (
-  `event_id` int NOT NULL AUTO_INCREMENT,
-  `title` varchar(200) NOT NULL,
-  `description` text,
-  `start_datetime` datetime NOT NULL,
-  `end_datetime` datetime NOT NULL,
-  `location` varchar(200) DEFAULT NULL,
-  `capacity` int DEFAULT NULL,
-  `category_id` int DEFAULT NULL,
-  `category` varchar(100) DEFAULT NULL,
-  `instructor_email` varchar(150) DEFAULT NULL,
-  `registration_required` tinyint(1) DEFAULT '0',
-  `status` enum('pending','approved','rejected') DEFAULT 'pending',
-  `created_by` int NOT NULL,
-  `approved_by` int DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`event_id`),
-  UNIQUE KEY `unique_event` (`title`,`start_datetime`,`location`),
-  KEY `created_by` (`created_by`),
-  KEY `approved_by` (`approved_by`),
-  CONSTRAINT `events_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `events_ibfk_2` FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE events (
+  event_id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  start_datetime DATETIME NOT NULL,
+  end_datetime DATETIME NOT NULL,
+  location VARCHAR(200),
+  capacity INT,
+  category VARCHAR(100),
+  instructor_email VARCHAR(150),
+  registration_required BOOLEAN DEFAULT 0,
+  status ENUM('pending','approved','rejected') DEFAULT 'pending',
+  created_by INT NOT NULL,
+  approved_by INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (title, start_datetime, location),
+  FOREIGN KEY (created_by) REFERENCES users(user_id),
+  FOREIGN KEY (approved_by) REFERENCES users(user_id)
+);
 
 -- ============================================================
 -- 3. ANNOUNCEMENTS
@@ -77,9 +69,8 @@ CREATE TABLE announcements (
     priority ENUM('low','medium','high','urgent') DEFAULT 'medium',
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_announcement UNIQUE (title, created_by),
+    UNIQUE (title, created_by),
     FOREIGN KEY (created_by) REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ============================================================
@@ -92,9 +83,8 @@ CREATE TABLE favorites (
     item_type ENUM('event','announcement') NOT NULL,
     item_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_favorite UNIQUE (user_id, item_type, item_id),
+    UNIQUE (user_id, item_type, item_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ============================================================
@@ -108,58 +98,31 @@ CREATE TABLE notifications (
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ============================================================
 -- 6. EVENT REGISTRATIONS
 -- ============================================================
 
-DROP TABLE IF EXISTS `event_registrations`;
-
-CREATE TABLE `event_registrations` (
-  `registration_id` int NOT NULL AUTO_INCREMENT,
-  `event_id` int NOT NULL,
-  `user_id` int NOT NULL,
-  `registered_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`registration_id`),
-  UNIQUE KEY `event_id` (`event_id`,`user_id`),
-  KEY `user_id` (`user_id`),
-  CONSTRAINT `event_registrations_ibfk_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`event_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `event_registrations_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- ============================================================
--- 7. ORGANIZATION HEADS
--- ============================================================
-
-DROP TABLE IF EXISTS `organization_heads`;
-
-CREATE TABLE organization_heads (
-  org_id INT PRIMARY KEY,
-  org_name VARCHAR(150) NOT NULL,
-  faculty_id VARCHAR(20) NOT NULL
+CREATE TABLE event_registrations (
+  registration_id INT AUTO_INCREMENT PRIMARY KEY,
+  event_id INT NOT NULL,
+  user_id INT NOT NULL,
+  registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (event_id, user_id),
+  FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- ============================================================
--- 7. ORGANIZATIONS
--- ============================================================
-DROP TABLE IF EXISTS organization_categories;
-DROP TABLE IF EXISTS organization_members;
-DROP TABLE IF EXISTS organizations;
--- ============================================================
--- ORGANIZATION CATEGORY TABLE 
+-- 7. ORGANIZATION TABLES
 -- ============================================================
 
 CREATE TABLE organization_categories (
     category_id INT AUTO_INCREMENT PRIMARY KEY,
-    category_key VARCHAR(50) UNIQUE NOT NULL, 
-    category_name VARCHAR(150) NOT NULL 
+    category_key VARCHAR(50) UNIQUE NOT NULL,
+    category_name VARCHAR(150) NOT NULL
 );
-
--- ============================================================
--- ORGANIZATIONS TABLE
--- ============================================================
 
 CREATE TABLE organizations (
     org_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -169,184 +132,123 @@ CREATE TABLE organizations (
     hours VARCHAR(255),
     contact VARCHAR(255),
     website VARCHAR(255),
-    head_user_id INT DEFAULT NULL,
     category_id INT,
-    created_by INT NOT NULL,
+    created_by INT NOT NULL,     -- must be GLOBAL ADMIN
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES users(user_id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id),
-    FOREIGN KEY (head_user_id) REFERENCES users(user_id)
-        ON DELETE SET NULL ON UPDATE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(user_id),
+    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id)
 );
 
-
 -- ============================================================
--- ORGANIZATION MEMBERS TABLE
+-- ORG MEMBERS TABLE with NEW ROLES
 -- ============================================================
 
 CREATE TABLE organization_members (
     org_id INT NOT NULL,
     user_id INT NOT NULL,
-    role ENUM('member','head','admin') DEFAULT 'member',
+    role ENUM(
+        'member',
+        'coordinator',
+        'lead_faculty',
+        'event_manager',
+        'admin_delegate'
+    ) DEFAULT 'member',
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (org_id, user_id),
-    FOREIGN KEY (org_id) REFERENCES organizations(org_id)
-        ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
-
 -- ============================================================
--- 7. SAMPLE DATA
+-- SAMPLE DATA
 -- ============================================================
 
-INSERT INTO roles (role_name) VALUES ('student'), ('faculty'), ('admin');
+INSERT INTO roles (role_name)
+VALUES ('student'), ('faculty'), ('admin');
 
--- ------------------------------------------------------
--- SAMPLE USERS
--- ------------------------------------------------------
-
+-- USERS
 INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id)
 VALUES
 ('Michael', 'Anderson', 'adm0001', 'adm0001@gmail.com',
- '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3), 
-
+ '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3),
 ('Jane', 'Doe', 'fac0006', 'fac0006@gmail.com',
  '$2a$10$0T0VOYrqBqhIlYvT0nRm.OUFwa3.nuDZ8SG/zchbZ9ZsEVll2xpY.', 2),
-
 ('John', 'Smith', 'fac0005', 'fac0005@gmail.com',
- '$2a$10$Opi0eknm8c5n3wlgwXzC5utztgQuuenWWxRFxc8As052U9yiHWUfS', 2), 
-
+ '$2a$10$Opi0eknm8c5n3wlgwXzC5utztgQuuenWWxRFxc8As052U9yiHWUfS', 2),
 ('Emily', 'Lee', 'fac0004', 'fac0004@gmail.com',
  '$2a$10$d1dNmwGVoCaRDZrIoQy29usriQaq0P3FA05A0TxMe0ExKKu/1/cO.', 2),
-
 ('Michael', 'Hart', 'fac0003', 'fac0003@gmail.com',
  '$2a$10$1ZaRyvGA9PbpgvfIxeou5O5cfwe1Hig/2md/i3hElWUy4otxGJA.y', 2),
-
 ('Robert', 'Steele', 'fac0002', 'fac0002@gmail.com',
  '$2a$10$KPyfTBLXS9lSLDXdKmDrYeVcsqsqt4gqTQ7agqLZdvaChXkg8u4Oe', 2),
-
 ('Karen', 'Mitchell', 'fac0001', 'fac0001@gmail.com',
  '$2a$10$jOeOu5nm3qsxZzfTJOJ/YeGoedwZK0alkuU/daw1sFhUwt1bmKsQi', 2),
-
 ('Bob', 'Lee', 'stu0001', 'stu0001@gmail.com',
  '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
 
-
-
+-- CATEGORIES
 INSERT INTO organization_categories (category_key, category_name)
 VALUES
-    ('library', 'Library & Study Spaces'),
-    ('academic_support', 'Academic Support'),
-    ('career_services', 'Career Services'),
-    ('health_wellness', 'Health & Wellness'),
-    ('it_services', 'IT Services'),
-    ('activities', 'Activities & Student Life');
+('library', 'Library & Study Spaces'),
+('academic_support', 'Academic Support'),
+('career_services', 'Career Services'),
+('health_wellness', 'Health & Wellness'),
+('it_services', 'IT Services'),
+('activities', 'Activities & Student Life');
 
--- ============================================================
--- INSERT SAMPLE ORGANIZATIONS
--- ============================================================
-
-INSERT INTO organizations
-(title, description, location, hours, contact, website,
- head_user_id, category_id, created_by)
+-- ORGANIZATIONS
+INSERT INTO organizations (title, description, location, hours, contact, website, category_id, created_by)
 VALUES
-('Central Library', 'Comprehensive research library...', 'Central Building', '7am-11pm', 
- 'library@campus.edu', 'https://library.campus.edu', 2, 1, 1),
-
+('Central Library', 'Comprehensive research library...', 'Central Building', '7am-11pm',
+ 'library@campus.edu', 'https://library.campus.edu', 1, 1),
 ('Writing Center', 'Tutoring for writing...', 'Success Center 201', '9am-8pm',
- 'writing@campus.edu', 'https://writing.campus.edu', 3, 2, 1),
-
-('Career Development Center', 'Career counseling...', 'Admin Building 2rd floor', '8:30am-5pm',
- 'careers@campus.edu', 'https://careers.campus.edu', 4, 3, 1),
-
+ 'writing@campus.edu', 'https://writing.campus.edu', 2, 1),
+('Career Development Center', 'Career counseling...', 'Admin Building 2nd floor', '8:30am-5pm',
+ 'careers@campus.edu', 'https://careers.campus.edu', 3, 1),
 ('Health & Wellness Center', 'Health & wellness services...', 'Wellness Center Building', '8am-6pm',
- 'wellness@campus.edu', 'https://wellness.campus.edu', 5, 4, 1),
-
+ 'wellness@campus.edu', 'https://wellness.campus.edu', 4, 1),
 ('IT Services', 'Technology support...', 'IT Building 1st floor', '24/7',
- 'itsupport@campus.edu', 'https://it.campus.edu', 6, 5, 1),
-
+ 'itsupport@campus.edu', 'https://it.campus.edu', 5, 1),
 ('Student Activities Office', 'Campus events & clubs...', 'Student Union 210', '9am-5pm',
- 'activities@campus.edu', 'https://activities.campus.edu', 7, 6, 1);
+ 'activities@campus.edu', 'https://activities.campus.edu', 6, 1);
 
--- ORG 1: Central Library
+-- ORG MEMBERS (CORRECT ROLES ONLY)
 INSERT INTO organization_members (org_id, user_id, role)
-VALUES 
-(1, 2, 'head'),
-(1, 1, 'admin');
+VALUES
+(1, 2, 'lead_faculty'),
+(1, 1, 'admin_delegate'),
 
--- ORG 2: Writing Center
-INSERT INTO organization_members (org_id, user_id, role)
-VALUES 
-(2, 3, 'head'),
-(2, 1, 'admin');
+(2, 3, 'lead_faculty'),
+(2, 1, 'admin_delegate'),
 
--- ORG 3: Career Development Center
-INSERT INTO organization_members (org_id, user_id, role)
-VALUES 
-(3, 4, 'head'),
-(3, 1, 'admin');
+(3, 4, 'lead_faculty'),
+(3, 1, 'admin_delegate'),
 
--- ORG 4: Health & Wellness Center
-INSERT INTO organization_members (org_id, user_id, role)
-VALUES 
-(4, 5, 'head'),
-(4, 1, 'admin');
+(4, 5, 'lead_faculty'),
+(4, 1, 'admin_delegate'),
 
--- ORG 5: IT Services
-INSERT INTO organization_members (org_id, user_id, role)
-VALUES 
-(5, 6, 'head'),
-(5, 1, 'admin');
+(5, 6, 'lead_faculty'),
+(5, 1, 'admin_delegate'),
 
--- ORG 6: Student Activities Office
-INSERT INTO organization_members (org_id, user_id, role)
-VALUES 
-(6, 7, 'head'),
-(6, 1, 'admin');
+(6, 7, 'lead_faculty'),
+(6, 1, 'admin_delegate');
 
-
-
-INSERT INTO organization_heads (org_id, org_name, faculty_id) VALUES
-(1, 'Library & Study Spaces',  'fac0001'),
-(2, 'Academic Support',        'fac0002'),
-(3, 'Career Services',         'fac0003'),
-(4, 'Health & Wellness',       'fac0004'),
-(5, 'IT Services',             'fac0005'),
-(6, 'Activities',              'fac0006');
-
-
--- Sample Events (duplicates prevented by unique constraint)
+-- SAMPLE EVENTS
 INSERT INTO events (title, description, start_datetime, end_datetime, location, capacity, category, instructor_email, registration_required, status, created_by)
-VALUES 
-('Career Fair 2025', 'Meet top companies and explore career opportunities.', 
+VALUES
+('Career Fair 2025', 'Meet top companies and explore career opportunities.',
  '2025-11-15 10:00:00', '2025-11-15 16:00:00', 'Main Hall, Student Union', 200, 'Career', NULL, 1, 'approved', 1),
-('AI Workshop', 'Hands-on workshop on AI and Machine Learning.', 
+('AI Workshop', 'Hands-on workshop on AI and ML.',
  '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101', 50, 'Workshop', 'fac0001@gmail.com', 1, 'approved', 2),
-('Music Concert', 'Enjoy live performances by student bands.', 
- '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium', 300, 'Concert', NULL, 0, 'approved', 1),
-('Guest Lecture: Quantum Computing', 'Lecture by Dr. Quantum on future computing trends.', 
- '2025-12-01 11:00:00', '2025-12-01 12:30:00', 'Lecture Hall 3', 100, 'Lecture', 'fac0002@gmail.com', 1, 'approved', 2),
-('Sports Meet', 'Annual inter-college sports event.', 
- '2025-12-05 09:00:00', '2025-12-05 17:00:00', 'Sports Ground', 500, 'Sports', NULL, 0, 'approved', 1);
+('Music Concert', 'Enjoy live performances by student bands.',
+ '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium', 300, 'Concert', NULL, 0, 'approved', 1);
 
--- Sample Announcements
+-- SAMPLE ANNOUNCEMENTS
 INSERT INTO announcements (title, content, priority, created_by)
 VALUES
-('Faculty Meeting Scheduled', 'A mandatory faculty meeting will be held in the Seminar Hall on Friday at 3 PM.', 'high', 2),
-('Research Grant Applications', 'Faculty members are encouraged to apply for the upcoming government-funded research grants.', 'medium', 2),
-('Faculty Development Workshop', 'A workshop on modern teaching techniques will be conducted next Monday.', 'low', 2),
-('Performance Review Reminder', 'Faculty are reminded to submit their annual performance reports by the end of this month.', 'urgent', 2),
-('New Publication Guidelines', 'Updated guidelines for publishing research papers have been released by the Academic Council.', 'medium', 2),
-('Conference Travel Support', 'Faculty can now apply for travel reimbursement for attending international conferences.', 'low', 2),
-('Curriculum Review Committee', 'Faculty volunteers are requested to join the curriculum review committee for the upcoming academic year.', 'medium', 2),
-('Faculty Leave Policy Update', 'The leave policy for faculty has been revised. Please check the HR portal for details.', 'high', 2);
+('Faculty Meeting Scheduled', 'Mandatory faculty meeting Friday at 3 PM.', 'high', 2),
+('Research Grant Applications', 'Apply for new government grants.', 'medium', 2),
+('Faculty Development Workshop', 'Training on modern teaching techniques.', 'low', 2);
 
--- ============================================================
--- END OF SCRIPT
--- ============================================================
