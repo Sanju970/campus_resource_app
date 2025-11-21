@@ -61,6 +61,10 @@ const BASIC_ORG_ROLES = ["member", "coordinator", "event_manager"];
    - joins category + member count
    - flags is_member & is_org_admin (delegate/lead_faculty)
 ============================================================ */
+/* ============================================================
+   GET all organizations
+   - returns user role in org + role counts
+============================================================ */
 router.get("/", async (req, res) => {
   const userId = req.query.user_id || null;
 
@@ -79,6 +83,7 @@ router.get("/", async (req, res) => {
         oc.category_name,
         o.category_id,
         o.is_active,
+
         COALESCE(m.member_count, 0) AS member_count,
 
         -- is_member for this user
@@ -91,7 +96,28 @@ router.get("/", async (req, res) => {
           )
         END AS is_member,
 
-        -- is_org_admin (delegate or lead_faculty) for this user
+        -- NEW: user's exact org role
+        (
+          SELECT role
+          FROM organization_members om
+          WHERE om.org_id = o.org_id AND om.user_id = ?
+        ) AS current_org_role,
+
+        -- NEW: count of admin_delegate
+        (
+          SELECT COUNT(*)
+          FROM organization_members 
+          WHERE org_id = o.org_id AND role = 'admin_delegate'
+        ) AS admin_delegate_count,
+
+        -- NEW: count of lead_faculty
+        (
+          SELECT COUNT(*)
+          FROM organization_members 
+          WHERE org_id = o.org_id AND role = 'lead_faculty'
+        ) AS lead_faculty_count,
+
+        -- Keep your old is_org_admin flag for compatibility
         CASE
           WHEN ? IS NULL THEN 0
           ELSE (
@@ -99,7 +125,7 @@ router.get("/", async (req, res) => {
             FROM organization_members om2
             WHERE om2.org_id = o.org_id
               AND om2.user_id = ?
-              AND om2.role IN ('admin_delegate', 'lead_faculty')
+              AND om2.role IN ('admin_delegate','lead_faculty')
           )
         END AS is_org_admin
 
@@ -115,7 +141,7 @@ router.get("/", async (req, res) => {
       WHERE o.is_active = 1
       ORDER BY o.title;
       `,
-      [userId, userId, userId, userId]
+      [userId, userId, userId, userId, userId, userId]
     );
 
     res.json(rows);
@@ -333,6 +359,12 @@ router.post("/:id/join", async (req, res) => {
    - admin_delegate: cannot leave (must transfer first)
    - others: can leave
 ============================================================ */
+/* ============================================================
+   LEAVE organization
+   - User cannot leave if they are:
+       1. The ONLY admin_delegate
+       2. The ONLY lead_faculty
+============================================================ */
 router.post("/:id/leave", async (req, res) => {
   try {
     const orgId = Number(req.params.id);
@@ -342,32 +374,79 @@ router.post("/:id/leave", async (req, res) => {
       return res.status(400).json({ message: "user_id is required" });
     }
 
-    const [memberRows] = await db.query(
-      `SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?`,
+    // Get the user's current org role
+    const [[memberRow]] = await db.query(
+      `
+      SELECT role 
+      FROM organization_members
+      WHERE org_id = ? AND user_id = ?
+      `,
       [orgId, user_id]
     );
 
-    if (!memberRows.length) {
-      return res
-        .status(400)
-        .json({ message: "Not a member of this organization" });
-    }
-
-    const role = memberRows[0].role;
-
-    if (role === "admin_delegate") {
-      return res.status(403).json({
-        message:
-          "You are the admin_delegate of this organization. Transfer admin_delegate rights before leaving.",
+    if (!memberRow) {
+      return res.status(400).json({
+        message: "You are not a member of this organization.",
       });
     }
 
+    const role = memberRow.role;
+
+    /* =================================================================
+       CHECK IF THEY ARE THE **ONLY** admin_delegate
+       ================================================================= */
+    if (role === "admin_delegate") {
+      const [[countRow]] = await db.query(
+        `
+        SELECT COUNT(*) AS count
+        FROM organization_members
+        WHERE org_id = ? AND role = 'admin_delegate'
+        `,
+        [orgId]
+      );
+
+      if (countRow.count <= 1) {
+        return res.status(403).json({
+          message:
+            "You are the only admin_delegate. Transfer admin rights before leaving.",
+        });
+      }
+    }
+
+    /* =================================================================
+       CHECK IF THEY ARE THE **ONLY** lead_faculty
+       ================================================================= */
+    if (role === "lead_faculty") {
+      const [[countRow]] = await db.query(
+        `
+        SELECT COUNT(*) AS count
+        FROM organization_members
+        WHERE org_id = ? AND role = 'lead_faculty'
+        `,
+        [orgId]
+      );
+
+      if (countRow.count <= 1) {
+        return res.status(403).json({
+          message:
+            "You are the only lead_faculty. Assign your role to another faculty member before leaving.",
+        });
+      }
+    }
+
+    /* =================================================================
+       SAFE TO LEAVE → DELETE MEMBERSHIP
+       ================================================================= */
     await db.query(
-      `DELETE FROM organization_members WHERE org_id = ? AND user_id = ?`,
+      `
+      DELETE FROM organization_members
+      WHERE org_id = ? AND user_id = ?
+      `,
       [orgId, user_id]
     );
 
     return res.json({ message: "Left organization successfully" });
+
   } catch (err) {
     console.error("LEAVE error:", err);
     res.status(500).json({ message: "Failed to leave organization" });
@@ -482,12 +561,15 @@ router.post("/:id/members/remove", async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    // Acting user's privileges
     const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
     const isGlobal = isGlobalAdmin(globalRole);
 
+    // Target member's current org role
     const [targetRows] = await db.query(
       `
-      SELECT role FROM organization_members 
+      SELECT role 
+      FROM organization_members 
       WHERE org_id = ? AND user_id = ?
       `,
       [orgId, remove_user_id]
@@ -499,6 +581,69 @@ router.post("/:id/members/remove", async (req, res) => {
 
     const targetRole = targetRows[0].role;
 
+    /* ============================================================
+       SPECIAL CASE: Removing YOURSELF
+       ============================================================ */
+
+    // Case 1: lead_faculty removing themselves
+    if (acting_user_id === remove_user_id && orgRole === "lead_faculty") {
+      const [[countRow]] = await db.query(
+        `SELECT COUNT(*) AS count 
+         FROM organization_members 
+         WHERE org_id = ? AND role = 'lead_faculty'`,
+        [orgId]
+      );
+
+      if (countRow.count <= 1) {
+        return res.status(403).json({
+          message:
+            "You are the only lead_faculty. Assign your role before leaving.",
+        });
+      }
+
+      // Safe to leave
+      await db.query(
+        `
+        DELETE FROM organization_members 
+        WHERE org_id = ? AND user_id = ?
+        `,
+        [orgId, remove_user_id]
+      );
+
+      return res.json({ message: "You have left the organization." });
+    }
+
+    // Case 2: admin_delegate removing themselves
+    if (acting_user_id === remove_user_id && orgRole === "admin_delegate") {
+      const [[countRow]] = await db.query(
+        `SELECT COUNT(*) AS count 
+         FROM organization_members 
+         WHERE org_id = ? AND role = 'admin_delegate'`,
+        [orgId]
+      );
+
+      if (countRow.count <= 1) {
+        return res.status(403).json({
+          message:
+            "You are the only admin_delegate. Transfer admin_delegate rights before leaving.",
+        });
+      }
+
+      // Safe to leave
+      await db.query(
+        `
+        DELETE FROM organization_members 
+        WHERE org_id = ? AND user_id = ?
+        `,
+        [orgId, remove_user_id]
+      );
+
+      return res.json({ message: "You have left the organization." });
+    }
+
+    /* ============================================================
+       NORMAL REMOVE LOGIC
+       ============================================================ */
     let canRemove = false;
 
     if (isGlobal) {
@@ -517,6 +662,7 @@ router.post("/:id/members/remove", async (req, res) => {
       });
     }
 
+    // Remove normally
     await db.query(
       `
       DELETE FROM organization_members 
@@ -531,6 +677,7 @@ router.post("/:id/members/remove", async (req, res) => {
     res.status(500).json({ message: "Failed to remove member" });
   }
 });
+
 
 /* ============================================================
    UPDATE member ROLE
@@ -556,23 +703,54 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
       return res.status(400).json({ message: "Invalid role" });
     }
 
+    // Get acting user's privileges
     const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
     const isGlobal = isGlobalAdmin(globalRole);
 
+    // Get target's current org role
     const [targetRows] = await db.query(
-      `
-      SELECT role FROM organization_members 
-      WHERE org_id = ? AND user_id = ?
-      `,
+      `SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?`,
       [orgId, memberId]
     );
-
     if (!targetRows.length) {
       return res.status(400).json({ message: "User is not a member" });
     }
-
     const currentRole = targetRows[0].role;
 
+    // ❗ NEW: GET TARGET'S GLOBAL ROLE (faculty/admin/student)
+    const [[userRow]] = await db.query(
+      `SELECT role_id FROM users WHERE user_id = ?`,
+      [memberId]
+    );
+
+    if (!userRow) {
+      return res.status(400).json({ message: "Target user not found" });
+    }
+
+    const targetGlobalRoleId = userRow.role_id; // 1=student, 2=faculty, 3=admin
+
+    /*
+      NEW VALIDATION RULES
+      ---------------------
+      admin_delegate    → ONLY user with role_id=3
+      lead_faculty      → ONLY role_id=2 or 3
+      others            → anyone
+    */
+
+    if (new_role === "admin_delegate" && targetGlobalRoleId !== 3) {
+      return res.status(400).json({
+        message: "admin_delegate cannot be assigned to faculty/students.",
+      });
+    }
+
+    if (new_role === "lead_faculty" && ![2, 3].includes(targetGlobalRoleId)) {
+      return res.status(400).json({
+        message:
+          "lead_faculty can only be assigned to global admins or faculty users.",
+      });
+    }
+
+    // Now check if the ACTING USER is allowed to assign it
     let allowed = false;
 
     if (isGlobal || orgRole === "admin_delegate") {
@@ -583,7 +761,7 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
       } else {
         allowed = true;
       }
-    } else if (orgRole === "event_manager" || orgRole === "coordinator") {
+    } else if (["event_manager", "coordinator"].includes(orgRole)) {
       if (
         BASIC_ORG_ROLES.includes(currentRole) &&
         BASIC_ORG_ROLES.includes(new_role)
@@ -598,6 +776,7 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
       });
     }
 
+    // Update role
     await db.query(
       `
       UPDATE organization_members
@@ -608,11 +787,13 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
     );
 
     return res.json({ message: "Role updated successfully" });
+
   } catch (err) {
     console.error("Update role error:", err);
     res.status(500).json({ message: "Failed to update member role" });
   }
 });
+
 
 /* ============================================================
    TRANSFER admin_delegate

@@ -3,11 +3,22 @@ import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
 import { Button } from "./ui/button";
-import { MapPin, Clock, Mail, ArrowLeft, Pencil } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  Mail,
+  ArrowLeft,
+  Pencil,
+  Globe,
+} from "lucide-react";
 import OrganizationModal from "./OrganizationModal";
-import { Input } from "./ui/input";
 
 /* ------- role labels & badge colors ------- */
 
@@ -20,14 +31,45 @@ const ROLE_LABELS = {
 };
 
 const ROLE_BADGE_CLASSES = {
-  admin_delegate: "bg-red-500/10 text-red-500",
-  lead_faculty: "bg-purple-500/10 text-purple-500",
-  coordinator: "bg-blue-500/10 text-blue-500",
-  event_manager: "bg-teal-500/10 text-teal-500",
-  member: "bg-gray-500/10 text-gray-500",
+  admin_delegate: "bg-red-500 text-white",
+  lead_faculty: "bg-purple-500 text-white",
+  coordinator: "bg-blue-500 text-white",
+  event_manager: "bg-teal-500 text-white",
+  member: "bg-gray-500 text-white",
 };
 
-const ALL_ROLES = ["admin_delegate", "lead_faculty", "coordinator", "event_manager", "member"];
+const ALL_ROLES = [
+  "admin_delegate",
+  "lead_faculty",
+  "coordinator",
+  "event_manager",
+  "member",
+];
+
+/**
+ * Convert "5 PM" / "9:30 AM" to minutes since midnight.
+ * Assumes 12-hour format with a space before AM/PM.
+ */
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return null;
+
+  const parts = timeStr.trim().split(" ");
+  if (parts.length !== 2) return null;
+
+  const [timePart, ampmRaw] = parts;
+  const ampm = ampmRaw.toUpperCase();
+
+  let [hStr, mStr] = timePart.split(":");
+  let hours = Number(hStr);
+  let minutes = mStr ? Number(mStr) : 0;
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+
+  if (ampm === "PM" && hours !== 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
 
 export default function OrganizationDetails() {
   const { orgId } = useParams();
@@ -39,7 +81,7 @@ export default function OrganizationDetails() {
   const [allUsers, setAllUsers] = useState([]);
 
   const [addUserId, setAddUserId] = useState("");
-  const [addRole, setAddRole] = useState("member");
+  const [addRole, setAddRole] = useState("");
 
   const [categories, setCategories] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -65,7 +107,7 @@ export default function OrganizationDetails() {
     user?.role === "admin" || user?.role === 3 || user?.role === "3";
   const actingUserId = user?.user_id;
 
-  /* ---------- load org basic info ---------- */
+  /* ---------- load org info ---------- */
 
   useEffect(() => {
     if (!user) return;
@@ -95,7 +137,7 @@ export default function OrganizationDetails() {
     loadMembers();
   }, [orgId]);
 
-  /* ---------- load users for add-member dropdown ---------- */
+  /* ---------- load all users ---------- */
 
   useEffect(() => {
     axios
@@ -104,7 +146,7 @@ export default function OrganizationDetails() {
       .catch(() => {});
   }, []);
 
-  /* ---------- categories & global admins for edit-modal ---------- */
+  /* ---------- categories + admins ---------- */
 
   useEffect(() => {
     axios
@@ -118,14 +160,14 @@ export default function OrganizationDetails() {
       .catch(() => {});
   }, []);
 
-  /* ---------- permissions ---------- */
+  /* ---------- permission helpers ---------- */
 
   const actingMembership = useMemo(
     () => members.find((m) => m.user_id === actingUserId),
     [members, actingUserId]
   );
 
-  const orgRole = actingMembership?.role || null;
+  const orgRole = actingMembership?.org_role || null;
 
   const isAdminDelegate = orgRole === "admin_delegate";
   const isLeadFaculty = orgRole === "lead_faculty";
@@ -137,18 +179,17 @@ export default function OrganizationDetails() {
   const canAddMembers = canManageOrg || isCoordinator || isEventManager;
   const canManageAllRoles = isGlobalAdmin || isAdminDelegate || isLeadFaculty;
 
-  const getAllowedRoleOptions = (member) => {
-    if (member.user_id === actingUserId) return []; // don't change own role from UI
+  /* ---------- allowed roles ---------- */
 
-    // powerful roles can change any
+  const getAllowedRoleOptions = (member) => {
+    if (member.user_id === actingUserId) return [];
+
+    const current = member.org_role;
+
     if (canManageAllRoles) return ALL_ROLES;
 
-    // limited: coordinator / event_manager
     if (isCoordinator || isEventManager) {
-      if (
-        member.role === "admin_delegate" ||
-        member.role === "lead_faculty"
-      ) {
+      if (current === "admin_delegate" || current === "lead_faculty") {
         return [];
       }
       return ["member", "coordinator", "event_manager"];
@@ -160,14 +201,19 @@ export default function OrganizationDetails() {
   const canRemoveMember = (member) => {
     if (member.user_id === actingUserId) return false;
 
-    if (!canManageAllRoles && (member.role === "admin_delegate" || member.role === "lead_faculty")) {
+    const current = member.org_role;
+
+    if (
+      !canManageAllRoles &&
+      (current === "admin_delegate" || current === "lead_faculty")
+    ) {
       return false;
     }
 
     return canManageOrg;
   };
 
-  /* ---------- edit modal helpers (org info) ---------- */
+  /* ---------- edit modal helpers ---------- */
 
   const parseHours = (hoursString) => {
     const clean = (hoursString || "").trim();
@@ -225,16 +271,44 @@ export default function OrganizationDetails() {
   };
 
   const handleSaveOrg = async () => {
-    if (!org) return;
     if (!form.title.trim()) return toast.error("Title is required");
-    if (!form.category_id) return toast.error("Please select a category.");
+    if (!form.category_id) return toast.error("Select a category");
+
+    // ---- Time validation (US Central Time) ----
+    if (form.hours_days_main && form.hours_start_main && form.hours_end_main) {
+      const startMain = parseTimeToMinutes(form.hours_start_main);
+      const endMain = parseTimeToMinutes(form.hours_end_main);
+
+      if (startMain != null && endMain != null && endMain <= startMain) {
+        return toast.error(
+          "Primary hours: End time must be after start time (US Central Time)."
+        );
+      }
+    }
+
+    if (
+      form.hours_days_secondary &&
+      form.hours_start_secondary &&
+      form.hours_end_secondary
+    ) {
+      const startSec = parseTimeToMinutes(form.hours_start_secondary);
+      const endSec = parseTimeToMinutes(form.hours_end_secondary);
+
+      if (startSec != null && endSec != null && endSec <= startSec) {
+        return toast.error(
+          "Secondary hours: End time must be after start time (US Central Time)."
+        );
+      }
+    }
 
     const blocks = [];
+
     if (form.hours_days_main && form.hours_start_main && form.hours_end_main) {
       blocks.push(
         `${form.hours_days_main}: ${form.hours_start_main} – ${form.hours_end_main}`
       );
     }
+
     if (
       form.hours_days_secondary &&
       form.hours_start_secondary &&
@@ -265,16 +339,10 @@ export default function OrganizationDetails() {
         toast.success("Admin rights transferred");
       }
 
-      // refresh org info
       setOrg((prev) =>
-        prev
-          ? {
-              ...prev,
-              ...form,
-              hours: hoursFormatted,
-            }
-          : prev
+        prev ? { ...prev, ...form, hours: hoursFormatted } : prev
       );
+
       toast.success("Organization updated");
       setModalOpen(false);
     } catch (err) {
@@ -282,26 +350,18 @@ export default function OrganizationDetails() {
     }
   };
 
-  /* ---------- member operations ---------- */
+  /* ---------- member actions ---------- */
 
   const handleAddMember = async () => {
-    if (!addUserId) {
-      return toast.error("Select a user first.");
-    }
+    if (!addUserId) return toast.error("Select a user");
 
     try {
       await axios.post(
         `http://localhost:5000/api/organizations/${orgId}/members/add`,
-        {
-          acting_user_id: actingUserId,
-          new_user_id: addUserId,
-          role: addRole || "member",
-        }
+        { acting_user_id: actingUserId, new_user_id: addUserId }
       );
-
       toast.success("Member added");
       setAddUserId("");
-      setAddRole("member");
       loadMembers();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to add member");
@@ -310,14 +370,12 @@ export default function OrganizationDetails() {
 
   const handleRemoveMember = async (member) => {
     if (!canRemoveMember(member)) return;
-
     if (
       !window.confirm(
         `Remove ${member.first_name} ${member.last_name} from this organization?`
       )
-    ) {
+    )
       return;
-    }
 
     try {
       await axios.post(
@@ -335,14 +393,13 @@ export default function OrganizationDetails() {
   };
 
   const handleRoleChange = async (member, newRole) => {
-    if (!newRole || newRole === member.role) return;
+    if (!newRole || newRole === member.org_role) return;
 
     try {
-      await axios.post(
-        `http://localhost:5000/api/organizations/${orgId}/members/role`,
+      await axios.put(
+        `http://localhost:5000/api/organizations/${orgId}/members/${member.user_id}/role`,
         {
           acting_user_id: actingUserId,
-          target_user_id: member.user_id,
           new_role: newRole,
         }
       );
@@ -350,8 +407,11 @@ export default function OrganizationDetails() {
       loadMembers();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to update role");
+      loadMembers();
     }
   };
+
+  /* ---------- loading state ---------- */
 
   if (!org) {
     return (
@@ -370,10 +430,14 @@ export default function OrganizationDetails() {
     );
   }
 
+  /* ============================================================
+     RENDER PAGE
+  ============================================================ */
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      {/* top header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
         <div>
           <Button
             variant="ghost"
@@ -384,105 +448,99 @@ export default function OrganizationDetails() {
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to organizations
           </Button>
+
           <h1 className="text-3xl font-semibold tracking-tight">
             {org.title}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
-          {canDeleteOrg && (
-            <span className="text-xs text-muted-foreground">
-              You have admin access
-            </span>
+        {canManageOrg && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openEditModal}
+            className="flex items-center gap-2"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+        )}
+      </div>
+
+      {/* Overview Card */}
+      <div className="rounded-xl border bg-white shadow-sm p-6 space-y-6">
+        <h2 className="text-xl font-semibold">Overview</h2>
+
+        {org.description && (
+          <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+            {org.description}
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+          {/* Location */}
+          {org.location && (
+            <div className="flex items-start gap-3">
+              <MapPin className="h-5 w-5 text-primary mt-1" />
+              <div>
+                <p className="text-sm font-semibold">Location</p>
+                <p className="text-sm text-muted-foreground">
+                  {org.location}
+                </p>
+              </div>
+            </div>
           )}
-          {canManageOrg && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openEditModal}
-              className="flex items-center gap-2"
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Button>
+
+          {/* Hours */}
+          {org.hours && (
+            <div className="flex items-start gap-3">
+              <Clock className="h-5 w-5 text-primary mt-1" />
+              <div>
+                <p className="text-sm font-semibold">
+                  Hours{" "}
+                  <span className="font-normal text-xs">
+                    (US Central Time)
+                  </span>
+                </p>
+                <p className="text-sm text-muted-foreground">{org.hours}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Contact */}
+          {org.contact && (
+            <div className="flex items-start gap-3">
+              <Mail className="h-5 w-5 text-primary mt-1" />
+              <div>
+                <p className="text-sm font-semibold">Contact</p>
+                <p className="text-sm text-muted-foreground">
+                  {org.contact}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Website */}
+          {org.website && (
+            <div className="flex items-start gap-3">
+              <Globe className="h-5 w-5 text-primary mt-1" />
+              <div>
+                <p className="text-sm font-semibold">Website</p>
+                <a
+                  href={org.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline break-all"
+                >
+                  {org.website}
+                </a>
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* org details card */}
-      <Card className="border border-border shadow-md">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">
-            Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {org.description && (
-            <p className="text-foreground whitespace-pre-line">
-              {org.description}
-            </p>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {org.location && (
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4 mt-0.5" />
-                <div>
-                  <span className="font-medium text-foreground block">
-                    Location:
-                  </span>
-                  <span>{org.location}</span>
-                </div>
-              </div>
-            )}
-
-            {org.contact && (
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4 mt-0.5" />
-                <div>
-                  <span className="font-medium text-foreground block">
-                    Contact:
-                  </span>
-                  <span>{org.contact}</span>
-                </div>
-              </div>
-            )}
-
-            {org.hours && (
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4 mt-0.5" />
-                <div>
-                  <span className="font-medium text-foreground block">
-                    Hours:
-                  </span>
-                  <span>{org.hours}</span>
-                </div>
-              </div>
-            )}
-
-            {org.website && (
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <span className="h-4 w-4 mt-0.5 text-primary">@</span>
-                <div>
-                  <span className="font-medium text-foreground block">
-                    Website:
-                  </span>
-                  <a
-                    href={org.website}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-500 hover:underline text-sm break-all"
-                  >
-                    {org.website}
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* members card */}
+      {/* Members */}
       <Card className="border border-border shadow-md">
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -496,42 +554,25 @@ export default function OrganizationDetails() {
             </div>
 
             {canAddMembers && (
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                <div className="flex items-center gap-2">
-                  <select
-                    className="border border-border rounded-md px-2 py-1 text-sm min-w-[10rem]"
-                    value={addUserId}
-                    onChange={(e) => setAddUserId(e.target.value)}
-                  >
-                    <option value="">Select user</option>
-                    {allUsers.map((u) => (
-                      <option key={u.user_id} value={u.user_id}>
-                        {u.first_name} {u.last_name} — {u.email}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    className="border border-border rounded-md px-2 py-1 text-sm"
-                    value={addRole}
-                    onChange={(e) => setAddRole(e.target.value)}
-                  >
-                    <option value="member">Member</option>
-                    <option value="coordinator">Coordinator</option>
-                    <option value="event_manager">Event Manager</option>
-                    {canManageAllRoles && (
-                      <>
-                        <option value="lead_faculty">Lead Faculty</option>
-                        <option value="admin_delegate">Admin Delegate</option>
-                      </>
-                    )}
-                  </select>
-                </div>
+              <div className="flex items-center gap-2">
+                <select
+                  className="border border-border rounded-md px-2 py-1 text-sm min-w-[12rem]"
+                  value={addUserId}
+                  onChange={(e) => setAddUserId(e.target.value)}
+                >
+                  <option value="">Select user</option>
+                  {allUsers.map((u) => (
+                    <option key={u.user_id} value={u.user_id}>
+                      {u.first_name} {u.last_name} — {u.email}
+                    </option>
+                  ))}
+                </select>
 
                 <Button
                   size="sm"
                   onClick={handleAddMember}
                   disabled={!addUserId}
+                  className="bg-blue-500 hover:bg-blue-500 text-white"
                 >
                   Add
                 </Button>
@@ -553,34 +594,35 @@ export default function OrganizationDetails() {
               return (
                 <div
                   key={m.user_id}
-                  className="px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                  className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center"
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">
+                      <p className="font-medium text-base">
                         {m.first_name} {m.last_name}
                       </p>
                       <span
-                        className={
-                          "px-2 py-0.5 rounded-full text-xs font-medium " +
-                          (ROLE_BADGE_CLASSES[m.role] ||
-                            "bg-gray-500/10 text-gray-500")
-                        }
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          ROLE_BADGE_CLASSES[m.org_role] ||
+                          "bg-gray-600 text-white"
+                        }`}
                       >
-                        {ROLE_LABELS[m.role] || "Member"}
+                        {ROLE_LABELS[m.org_role]}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {m.email}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <div className="flex justify-end items-center gap-3">
                     {canChangeRole && (
                       <select
                         className="border border-border rounded-md px-2 py-1 text-xs md:text-sm min-w-[9rem]"
-                        value={m.role}
-                        onChange={(e) => handleRoleChange(m, e.target.value)}
+                        value={m.org_role}
+                        onChange={(e) =>
+                          handleRoleChange(m, e.target.value)
+                        }
                       >
                         {allowedRoles.map((r) => (
                           <option key={r} value={r}>
@@ -608,7 +650,7 @@ export default function OrganizationDetails() {
         </CardContent>
       </Card>
 
-      {/* edit-organization modal */}
+      {/* Edit Modal */}
       <OrganizationModal
         open={modalOpen}
         setOpen={setModalOpen}
@@ -618,6 +660,7 @@ export default function OrganizationDetails() {
         categories={categories}
         admins={admins}
         isEdit={true}
+        canTransferAdmin={isGlobalAdmin || isAdminDelegate}
       />
     </div>
   );

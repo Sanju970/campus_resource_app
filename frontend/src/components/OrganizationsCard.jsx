@@ -6,10 +6,10 @@ import {
   CardTitle,
 } from "./ui/card";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { MapPin, Clock, Mail, Trash2, Pencil } from "lucide-react";
 import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
-import "../styles/ripple.css";
 
 export default function OrganizationsCard({
   resource,
@@ -18,142 +18,168 @@ export default function OrganizationsCard({
   onDelete,
   isMember,
   userRole,
+  categories = [],
 }) {
   const navigate = useNavigate();
+  const stop = (e) => e.stopPropagation();
+
+  // User membership
   const joined = Boolean(isMember || resource?.is_member);
 
+  // Extract the user's org-level role
+  const orgRole = resource.current_org_role;
+
+  // Leave restriction logic
+  const isOnlyAdminDelegate =
+    orgRole === "admin_delegate" &&
+    resource.admin_delegate_count === 1;
+
+  const isOnlyLeadFaculty =
+    orgRole === "lead_faculty" &&
+    resource.lead_faculty_count === 1;
+
+  const cannotLeave = isOnlyAdminDelegate || isOnlyLeadFaculty;
+
+  // Global admin detection
   const isGlobalAdmin =
     userRole === "admin" || userRole === 3 || userRole === "3";
-  const canManageOrg = isGlobalAdmin || resource.is_org_admin === 1;
 
-  const stop = (e) => e.stopPropagation();
+  // Edit/Delete are allowed by:
+  // - global admin
+  // - admin_delegate
+  // - lead_faculty
+  const canManageOrg =
+    isGlobalAdmin ||
+    orgRole === "admin_delegate" ||
+    orgRole === "lead_faculty";
+
+  const category = categories.find((c) => c.id === resource.category_id);
 
   return (
     <Card
-      className="
-        group
-        relative
-        flex flex-col
-        rounded-xl
-        border border-border
-        bg-card
-        shadow-md
-        hover:shadow-lg
-        transition-shadow
-        cursor-pointer
-        overflow-hidden
-        ripple
-      "
+      className="overflow-hidden hover:shadow-lg transition-shadow border"
+      style={joined ? { backgroundColor: "#ecfdf3" } : undefined}
       onClick={() => navigate(`/organizations/${resource.id}`)}
     >
-      {/* subtle top highlight */}
-      <div className="h-1 w-full bg-gradient-to-r from-purple-500/60 via-blue-500/60 to-pink-500/60 opacity-80" />
-
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <CardTitle className="text-lg font-semibold leading-snug line-clamp-1 group-hover:text-blue-500 transition-colors">
-              {resource.title}
-            </CardTitle>
-            {resource.description && (
-              <CardDescription className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                {resource.description}
-              </CardDescription>
+      <CardHeader>
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex flex-wrap gap-2">
+            {category && (
+              <Badge className="bg-purple-100 text-purple-800">
+                {category.name}
+              </Badge>
             )}
-          </div>
 
-          {/* Membership / Admin chip */}
-          <div className="flex flex-col items-end gap-1 shrink-0">
             {joined && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-green-500/10 text-green-500 font-medium">
+              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
                 Member
               </span>
             )}
 
             {canManageOrg && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-purple-500/10 text-purple-500 font-medium">
+              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-300 shadow-sm">
                 You manage this
               </span>
             )}
           </div>
         </div>
+
+        <CardTitle className="text-lg">{resource.title}</CardTitle>
+
+        {resource.description && (
+          <CardDescription>{resource.description}</CardDescription>
+        )}
       </CardHeader>
 
-      <CardContent className="flex flex-col flex-1 px-4 pb-4 pt-0 text-sm text-foreground">
-        <div className="space-y-2.5 mt-1">
+      <CardContent className="space-y-4">
+
+        {/* ORG DETAILS */}
+        <div className="space-y-2 text-sm">
           {resource.location && (
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4 mt-0.5" />
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
               <span>{resource.location}</span>
             </div>
           )}
 
           {resource.hours && (
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4 mt-0.5" />
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
               <span>{resource.hours}</span>
             </div>
           )}
 
           {resource.contact && (
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Mail className="h-4 w-4 mt-0.5" />
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
               <span>{resource.contact}</span>
             </div>
           )}
         </div>
 
-        {/* actions */}
-        <div className="mt-4 flex items-center gap-2">
-          {onJoin && (
+        {/* MANAGEMENT BUTTONS (Edit/Delete) */}
+        {canManageOrg && (
+          <div className="w-full space-y-2">
             <Button
               size="sm"
-              className={`flex-1 ${
-                joined
-                  ? "bg-destructive/90 hover:bg-destructive text-destructive-foreground"
-                  : ""
-              }`}
-              variant={joined ? "destructive" : "default"}
               onClick={(e) => {
                 stop(e);
-                onJoin(resource, joined);
+                onEdit && onEdit(resource);
+              }}
+              className="w-full"
+            >
+              <Pencil className="h-4 w-4 mr-1" /> Edit Organization
+            </Button>
+
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={(e) => {
+                stop(e);
+                onDelete && onDelete(resource);
+              }}
+              className="w-full"
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Delete Organization
+            </Button>
+          </div>
+        )}
+
+        {/* JOIN / LEAVE BUTTONS — ALWAYS SHOWN FOR EVERY USER */}
+        <div className="w-full space-y-2 mt-2">
+          {joined ? (
+            <>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={cannotLeave}
+                onClick={(e) => {
+                  stop(e);
+                  onJoin(resource, true); // leave
+                }}
+                className="w-full"
+              >
+                Leave Organization
+              </Button>
+
+              {cannotLeave && (
+                <p className="text-xs text-red-600">
+                  You are the only {orgRole?.replace("_", " ")}.  
+                  Assign your role before leaving.
+                </p>
+              )}
+            </>
+          ) : (
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={(e) => {
+                stop(e);
+                onJoin(resource, false); // join
               }}
             >
-              {joined ? "Leave" : "Join"}
+              Join Organization
             </Button>
-          )}
-
-          {canManageOrg && (onEdit || onDelete) && (
-            <div className="flex gap-1">
-              {onEdit && (
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="w-9 h-9"
-                  onClick={(e) => {
-                    stop(e);
-                    onEdit(resource);
-                  }}
-                  title="Edit organization"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
-              {onDelete && (
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="w-9 h-9 text-destructive border-destructive/40 hover:bg-destructive/5"
-                  onClick={(e) => {
-                    stop(e);
-                    onDelete(resource);
-                  }}
-                  title="Remove organization"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
           )}
         </div>
       </CardContent>
@@ -168,4 +194,5 @@ OrganizationsCard.propTypes = {
   onDelete: PropTypes.func,
   isMember: PropTypes.bool,
   userRole: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  categories: PropTypes.array,
 };
