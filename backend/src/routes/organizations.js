@@ -2,10 +2,12 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
-/* ------------------------------------------------------------
+/* ============================================================
    Helper functions
------------------------------------------------------------- */
-async function getUserRoleName(userId) {
+============================================================ */
+
+// Global role: 'student' | 'faculty' | 'admin'
+async function getUserGlobalRole(userId) {
   const [rows] = await db.query(
     `
       SELECT r.role_name
@@ -18,24 +20,46 @@ async function getUserRoleName(userId) {
   return rows[0]?.role_name || null;
 }
 
-async function isOrgManager(org_id, user_id) {
+// Org role: 'member' | 'coordinator' | 'event_manager' | 'lead_faculty' | 'admin_delegate'
+async function getOrgUserRole(orgId, userId) {
   const [rows] = await db.query(
     `
-    SELECT role 
-    FROM organization_members 
-    WHERE org_id = ? AND user_id = ?
+      SELECT role
+      FROM organization_members
+      WHERE org_id = ? AND user_id = ?
     `,
-    [org_id, user_id]
+    [orgId, userId]
   );
-
-  if (rows.length === 0) return false;
-
-  return rows[0].role === "admin" || rows[0].role === "head";
+  return rows[0]?.role || null;
 }
 
+async function getAuthContext(orgId, userId) {
+  const globalRole = await getUserGlobalRole(userId);
+  let orgRole = null;
+  if (orgId) {
+    orgRole = await getOrgUserRole(orgId, userId);
+  }
+  return { globalRole, orgRole };
+}
+
+function isGlobalAdmin(globalRole) {
+  return globalRole === "admin";
+}
+
+// Small helper to validate org-role enum
+const ORG_ROLES = [
+  "member",
+  "coordinator",
+  "event_manager",
+  "lead_faculty",
+  "admin_delegate",
+];
+const BASIC_ORG_ROLES = ["member", "coordinator", "event_manager"];
 
 /* ============================================================
-   GET all organizations (JOIN category + member count + head user)
+   GET all organizations
+   - joins category + member count
+   - flags is_member & is_org_admin (delegate/lead_faculty)
 ============================================================ */
 router.get("/", async (req, res) => {
   const userId = req.query.user_id || null;
@@ -51,15 +75,9 @@ router.get("/", async (req, res) => {
         o.hours,
         o.contact,
         o.website,
-        o.head_user_id,
-
-        CONCAT(u.first_name, ' ', u.last_name) AS head_user_name,
-        u.email AS head_user_email,
-
         oc.category_key,
         oc.category_name,
         o.category_id,
-
         o.is_active,
         COALESCE(m.member_count, 0) AS member_count,
 
@@ -73,7 +91,7 @@ router.get("/", async (req, res) => {
           )
         END AS is_member,
 
-        -- is_org_admin/head for this user
+        -- is_org_admin (delegate or lead_faculty) for this user
         CASE
           WHEN ? IS NULL THEN 0
           ELSE (
@@ -81,18 +99,13 @@ router.get("/", async (req, res) => {
             FROM organization_members om2
             WHERE om2.org_id = o.org_id
               AND om2.user_id = ?
-              AND om2.role IN ('admin', 'head')
+              AND om2.role IN ('admin_delegate', 'lead_faculty')
           )
         END AS is_org_admin
 
       FROM organizations o
-
-      LEFT JOIN users u 
-        ON u.user_id = o.head_user_id
-
       LEFT JOIN organization_categories oc
         ON oc.category_id = o.category_id
-
       LEFT JOIN (
         SELECT org_id, COUNT(*) AS member_count
         FROM organization_members
@@ -112,9 +125,9 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 /* ============================================================
-   CREATE organization (ADMIN ONLY)
+   CREATE organization (GLOBAL ADMIN only)
+   - Creator becomes admin_delegate in org_members
 ============================================================ */
 router.post("/", async (req, res) => {
   try {
@@ -125,7 +138,6 @@ router.post("/", async (req, res) => {
       hours,
       contact,
       website,
-      head_user_id,
       category_id,
       created_by,
     } = req.body;
@@ -136,20 +148,18 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const roleName = await getUserRoleName(created_by);
-    if (roleName !== "admin") {
+    const globalRole = await getUserGlobalRole(created_by);
+    if (!isGlobalAdmin(globalRole)) {
       return res.status(403).json({
-        message: "Only admin can create organizations",
+        message: "Only global admins can create organizations",
       });
     }
 
-    // CREATE ORGANIZATION
     const [result] = await db.query(
       `
       INSERT INTO organizations
-      (title, description, location, hours, contact, website,
-       head_user_id, category_id, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (title, description, location, hours, contact, website, category_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         title,
@@ -158,7 +168,6 @@ router.post("/", async (req, res) => {
         hours || null,
         contact || null,
         website || null,
-        head_user_id || null,
         category_id,
         created_by,
       ]
@@ -166,26 +175,11 @@ router.post("/", async (req, res) => {
 
     const orgId = result.insertId;
 
-    /* ============================================================
-       Automatically add MEMBERSHIPS
-    ============================================================ */
-
-    // Add HEAD as role='head'
-    if (head_user_id) {
-      await db.query(
-        `
-        INSERT IGNORE INTO organization_members (org_id, user_id, role)
-        VALUES (?, ?, 'head')
-        `,
-        [orgId, head_user_id]
-      );
-    }
-
-    // Add ADMIN (creator) as role='admin'
+    // Creator is org-level admin_delegate
     await db.query(
       `
       INSERT IGNORE INTO organization_members (org_id, user_id, role)
-      VALUES (?, ?, 'admin')
+      VALUES (?, ?, 'admin_delegate')
       `,
       [orgId, created_by]
     );
@@ -194,22 +188,20 @@ router.post("/", async (req, res) => {
       message: "Organization created",
       org_id: orgId,
     });
-
   } catch (err) {
     console.error("POST /organizations error:", err);
     res.status(500).json({ message: "Failed to create organization" });
   }
 });
 
-
 /* ============================================================
-   UPDATE organization 
-   - Global admin: can always update
-   - Otherwise: only org admin/head
+   UPDATE organization
+   - Global admin: always
+   - Org-level: admin_delegate or lead_faculty
 ============================================================ */
 router.put("/:id", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const {
       title,
       description,
@@ -217,7 +209,6 @@ router.put("/:id", async (req, res) => {
       hours,
       contact,
       website,
-      head_user_id,
       category_id,
       updated_by,
     } = req.body;
@@ -226,22 +217,18 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "updated_by is required" });
     }
 
-    // 1. Check if user is global admin
-    const roleName = await getUserRoleName(updated_by);
-    const isGlobalAdmin = roleName === "admin";
+    const { globalRole, orgRole } = await getAuthContext(orgId, updated_by);
+    const isGlobal = isGlobalAdmin(globalRole);
+    const canOrgEdit =
+      orgRole === "admin_delegate" || orgRole === "lead_faculty";
 
-    // 2. If NOT global admin → must be org admin/head
-    if (!isGlobalAdmin) {
-      const canManage = await isOrgManager(orgId, updated_by);
-      if (!canManage) {
-        return res.status(403).json({
-          message:
-            "Only this organization's admin/head or a global admin can update it",
-        });
-      }
+    if (!isGlobal && !canOrgEdit) {
+      return res.status(403).json({
+        message:
+          "Only a global admin or this organization's admin_delegate/lead_faculty can update it",
+      });
     }
 
-    // 3. Perform update
     await db.query(
       `
       UPDATE organizations
@@ -252,7 +239,6 @@ router.put("/:id", async (req, res) => {
         hours = ?,
         contact = ?,
         website = ?,
-        head_user_id = ?,
         category_id = ?
       WHERE org_id = ?
       `,
@@ -263,7 +249,6 @@ router.put("/:id", async (req, res) => {
         hours || null,
         contact || null,
         website || null,
-        head_user_id || null,
         category_id,
         orgId,
       ]
@@ -278,31 +263,22 @@ router.put("/:id", async (req, res) => {
 
 /* ============================================================
    DELETE organization 
-   - Global admin: can always delete
-   - Otherwise: only org admin/head
+   - ONLY global admin
 ============================================================ */
 router.delete("/:id", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const { user_id } = req.body;
 
     if (!user_id) {
       return res.status(400).json({ message: "user_id is required" });
     }
 
-    // 1. Check role
-    const roleName = await getUserRoleName(user_id);
-    const isGlobalAdmin = roleName === "admin";
-
-    // 2. If not global admin, must be org admin/head
-    if (!isGlobalAdmin) {
-      const canManage = await isOrgManager(orgId, user_id);
-      if (!canManage) {
-        return res.status(403).json({
-          message:
-            "Only this organization's admin/head or a global admin can delete it",
-        });
-      }
+    const globalRole = await getUserGlobalRole(user_id);
+    if (!isGlobalAdmin(globalRole)) {
+      return res.status(403).json({
+        message: "Only a global admin can delete organizations",
+      });
     }
 
     await db.query(
@@ -319,10 +295,11 @@ router.delete("/:id", async (req, res) => {
 
 /* ============================================================
    JOIN organization
+   - Inserts as role='member'
 ============================================================ */
 router.post("/:id/join", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const { user_id } = req.body;
 
     if (!user_id)
@@ -352,62 +329,45 @@ router.post("/:id/join", async (req, res) => {
 });
 
 /* ============================================================
-   LEAVE ORGANIZATION (cannot leave if last admin or head)
+   LEAVE organization
+   - admin_delegate: cannot leave (must transfer first)
+   - others: can leave
 ============================================================ */
 router.post("/:id/leave", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const { user_id } = req.body;
 
     if (!user_id) {
       return res.status(400).json({ message: "user_id is required" });
     }
 
-    // Get this member's org role
-    const [member] = await db.query(
+    const [memberRows] = await db.query(
       `SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?`,
       [orgId, user_id]
     );
 
-    if (!member.length) {
-      return res.status(400).json({ message: "Not a member of this organization" });
+    if (!memberRows.length) {
+      return res
+        .status(400)
+        .json({ message: "Not a member of this organization" });
     }
 
-    const role = member[0].role;
+    const role = memberRows[0].role;
 
-    // If they are ADMIN, check how many admins exist
-    if (role === "admin") {
-      const [admins] = await db.query(
-        `SELECT COUNT(*) AS admin_count 
-         FROM organization_members 
-         WHERE org_id = ? AND role = 'admin'`,
-        [orgId]
-      );
-
-      // If only ONE admin → cannot leave
-      if (admins[0].admin_count <= 1) {
-        return res.status(403).json({
-          message:
-            "You are the ONLY admin of this organization. Transfer admin rights before leaving."
-        });
-      }
-    }
-
-    // If head → CANNOT leave at all
-    if (role === "head") {
+    if (role === "admin_delegate") {
       return res.status(403).json({
-        message: "The organization head cannot leave. contact organization admin."
+        message:
+          "You are the admin_delegate of this organization. Transfer admin_delegate rights before leaving.",
       });
     }
 
-    // Safe to leave
     await db.query(
       `DELETE FROM organization_members WHERE org_id = ? AND user_id = ?`,
       [orgId, user_id]
     );
 
     return res.json({ message: "Left organization successfully" });
-
   } catch (err) {
     console.error("LEAVE error:", err);
     res.status(500).json({ message: "Failed to leave organization" });
@@ -419,7 +379,7 @@ router.post("/:id/leave", async (req, res) => {
 ============================================================ */
 router.get("/:id/members", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
 
     const [rows] = await db.query(
       `
@@ -437,7 +397,7 @@ router.get("/:id/members", async (req, res) => {
       JOIN roles r ON r.role_id = u.role_id
       WHERE om.org_id = ?
       ORDER BY 
-        FIELD(om.role, 'head', 'admin', 'advisor', 'member'),
+        FIELD(om.role, 'admin_delegate', 'lead_faculty', 'event_manager', 'coordinator', 'member'),
         u.first_name, u.last_name
       `,
       [orgId]
@@ -450,24 +410,33 @@ router.get("/:id/members", async (req, res) => {
   }
 });
 
-
+/* ============================================================
+   ADD member
+   - global admin: always
+   - org roles allowed: admin_delegate, lead_faculty, event_manager, coordinator
+============================================================ */
 router.post("/:id/members/add", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const { acting_user_id, new_user_id } = req.body;
 
     if (!acting_user_id || !new_user_id) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Only head or admin can add
-    if (!(await isOrgManager(orgId, acting_user_id))) {
+    const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
+    const canAdd =
+      isGlobalAdmin(globalRole) ||
+      ["admin_delegate", "lead_faculty", "event_manager", "coordinator"].includes(
+        orgRole
+      );
+
+    if (!canAdd) {
       return res.status(403).json({
-        message: "Only organization head or admin can add members",
+        message: "You are not allowed to add members to this organization.",
       });
     }
 
-    // Check if new_user_id already exists
     const [exists] = await db.query(
       `
       SELECT role 
@@ -478,13 +447,11 @@ router.post("/:id/members/add", async (req, res) => {
     );
 
     if (exists.length > 0) {
-      // Already a member → return correct message
       return res.status(400).json({
         message: "This user is already a member of this organization",
       });
     }
 
-    // Add new member
     await db.query(
       `
       INSERT INTO organization_members (org_id, user_id, role)
@@ -494,32 +461,31 @@ router.post("/:id/members/add", async (req, res) => {
     );
 
     return res.json({ message: "Member added successfully" });
-
   } catch (err) {
     console.error("Add member error:", err);
     res.status(500).json({ message: "Failed to add member" });
   }
 });
 
-
+/* ============================================================
+   REMOVE member
+   - global admin: can remove anyone
+   - admin_delegate: can remove anyone EXCEPT other admin_delegate
+   - lead_faculty: can remove member/coordinator/event_manager
+============================================================ */
 router.post("/:id/members/remove", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const { acting_user_id, remove_user_id } = req.body;
 
     if (!acting_user_id || !remove_user_id) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Only head or admin can remove
-    if (!(await isOrgManager(orgId, acting_user_id))) {
-      return res.status(403).json({
-        message: "Only organization head or admin can remove members",
-      });
-    }
+    const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
+    const isGlobal = isGlobalAdmin(globalRole);
 
-    // Prevent removing fellow admin or head accidentally
-    const [roleCheck] = await db.query(
+    const [targetRows] = await db.query(
       `
       SELECT role FROM organization_members 
       WHERE org_id = ? AND user_id = ?
@@ -527,16 +493,28 @@ router.post("/:id/members/remove", async (req, res) => {
       [orgId, remove_user_id]
     );
 
-    if (!roleCheck.length) {
+    if (!targetRows.length) {
       return res.status(400).json({ message: "User is not a member" });
     }
 
-    if (roleCheck[0].role === "admin") {
-      return res.status(403).json({ message: "Cannot remove another admin" });
+    const targetRole = targetRows[0].role;
+
+    let canRemove = false;
+
+    if (isGlobal) {
+      canRemove = true;
+    } else if (orgRole === "admin_delegate") {
+      canRemove = targetRole !== "admin_delegate";
+    } else if (orgRole === "lead_faculty") {
+      canRemove = ["member", "coordinator", "event_manager"].includes(
+        targetRole
+      );
     }
 
-    if (roleCheck[0].role === "head") {
-      return res.status(403).json({ message: "Cannot remove the head" });
+    if (!canRemove) {
+      return res.status(403).json({
+        message: "You are not allowed to remove this member.",
+      });
     }
 
     await db.query(
@@ -548,7 +526,6 @@ router.post("/:id/members/remove", async (req, res) => {
     );
 
     return res.json({ message: "Member removed successfully" });
-
   } catch (err) {
     console.error("Remove member error:", err);
     res.status(500).json({ message: "Failed to remove member" });
@@ -556,83 +533,152 @@ router.post("/:id/members/remove", async (req, res) => {
 });
 
 /* ============================================================
-   TRANSFER ADMIN ROLE
-   - Global admin: can transfer without being org member
-   - Org admin: can transfer
+   UPDATE member ROLE
+   - global admin: any role
+   - admin_delegate: any role
+   - lead_faculty:
+       * cannot modify admin_delegate
+       * cannot assign admin_delegate
+   - event_manager/coordinator:
+       * can only change member/coordinator/event_manager
+============================================================ */
+router.put("/:id/members/:memberId/role", async (req, res) => {
+  try {
+    const orgId = Number(req.params.id);
+    const memberId = Number(req.params.memberId);
+    const { acting_user_id, new_role } = req.body;
+
+    if (!acting_user_id || !new_role) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (!ORG_ROLES.includes(new_role)) {
+      return res.status(400).json({ message: "Invalid role" });
+    }
+
+    const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
+    const isGlobal = isGlobalAdmin(globalRole);
+
+    const [targetRows] = await db.query(
+      `
+      SELECT role FROM organization_members 
+      WHERE org_id = ? AND user_id = ?
+      `,
+      [orgId, memberId]
+    );
+
+    if (!targetRows.length) {
+      return res.status(400).json({ message: "User is not a member" });
+    }
+
+    const currentRole = targetRows[0].role;
+
+    let allowed = false;
+
+    if (isGlobal || orgRole === "admin_delegate") {
+      allowed = true;
+    } else if (orgRole === "lead_faculty") {
+      if (currentRole === "admin_delegate" || new_role === "admin_delegate") {
+        allowed = false;
+      } else {
+        allowed = true;
+      }
+    } else if (orgRole === "event_manager" || orgRole === "coordinator") {
+      if (
+        BASIC_ORG_ROLES.includes(currentRole) &&
+        BASIC_ORG_ROLES.includes(new_role)
+      ) {
+        allowed = true;
+      }
+    }
+
+    if (!allowed) {
+      return res.status(403).json({
+        message: "You are not allowed to change this member's role.",
+      });
+    }
+
+    await db.query(
+      `
+      UPDATE organization_members
+      SET role = ?
+      WHERE org_id = ? AND user_id = ?
+      `,
+      [new_role, orgId, memberId]
+    );
+
+    return res.json({ message: "Role updated successfully" });
+  } catch (err) {
+    console.error("Update role error:", err);
+    res.status(500).json({ message: "Failed to update member role" });
+  }
+});
+
+/* ============================================================
+   TRANSFER admin_delegate
+   - global admin OR current admin_delegate
+   - new_admin_id must be a GLOBAL admin user
 ============================================================ */
 router.post("/:id/transfer-admin", async (req, res) => {
   try {
-    const orgId = req.params.id;
+    const orgId = Number(req.params.id);
     const { acting_user_id, new_admin_id } = req.body;
 
     if (!acting_user_id || !new_admin_id) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // 1. Check if acting user is global admin
-    const roleName = await getUserRoleName(acting_user_id);
-    const isGlobalAdmin = roleName === "admin";
+    const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
+    const isGlobal = isGlobalAdmin(globalRole);
 
-    // 2. If not global admin → must be org admin
-    if (!isGlobalAdmin) {
-      const [current] = await db.query(
-        `SELECT role FROM organization_members
-         WHERE org_id = ? AND user_id = ?`,
-        [orgId, acting_user_id]
-      );
-
-      if (!current.length || current[0].role !== "admin") {
-        return res.status(403).json({
-          message:
-            "Only the organization admin or a global admin can transfer admin rights",
-        });
-      }
+    if (!isGlobal && orgRole !== "admin_delegate") {
+      return res.status(403).json({
+        message:
+          "Only the organization's admin_delegate or a global admin can transfer admin rights",
+      });
     }
 
-    // 3. Target must be a global admin user
-    const [candidate] = await db.query(
+    const [candidateRows] = await db.query(
       `SELECT role_id FROM users WHERE user_id = ?`,
       [new_admin_id]
     );
 
-    if (!candidate.length || candidate[0].role_id !== 3) {
+    if (!candidateRows.length || candidateRows[0].role_id !== 3) {
       return res.status(400).json({
         message: "Selected user must be a global admin (admXXXX).",
       });
     }
 
-    // 4. Promote new admin
     await db.query(
       `
       INSERT INTO organization_members (org_id, user_id, role)
-      VALUES (?, ?, 'admin')
-      ON DUPLICATE KEY UPDATE role='admin'
+      VALUES (?, ?, 'admin_delegate')
+      ON DUPLICATE KEY UPDATE role='admin_delegate'
       `,
       [orgId, new_admin_id]
     );
 
-    // 5. Demote old admin (ONLY if not global admin)
-    if (!isGlobalAdmin) {
+    if (!isGlobal) {
       await db.query(
         `
         UPDATE organization_members
         SET role='member'
-        WHERE org_id=? AND user_id=?
+        WHERE org_id=? AND user_id=? AND role='admin_delegate'
         `,
         [orgId, acting_user_id]
       );
     }
 
-    return res.json({ message: "Admin role transferred successfully" });
-
+    return res.json({ message: "Admin_delegate role transferred successfully" });
   } catch (err) {
     console.error("TRANSFER ADMIN error:", err);
-    res.status(500).json({ message: "Failed to transfer admin" });
+    res.status(500).json({ message: "Failed to transfer admin_delegate" });
   }
 });
 
-
-// GET all global admins (role_id = 3)
+/* ============================================================
+   GET all global admins (role_id = 3)
+============================================================ */
 router.get("/global-admins", async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -648,79 +694,91 @@ router.get("/global-admins", async (req, res) => {
   }
 });
 
+/* ============================================================
+   ORG DASHBOARD STATS
+============================================================ */
 router.get("/dashboard", async (req, res) => {
-  const userId = req.query.user_id;
+  try {
+    const userId = req.query.user_id;
 
-  // get user type
-  const [[userRole]] = await db.query(
-    `
-    SELECT r.role_name
-    FROM users u
-    JOIN roles r ON r.role_id = u.role_id
-    WHERE u.user_id = ?
-  `,
-    [userId]
-  );
-
-  const role = userRole.role_name;
-
-  // total orgs
-  const [[total]] = await db.query(`
-    SELECT COUNT(*) AS total_orgs FROM organizations WHERE is_active = 1
-  `);
-
-  // orgs created by this user
-  const [[created]] = await db.query(
-    `
-    SELECT COUNT(*) AS orgs_created
-    FROM organizations
-    WHERE created_by = ?
-  `,
-    [userId]
-  );
-
-  // orgs joined as member
-  const [[joined]] = await db.query(
-    `
-    SELECT COUNT(*) AS orgs_joined
-    FROM organization_members
-    WHERE user_id = ? AND role = 'member'
-  `,
-    [userId]
-  );
-
-  let adminOf = 0;
-
-  if (role === "admin") {
-    const [[adminRes]] = await db.query(
+    const [[userRoleRow]] = await db.query(
       `
-      SELECT COUNT(*) AS admin_of
-      FROM organization_members
-      WHERE user_id = ? AND role = 'admin'
-    `,
+      SELECT r.role_name
+      FROM users u
+      JOIN roles r ON r.role_id = u.role_id
+      WHERE u.user_id = ?
+      `,
       [userId]
     );
-    adminOf = adminRes.admin_of;
-  }
 
-  if (role === "faculty") {
-    const [[headRes]] = await db.query(
+    const role = userRoleRow?.role_name || null;
+
+    const [[total]] = await db.query(`
+      SELECT COUNT(*) AS total_orgs FROM organizations WHERE is_active = 1
+    `);
+
+    const [[created]] = await db.query(
       `
-      SELECT COUNT(*) AS admin_of
-      FROM organization_members
-      WHERE user_id = ? AND role = 'head'
-    `,
+      SELECT COUNT(*) AS orgs_created
+      FROM organizations
+      WHERE created_by = ?
+      `,
       [userId]
     );
-    adminOf = headRes.admin_of;
-  }
 
-  res.json({
-    total_orgs: total.total_orgs,
-    orgs_created: created.orgs_created,
-    orgs_joined: joined.orgs_joined,
-    admin_of: adminOf,
-  });
+    const [[joined]] = await db.query(
+      `
+      SELECT COUNT(*) AS orgs_joined
+      FROM organization_members
+      WHERE user_id = ? AND role = 'member'
+      `,
+      [userId]
+    );
+
+    let adminOf = 0;
+
+    if (role === "admin") {
+      const [[adminRes]] = await db.query(
+        `
+        SELECT COUNT(*) AS admin_of
+        FROM organization_members
+        WHERE user_id = ? AND role = 'admin_delegate'
+        `,
+        [userId]
+      );
+      adminOf = adminRes.admin_of;
+    } else if (role === "faculty") {
+      const [[headRes]] = await db.query(
+        `
+        SELECT COUNT(*) AS admin_of
+        FROM organization_members
+        WHERE user_id = ? AND role = 'lead_faculty'
+        `,
+        [userId]
+      );
+      adminOf = headRes.admin_of;
+    } else {
+      const [[mgrRes]] = await db.query(
+        `
+        SELECT COUNT(*) AS admin_of
+        FROM organization_members
+        WHERE user_id = ? AND role IN ('coordinator','event_manager')
+        `,
+        [userId]
+      );
+      adminOf = mgrRes.admin_of;
+    }
+
+    res.json({
+      total_orgs: total.total_orgs,
+      orgs_created: created.orgs_created,
+      orgs_joined: joined.orgs_joined,
+      admin_of: adminOf,
+    });
+  } catch (err) {
+    console.error("GET /organizations/dashboard error:", err);
+    res.status(500).json({ message: "Failed to load dashboard" });
+  }
 });
 
 module.exports = router;

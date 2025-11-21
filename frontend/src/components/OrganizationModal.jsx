@@ -25,16 +25,14 @@ export default function OrganizationModal({
   setForm,
   onSave,
   categories = [],
-  faculty = [],
+  faculty = [],   // kept for compatibility, not used now
   admins = [],
   isEdit = false,
 }) {
-  // Debug logging - you can remove this later
-  console.log("🔍 Debug Info:", {
+  console.log("🔍 OrgModal Debug:", {
     isEdit,
-    current_org_role: form.current_org_role,
-    admins_count: admins.length,
     form_keys: Object.keys(form),
+    admins_count: admins.length,
   });
 
   const renderHoursBlock = (
@@ -65,7 +63,6 @@ export default function OrganizationModal({
         <option value="Custom">Custom</option>
       </select>
 
-      {/* TIME RANGE */}
       <div className="flex gap-2">
         <select
           className="border rounded-md w-1/2 p-2"
@@ -110,9 +107,7 @@ export default function OrganizationModal({
       ? `${form.hours_days_secondary}: ${form.hours_start_secondary} – ${form.hours_end_secondary}`
       : "";
 
-  // Check if user is org admin (from form)
-  const isAdmin = form.current_org_role?.toLowerCase() === "admin";
-  const showAdminTransfer = isEdit && isAdmin && admins.length > 0;
+  const showAdminTransfer = isEdit && admins.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -230,35 +225,18 @@ export default function OrganizationModal({
               />
             </div>
 
-            {/* HEAD */}
-            <div>
-              <Label>Organization Head (Faculty)</Label>
-              <select
-                className="border rounded-md w-full p-2"
-                value={form.head_user_id}
-                onChange={(e) =>
-                  setForm({ ...form, head_user_id: e.target.value })
-                }
-              >
-                <option value="">Select Faculty</option>
-                {faculty.map((f) => (
-                  <option key={f.user_id} value={f.user_id}>
-                    {f.first_name} {f.last_name} — {f.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* ================= ADMIN TRANSFER ================= */}
+            {/* ADMIN-DELEGATE TRANSFER (optional) */}
             {showAdminTransfer && (
               <div className="space-y-2 border-2 border-orange-300 p-4 rounded-md bg-orange-50">
                 <div className="flex items-center gap-2">
                   <span className="text-orange-600 font-semibold">
-                    ⚠️ Admin Transfer
+                    ⚠️ Admin Delegate Transfer
                   </span>
                 </div>
 
-                <Label className="font-medium">Transfer Admin Role To:</Label>
+                <Label className="font-medium">
+                  Transfer admin_delegate role to:
+                </Label>
 
                 <select
                   className="border rounded-md w-full p-2 bg-white"
@@ -270,8 +248,7 @@ export default function OrganizationModal({
                     })
                   }
                 >
-                  <option value="">Select New Admin</option>
-
+                  <option value="">Select Global Admin</option>
                   {admins.map((adm) => (
                     <option key={adm.user_id} value={adm.user_id}>
                       {adm.first_name} {adm.last_name} — {adm.email}
@@ -280,8 +257,9 @@ export default function OrganizationModal({
                 </select>
 
                 <p className="text-sm text-orange-700 bg-orange-100 border border-orange-200 rounded p-2">
-                  ⚠️ You cannot leave or delete this organization until admin
-                  rights are transferred to another member.
+                  Optional: If you plan to step down as admin_delegate, choose
+                  another global admin to take over. Backend will enforce that
+                  at least one admin_delegate remains.
                 </p>
               </div>
             )}
