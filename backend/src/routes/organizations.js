@@ -962,4 +962,26 @@ router.get("/dashboard", async (req, res) => {
   }
 });
 
+router.get("/mutual-orgs/:viewerId/:profileId", async (req, res) => {
+  const { viewerId, profileId } = req.params;
+
+  try {
+    const [rows] = await db.query(`
+      SELECT o.id, o.title
+      FROM organization_members m1
+      JOIN organization_members m2 
+        ON m1.org_id = m2.org_id
+      JOIN organizations o 
+        ON o.id = m1.org_id
+      WHERE m1.user_id = ? AND m2.user_id = ?
+    `, [viewerId, profileId]);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Mutual orgs error:", err);
+    res.status(500).json({ message: "Error loading mutual organizations" });
+  }
+});
+
+
 module.exports = router;

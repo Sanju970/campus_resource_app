@@ -19,7 +19,8 @@ import { useEffect, useState as useReactState } from 'react';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import OrganizationDetails from './components/OrganizationDetails';
-import UserPublicProfile from './components/UserPublicProfile';
+import UserPublicProfile from "./components/UserPublicProfile";
+import AllUsersPage from "./components/AllUsersPage";
 
 function AppContent() {
   const { user, setUser } = useAuth();
@@ -76,7 +77,8 @@ function AppContent() {
                 <Route path="/favorites" element={<FavoritesPage />} />
                 <Route path="/my-events" element={<EventsPage />} />
                 <Route path="/organizations/:orgId" element={<OrganizationDetails />} />
-                <Route path="/user/:userId" element={<UserPublicProfile />} />
+                <Route path="/users/:userId" element={<UserPublicProfile />} />
+                <Route path="/people" element={<AllUsersPage />} />
 
                 <Route
                   path="/admin"

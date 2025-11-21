@@ -425,12 +425,30 @@ router.post("/user/update-notifications", async (req, res) => {
 router.get("/all", async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT user_id, first_name, last_name, user_uid, email
+      SELECT 
+        user_id,
+        first_name,
+        last_name,
+        email,
+        role_id,
+        CASE 
+          WHEN role_id = 3 THEN 'admin'
+          WHEN role_id = 2 THEN 'faculty'
+          WHEN role_id = 1 THEN 'student'
+          ELSE 'unknown'
+        END AS role
       FROM users
-      WHERE is_active = 1
-      ORDER BY first_name, last_name
-    `);
+      ORDER BY 
+        CASE 
+          WHEN role_id = 3 THEN 1  -- admin first
+          WHEN role_id = 2 THEN 2  -- faculty second
+          WHEN role_id = 1 THEN 3  -- student third
+          ELSE 4
+        END,
+        first_name ASC,
+        last_name ASC;
 
+    `);
     return res.json(rows);
   } catch (err) {
     console.error("Fetch all users error:", err);

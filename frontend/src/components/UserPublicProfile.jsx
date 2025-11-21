@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Card, CardContent } from "./ui/card";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";  // ✅ FIXED: add useNavigate
+import { ArrowLeft } from "lucide-react";                  // ✅ optional icon
 
 export default function UserPublicProfile() {
   const { userId } = useParams();
+  const navigate = useNavigate();        // ✅ FIXED
   const [profile, setProfile] = useState(null);
-
+  const [mutualOrgs, setMutualOrgs] = useState([]);
+  
   useEffect(() => {
-    axios.get(`http://localhost:5000/api/user/${userId}`)
-      .then(res => setProfile(res.data))
+    axios
+      .get(`http://localhost:5000/api/user/${userId}`)
+      .then((res) => setProfile(res.data))
       .catch(() => {});
   }, [userId]);
 
@@ -17,13 +21,24 @@ export default function UserPublicProfile() {
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
+
+      {/* 🔥 BACK BUTTON */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-sm text-gray-600 hover:text-black"
+      >
+        <ArrowLeft size={16} /> Back
+      </button>
+
       <Card>
         <CardContent className="p-6 space-y-4">
           <h1 className="text-2xl font-bold">
             {profile.first_name} {profile.last_name}
           </h1>
 
-          <p className="text-gray-700"><strong>Email:</strong> {profile.email}</p>
+          <p className="text-gray-700">
+            <strong>Email:</strong> {profile.email}
+          </p>
 
           <p className="text-gray-700">
             <strong>Bio:</strong> {profile.bio || "No bio provided"}

@@ -21,10 +21,10 @@ export default function HomePage() {
   const userName = user?.first_name ? `${user.first_name} ${user.last_name}` : 'User';
 
   const quickLinks = [
-    { title: 'Browse Resources', icon: BookOpen, path: '/resources', color: 'bg-blue-500' },
+    { title: 'Browse Resources', icon: BookOpen, path: '/organizations', color: 'bg-blue-500' },
     { title: 'View Schedule', icon: Calendar, path: '/schedule', color: 'bg-green-500' },
-    { title: 'Academic Support', icon: GraduationCap, path: '/resources', color: 'bg-purple-500' },
-    { title: 'Career Services', icon: Briefcase, path: '/resources', color: 'bg-orange-500' },
+    { title: 'Academic Support', icon: GraduationCap, path: '/organizations', color: 'bg-purple-500' },
+    { title: 'Career Services', icon: Briefcase, path: '/organizations', color: 'bg-orange-500' },
   ];
 
   const recentActivity = [
@@ -111,10 +111,11 @@ export default function HomePage() {
             <Button 
               variant="secondary" 
               size="lg"
-              onClick={() => navigate('/resources')}
+              onClick={() => navigate('/people')}
             >
-              Explore Resources
+              Explore Other Users
             </Button>
+
             <Button 
               variant="outline" 
               size="lg"

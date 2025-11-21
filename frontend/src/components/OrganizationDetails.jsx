@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -598,9 +598,12 @@ export default function OrganizationDetails() {
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-base">
-                        {m.first_name} {m.last_name}
-                      </p>
+                      <Link
+                      to={`/users/${m.user_id}`}
+                      className="font-medium text-base text-blue-600 hover:underline"
+                      >
+                      {m.first_name} {m.last_name}
+                      </Link>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           ROLE_BADGE_CLASSES[m.org_role] ||
