@@ -121,9 +121,6 @@ export default function EventsPage() {
   const [showRegisteredEventsOnly, setShowRegisteredEventsOnly] =
     useState(false);
 
-  // For faculty: events assigned to them for approval
-  const [facultyPendingEvents, setFacultyPendingEvents] = useState([]);
-
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
@@ -175,57 +172,16 @@ const eligibleOrganizations = organizations.filter((org) =>
   // ---------------- Fetch Events ----------------
   const fetchEvents = async () => {
     try {
-      if (user.role !== 'faculty') {
         const res = await fetch(
           `http://localhost:5000/api/events?user_id=${user.user_id}`
         );
         if (!res.ok) throw new Error('Network error');
         const data = await res.json();
         setEvents(data);
-        return;
+      } catch (err) {
+        console.error('Error fetching events:', err);
+        toast.error('Failed to fetch events');
       }
-
-      // faculty: combine all events + pending
-      const [allRes, pendingRes] = await Promise.all([
-        fetch(`http://localhost:5000/api/events?user_id=${user.user_id}`),
-        fetch(
-          `http://localhost:5000/api/events/faculty/${user.user_id}/pending`
-        ),
-      ]);
-
-      if (!allRes.ok || !pendingRes.ok) throw new Error('Network error');
-
-      const allEventsData = await allRes.json();
-      const pendingEventsData = await pendingRes.json();
-
-      const combined = [
-        ...pendingEventsData,
-        ...allEventsData.filter(
-          (e) => !pendingEventsData.some((p) => p.event_id === e.event_id)
-        ),
-      ];
-
-      setEvents(combined);
-    } catch (err) {
-      console.error('Error fetching events:', err);
-      toast.error('Failed to fetch events');
-    }
-  };
-
-  const fetchFacultyPendingEvents = async () => {
-    if (user.role !== 'faculty') return;
-
-    try {
-      const res = await fetch(
-        `http://localhost:5000/api/events/faculty/${user.user_id}/pending`
-      );
-      if (!res.ok) throw new Error('Network error');
-      const data = await res.json();
-      setFacultyPendingEvents(data);
-    } catch (err) {
-      console.error('Error fetching faculty pending events:', err);
-      toast.error('Failed to fetch events requiring your approval');
-    }
   };
 
   const fetchRegisteredEvents = async () => {
@@ -262,7 +218,6 @@ const fetchFavoriteEvents = async () => {
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
-    fetchFacultyPendingEvents();
     fetchFavoriteEvents();
     fetchOrganizations(); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -277,15 +232,7 @@ const fetchFavoriteEvents = async () => {
   };
 
   // ---------------- Filters ----------------
-  const combinedEvents =
-    user.role === 'faculty'
-      ? [
-          ...events,
-          ...facultyPendingEvents.filter(
-            (p) => !events.some((e) => e.event_id === p.event_id)
-          ),
-        ]
-      : events;
+  const combinedEvents = events;
     // First decide the base list: upcoming/ongoing vs past
   let baseEvents;
 
@@ -316,10 +263,8 @@ const fetchFavoriteEvents = async () => {
     baseEvents = combinedEvents.filter((event) => !isPastEvent(event));
   }
 
-  const filteredEvents = baseEvents.filter((event) => {
+    const filteredEvents = baseEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
-    const isApprover = Number(event.approved_by) === Number(user.user_id);
-    const needsMyApproval = isApprover && event.status === 'pending';
     const isRegistered = registeredEvents.includes(event.event_id);
 
     // View modes
@@ -341,15 +286,7 @@ const fetchFavoriteEvents = async () => {
       !selectedCategory || event.category_id === selectedCategory;
 
     const inMyView = showCreatedEventsOnly || showRegisteredEventsOnly;
-
-    const matchesStatus = showPastEvents
-      ? true // in Past view, don’t re-filter by status (we already did role logic above)
-      : inMyView
-      ? true
-      : user.role === 'faculty'
-      ? event.status === 'approved' || needsMyApproval
-      : event.status === 'approved';
-
+    const matchesStatus = true;
     return matchesSearch && matchesCategory && matchesStatus;
   });
   // Fetch organizations for the Organization dropdown
@@ -567,7 +504,7 @@ const toggleFavorite = async (eventId) => {
       capacity: capacityNum,
       created_by: user.user_id,
       registered_count: 0,
-      status: user.role === 'student' ? 'pending' : 'approved',
+      status: 'approved',
     };
 
     try {
@@ -601,11 +538,8 @@ const toggleFavorite = async (eventId) => {
       setStartTime('');
       setEndTime('');
 
-      if (user.role === 'student') {
-        toast.success('Event submitted for approval');
-      } else {
-        toast.success('Event created successfully');
-      }
+      toast.success('Event created successfully');
+
     } catch (err) {
       console.error('Error creating event:', err);
       toast.error(err.message || 'Failed to create event');
@@ -719,61 +653,6 @@ const handleUpdateEvent = async () => {
   }
 };
 
-  // ---------------- Approve & Reject (faculty) ----------------
-  const handleApproveEvent = async (eventId) => {
-    if (user.role !== 'faculty') return;
-
-    try {
-      await fetch(`http://localhost:5000/api/events/${eventId}/approve`, {
-        method: 'PATCH',
-      });
-
-      setEvents((prevEvents) =>
-        prevEvents.map((e) =>
-          e.event_id === eventId ? { ...e, status: 'approved' } : e
-        )
-      );
-
-      setFacultyPendingEvents((prev) =>
-        prev.map((e) =>
-          e.event_id === eventId ? { ...e, status: 'approved' } : e
-        )
-      );
-
-      toast.success('Event approved');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to approve event');
-    }
-  };
-
-  const handleRejectEvent = async (eventId) => {
-    if (user.role !== 'faculty') return;
-
-    try {
-      await fetch(`http://localhost:5000/api/events/${eventId}/reject`, {
-        method: 'PATCH',
-      });
-
-      setEvents((prevEvents) =>
-        prevEvents.map((e) =>
-          e.event_id === eventId ? { ...e, status: 'rejected' } : e
-        )
-      );
-
-      setFacultyPendingEvents((prev) =>
-        prev.map((e) =>
-          e.event_id === eventId ? { ...e, status: 'rejected' } : e
-        )
-      );
-
-      toast.info('Event rejected');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to reject event');
-    }
-  };
-
 // ---------------- Cancel/Delete Event ----------------
 const handleCancelEvent = async (eventId) => {
   const eventToCancel = events.find((e) => e.event_id === eventId);
@@ -823,8 +702,11 @@ const handleCancelEvent = async (eventId) => {
 
 // ---------------- Admin: open edit dialog ----------------
 const handleOpenEditDialog = (event) => {
-  if (user.role !== 'admin') return;
+  const isCreator =
+    Number(event.created_by) === Number(user.user_id);
+  const isAdmin = user.role === 'admin';
 
+  if (!isAdmin && !isCreator) return;
   // Convert existing datetimes into date + time fields
   const parseDate = (dt) => {
     if (!dt) return '';
@@ -883,14 +765,6 @@ const handleOpenEditDialog = (event) => {
       : false;
     // ---------------- Stats for footer ----------------
     const totalEventsCount = combinedEvents.filter((event) => {
-    const isApprover = Number(event.approved_by) === Number(user.user_id);
-    const needsMyApproval = isApprover && event.status === 'pending';
-
-    // For students: only approved events are counted
-    // For faculty: approved + events pending their approval
-    if (user.role === 'faculty') {
-      return event.status === 'approved' || needsMyApproval;
-    }
     return event.status === 'approved';
   }).length;
 
@@ -1349,11 +1223,6 @@ const handleOpenEditDialog = (event) => {
                 statusLabel = event.status;
               }
 
-              const canApproveThisEvent =
-                user.role === 'faculty' &&
-                event.status === 'pending' &&
-                Number(event.approved_by) === Number(user.user_id);
-
               return (
                 <Card
                   key={event.event_id}
@@ -1370,34 +1239,6 @@ const handleOpenEditDialog = (event) => {
                             {category.name}
                           </Badge>
                         )}
-
-                        {isCreator && !isAdmin && (
-                          <span
-                            className={`px-3 py-1 text-xs font-semibold rounded-full border shadow-sm ${
-                              event.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                                : event.status === 'approved'
-                                ? 'bg-green-100 text-green-800 border-green-300'
-                                : event.status === 'rejected'
-                                ? 'bg-red-100 text-red-800 border-red-300'
-                                : ''
-                            }`}
-                          >
-                            {event.status === 'pending'
-                              ? 'Pending Approval'
-                              : event.status === 'approved'
-                              ? 'Approved'
-                              : event.status === 'rejected'
-                              ? 'Rejected'
-                              : event.status}
-                          </span>
-                        )}
-
-                        {!isCreator &&
-                          event.status === 'pending' &&
-                          user.role === 'faculty' && (
-                            <Badge variant="outline">Pending Approval</Badge>
-                          )}
 
                         {isRegistered && (
                           <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
@@ -1450,7 +1291,7 @@ const handleOpenEditDialog = (event) => {
                       </div>
                     </div>
 
-                    {isAdmin ? (
+                    {(isAdmin || isCreator) ? (
                       <div className="w-full space-y-2">
                         <Button
                           size="sm"
@@ -1467,39 +1308,6 @@ const handleOpenEditDialog = (event) => {
                         >
                           <XCircle className="h-4 w-4 mr-1" /> Cancel Event
                         </Button>
-                      </div>
-                    ) : canApproveThisEvent ? (
-                      <div className="w-full space-y-2">
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            handleApproveEvent(event.event_id)
-                          }
-                          className="flex-1"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                          Event
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() =>
-                            handleRejectEvent(event.event_id)
-                          }
-                          className="flex-1"
-                        >
-                          <XCircle className="h-4 w-4 mr-1" /> Reject
-                          Event
-                        </Button>
-                      </div>
-                    ) : isCreator ? (
-                      <div className="w-full space-y-2">
-                        <Badge
-                          variant="secondary"
-                          className="w-full justify-center"
-                        >
-                          You created this event
-                        </Badge>
                       </div>
                     ) : event.registration_required ? (
                       <Button

@@ -213,7 +213,7 @@ router.post('/', async (req, res) => {
     }
 
     const finalInstructorEmail = instructor_email || approverEmail || null;
-    const finalStatus = status || 'pending';
+    const finalStatus = status || 'approved';
 
     // Insert event
     const insertQuery = `
