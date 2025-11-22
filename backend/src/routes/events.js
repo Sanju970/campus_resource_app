@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db'); // this should be a mysql2/promise pool
+const pool = require('../config/db'); // mysql2/promise pool
 const sendEmail = require('../config/sendEmail');
 
 // ---------------- NOTIFICATIONS HELPER ----------------
@@ -39,22 +39,17 @@ const CATEGORY_FACULTY_UID = {
   6: 'fac0006',
 };
 
-// ---------------- GET events (student view: approved + own events) ----------------
+// ---------------- GET events (everyone sees all events) ----------------
 router.get('/', async (req, res) => {
-  const { user_id } = req.query; 
-
-  let query;
-  let params = [];
-    // Approved events + events created by this user
-    query = `
+  try {
+    const query = `
       SELECT e.*,
              (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
       FROM events e
       ORDER BY e.start_datetime DESC
     `;
 
-  try {
-    const [results] = await pool.query(query, params);
+    const [results] = await pool.query(query);
     res.json(results);
   } catch (err) {
     console.error('Events fetch error:', err);
@@ -91,7 +86,7 @@ router.post('/:event_id/rsvp', async (req, res) => {
       return res.status(400).json({ message: 'user_id is required' });
     }
 
-    // Optional: prevent duplicate registrations
+    // Prevent duplicate registrations
     await pool.query(
       `
       INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
@@ -164,8 +159,8 @@ router.post('/', async (req, res) => {
     registration_required,
     instructor_email,
     created_by,       // user_id from auth
-    status,
-    organization_id        // default 'pending'
+    status,           // ignored for approval; we force 'approved'
+    organization_id,
   } = req.body;
 
   const startTime = start_datetime || date_time;
@@ -173,7 +168,15 @@ router.post('/', async (req, res) => {
   const catId = category_id ? Number(category_id) : null;
   const orgId = organization_id ? Number(organization_id) : null;
 
-  if (!title || !description || !startTime || !endTime || !location || !capacity || !catId || !orgId
+  if (
+    !title ||
+    !description ||
+    !startTime ||
+    !endTime ||
+    !location ||
+    !capacity ||
+    !catId ||
+    !orgId
   ) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -198,14 +201,15 @@ router.post('/', async (req, res) => {
     }
 
     const finalInstructorEmail = instructor_email || approverEmail || null;
-    const finalStatus = 'approved';
+    // We are no longer using pending/rejected – treat all created events as approved
+    const finalStatus = status || 'approved';
 
     // Insert event
     const insertQuery = `
       INSERT INTO events
         (title, description, start_datetime, end_datetime, location,
          capacity, category_id, category, registration_required, instructor_email,
-         created_by, approved_by, status,org_id)
+         created_by, approved_by, status, org_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [results] = await pool.query(insertQuery, [
@@ -222,7 +226,7 @@ router.post('/', async (req, res) => {
       created_by,
       approvedByUserId,
       finalStatus,
-      orgId
+      orgId,
     ]);
 
     const newEventId = results.insertId;
@@ -234,9 +238,7 @@ router.post('/', async (req, res) => {
     );
 
     // 🔔 2) Notify all other users + send email (except creator)
-    const [users] = await pool.query(
-      'SELECT user_id, email FROM users'
-    );
+    const [users] = await pool.query('SELECT user_id, email FROM users');
 
     const notifiedUsers = users.filter(
       (user) => user.user_id !== created_by
@@ -298,40 +300,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ---------------- GET pending events for a specific faculty ----------------
-router.get('/faculty/:faculty_id/pending', async (req, res) => {
-  const facultyId = req.params.faculty_id;
-
-  if (!facultyId) {
-    return res
-      .status(400)
-      .json({ message: 'Invalid faculty id for pending events' });
-  }
-
-  const query = `
-    SELECT e.*,
-      (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
-    FROM events e
-    WHERE e.approved_by = ?
-      AND e.status = 'pending'
-    ORDER BY e.start_datetime ASC
-  `;
-
-  try {
-    const [rows] = await pool.query(query, [facultyId]);
-    res.json(rows);
-  } catch (err) {
-    console.error('Faculty pending events fetch error:', err);
-    res
-      .status(500)
-      .json({
-        message: 'Failed to fetch faculty pending events',
-        error: err.message,
-      });
-  }
-});
-
-// ---------------- UPDATE EVENT (admin) ----------------
+// ---------------- UPDATE EVENT (admin/creator) ----------------
 router.put('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
 
@@ -405,78 +374,6 @@ router.put('/:event_id', async (req, res) => {
       message: 'Failed to update event',
       error: err.message,
     });
-  }
-});
-
-// ---------------- APPROVE EVENT ----------------
-router.patch('/:event_id/approve', async (req, res) => {
-  const eventId = req.params.event_id;
-
-  try {
-    // 1) Mark event as approved
-    await pool.query(
-      'UPDATE events SET status = "approved" WHERE event_id = ?',
-      [eventId]
-    );
-
-    // 2) Look up the event so we know who created it
-    const [rows] = await pool.query(
-      'SELECT title, created_by FROM events WHERE event_id = ? LIMIT 1',
-      [eventId]
-    );
-
-    if (rows.length) {
-      const { title, created_by } = rows[0];
-
-      // 🔔 Notify the student who created the event
-      await createNotification(
-        created_by,
-        `Your event "${title}" was approved by faculty.`
-      );
-    }
-
-    res.json({ message: 'Event approved successfully' });
-  } catch (err) {
-    console.error('Approve event error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to approve event', error: err.message });
-  }
-});
-
-// ---------------- REJECT EVENT ----------------
-router.patch('/:event_id/reject', async (req, res) => {
-  const eventId = req.params.event_id;
-
-  try {
-    // 1) Mark event as rejected
-    await pool.query(
-      'UPDATE events SET status = "rejected" WHERE event_id = ?',
-      [eventId]
-    );
-
-    // 2) Look up the event so we know who created it
-    const [rows] = await pool.query(
-      'SELECT title, created_by FROM events WHERE event_id = ? LIMIT 1',
-      [eventId]
-    );
-
-    if (rows.length) {
-      const { title, created_by } = rows[0];
-
-      // 🔔 Notify the student who created the event
-      await createNotification(
-        created_by,
-        `Your event "${title}" was rejected by faculty.`
-      );
-    }
-
-    res.json({ message: 'Event rejected successfully' });
-  } catch (err) {
-    console.error('Reject event error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to reject event', error: err.message });
   }
 });
 

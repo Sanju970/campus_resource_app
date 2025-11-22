@@ -1192,37 +1192,10 @@ const handleOpenEditDialog = (event) => {
               const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
                 isRegistered ? 'border-green-500' : 'border-gray-200'
               }`;
-
-              let statusLabel = null;
+              let statusLabel = '';
               if (isCreator) {
-                if (event.status === 'pending') {
-                  const departmentLabel = category
-                    ? `${category.name} department`
-                    : 'the department';
-                  statusLabel = `Sent for approval to ${departmentLabel}`;
-                } else if (event.status === 'approved') {
-                  if (event.approver_uid || event.approver_name) {
-                    statusLabel = `Approved by ${
-                      event.approver_name || event.approver_uid
-                    }`;
-                  } else {
-                    statusLabel = 'Approved';
-                  }
-                } else if (event.status === 'rejected') {
-                  statusLabel = 'Rejected';
-                }
-              } else if (isApprover) {
-                if (event.status === 'pending') {
-                  statusLabel = 'Pending your approval';
-                } else if (event.status === 'approved') {
-                  statusLabel = 'Approved';
-                } else if (event.status === 'rejected') {
-                  statusLabel = 'Rejected';
-                }
-              } else if (event.status && event.status !== 'approved') {
-                statusLabel = event.status;
+                statusLabel = `You created this event. Status: ${event.status}`;
               }
-
               return (
                 <Card
                   key={event.event_id}

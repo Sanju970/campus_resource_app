@@ -10,7 +10,6 @@
  * @property {number|null} category_id   // 1..6, maps to event_categories.category_id
  * @property {string|null} instructor_email
  * @property {boolean} registration_required
- * @property {'pending'|'approved'|'rejected'} status
  * @property {number} created_by         // user_id of creator
  * @property {number|null} approved_by   // user_id of mapped faculty (fac0001..6)
  * @property {string} created_at
