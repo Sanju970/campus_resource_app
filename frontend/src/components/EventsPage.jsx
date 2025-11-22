@@ -263,33 +263,54 @@ const fetchFavoriteEvents = async () => {
     baseEvents = combinedEvents.filter((event) => !isPastEvent(event));
   }
 
-    const filteredEvents = baseEvents.filter((event) => {
-    const isCreator = Number(event.created_by) === Number(user.user_id);
-    const isRegistered = registeredEvents.includes(event.event_id);
+const filteredEvents = baseEvents.filter((event) => {
+  const isCreator = Number(event.created_by) === Number(user.user_id);
+  const isRegistered = registeredEvents.includes(event.event_id);
 
-    // View modes
-    if (showCreatedEventsOnly && !isCreator) {
-      return false;
-    }
+  // 🔹 Find this event's organization and membership
+  const eventOrg = organizations.find(
+  (org) => Number(org.id) === Number(event.org_id)
+  );
+  const isOrgMember = eventOrg ? Boolean(eventOrg.is_member) : false;
+  const isMembersOnly = Boolean(event.members_only);
 
-    if (showRegisteredEventsOnly && !isRegistered) {
-      return false;
-    }
+  // 🔒 Hide members-only events from non-members (except admin + creator)
+  if (
+    isMembersOnly &&
+    !isOrgMember &&
+    !isCreator &&
+    user.role !== 'admin'
+  ) {
+    return false;
+  }
 
-    const matchesSearch =
-      searchQuery === '' ||
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase());
+  
+  // View modes
+  if (showCreatedEventsOnly && !isCreator) {
+    return false;
+  }
 
-    const matchesCategory =
-      !selectedCategory || event.category_id === selectedCategory;
+  if (showRegisteredEventsOnly && !isRegistered) {
+    return false;
+  }
 
-    const inMyView = showCreatedEventsOnly || showRegisteredEventsOnly;
-    const matchesStatus = true;
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
-  // Fetch organizations for the Organization dropdown
+  const matchesSearch =
+    searchQuery === '' ||
+    event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    event.location.toLowerCase().includes(searchQuery.toLowerCase());
+
+  const matchesCategory =
+    !selectedCategory || event.category_id === selectedCategory;
+
+  // We no longer filter by status here
+  const matchesStatus = true;
+
+  return matchesSearch && matchesCategory && matchesStatus;
+});
+
+
+// Fetch organizations for the Organization dropdown
 const fetchOrganizations = async () => {
   try {
     const res = await axios.get('http://localhost:5000/api/organizations', {

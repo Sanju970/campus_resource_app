@@ -3,7 +3,9 @@ const router = express.Router();
 const pool = require('../config/db'); // mysql2/promise pool
 const sendEmail = require('../config/sendEmail');
 
-// ---------------- NOTIFICATIONS HELPER ----------------
+/* ================================
+   NOTIFICATIONS HELPER
+================================== */
 async function createNotification(userId, message) {
   if (!userId || !message) return;
 
@@ -17,7 +19,9 @@ async function createNotification(userId, message) {
   }
 }
 
-// ---------------- CATEGORY / FACULTY MAPPING ----------------
+/* ================================
+   CATEGORY / FACULTY MAPPING
+================================== */
 
 // category_id -> display name
 const CATEGORY_NAME_BY_ID = {
@@ -39,16 +43,21 @@ const CATEGORY_FACULTY_UID = {
   6: 'fac0006',
 };
 
-// ---------------- GET events (everyone sees all events) ----------------
+/* ================================
+   GET /api/events
+   Return ALL events + registered_count
+================================== */
 router.get('/', async (req, res) => {
-  try {
-    const query = `
-      SELECT e.*,
-             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
-      FROM events e
-      ORDER BY e.start_datetime DESC
-    `;
+  // currently we ignore user_id here and let frontend filter
+  let query = `
+    SELECT e.*,
+           (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id)
+             AS registered_count
+    FROM events e
+    ORDER BY e.start_datetime DESC
+  `;
 
+  try {
     const [results] = await pool.query(query);
     res.json(results);
   } catch (err) {
@@ -59,7 +68,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ---------------- GET user registrations ----------------
+/* ================================
+   GET user registrations
+   GET /api/events/registrations/:user_id
+================================== */
 router.get('/registrations/:user_id', async (req, res) => {
   const userId = req.params.user_id;
   const query = 'SELECT event_id FROM event_registrations WHERE user_id = ?';
@@ -75,8 +87,10 @@ router.get('/registrations/:user_id', async (req, res) => {
   }
 });
 
-// ---------------- RSVP: Register for an event ----------------
-// POST /api/events/:event_id/rsvp
+/* ================================
+   RSVP: Register for an event
+   POST /api/events/:event_id/rsvp
+================================== */
 router.post('/:event_id/rsvp', async (req, res) => {
   try {
     const eventId = req.params.event_id;
@@ -86,11 +100,11 @@ router.post('/:event_id/rsvp', async (req, res) => {
       return res.status(400).json({ message: 'user_id is required' });
     }
 
-    // Prevent duplicate registrations
+    // prevent duplicate registrations
     await pool.query(
       `
-      INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
-      VALUES (?, ?, NOW())
+        INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
+        VALUES (?, ?, NOW())
       `,
       [eventId, user_id]
     );
@@ -112,8 +126,10 @@ router.post('/:event_id/rsvp', async (req, res) => {
   }
 });
 
-// ---------------- RSVP: Cancel registration ----------------
-// DELETE /api/events/:event_id/rsvp
+/* ================================
+   RSVP: Cancel registration
+   DELETE /api/events/:event_id/rsvp
+================================== */
 router.delete('/:event_id/rsvp', async (req, res) => {
   try {
     const eventId = req.params.event_id;
@@ -144,23 +160,28 @@ router.delete('/:event_id/rsvp', async (req, res) => {
   }
 });
 
-// ---------------- CREATE event ----------------
+/* ================================
+   CREATE event
+   POST /api/events
+   - auto-approved
+   - supports org_id + members_only
+================================== */
 router.post('/', async (req, res) => {
   const {
     title,
     description,
-    date_time,        // optional
-    end_time,         // optional
-    start_datetime,   // preferred if provided from frontend
-    end_datetime,     // preferred if provided from frontend
+    date_time,       // optional
+    end_time,        // optional
+    start_datetime,  // preferred if provided from frontend
+    end_datetime,    // preferred if provided from frontend
     location,
     capacity,
-    category_id,      // 1–6
+    category_id,     // 1–6
     registration_required,
     instructor_email,
-    created_by,       // user_id from auth
-    status,           // ignored for approval; we force 'approved'
-    organization_id,
+    created_by,      // user_id
+    organization_id, // org_id for this event
+    members_only,    // boolean from frontend
   } = req.body;
 
   const startTime = start_datetime || date_time;
@@ -201,17 +222,23 @@ router.post('/', async (req, res) => {
     }
 
     const finalInstructorEmail = instructor_email || approverEmail || null;
-    // We are no longer using pending/rejected – treat all created events as approved
-    const finalStatus = status || 'approved';
+    const finalStatus = 'approved'; // no pending flow
+    const membersOnlyValue =
+      members_only === true ||
+      members_only === 1 ||
+      members_only === '1'
+        ? 1
+        : 0;
 
-    // Insert event
+    // Insert event (now includes members_only + org_id)
     const insertQuery = `
       INSERT INTO events
         (title, description, start_datetime, end_datetime, location,
          capacity, category_id, category, registration_required, instructor_email,
-         created_by, approved_by, status, org_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         created_by, approved_by, status, org_id, members_only)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
+
     const [results] = await pool.query(insertQuery, [
       title,
       description,
@@ -227,19 +254,19 @@ router.post('/', async (req, res) => {
       approvedByUserId,
       finalStatus,
       orgId,
+      membersOnlyValue,
     ]);
 
     const newEventId = results.insertId;
 
-    // 🔔 1) Notify creator that their event is created
+    // 🔔 1) Notify creator
     await createNotification(
       created_by,
       `Your event "${title}" has been created.`
     );
 
-    // 🔔 2) Notify all other users + send email (except creator)
+    // 🔔 2) Notify all other users
     const [users] = await pool.query('SELECT user_id, email FROM users');
-
     const notifiedUsers = users.filter(
       (user) => user.user_id !== created_by
     );
@@ -250,7 +277,7 @@ router.post('/', async (req, res) => {
     );
     await Promise.all(notificationPromises);
 
-    // Email section
+    // Email notifications (best-effort; failures shouldn't break event creation)
     try {
       const emailRecipients = notifiedUsers
         .map((user) => user.email)
@@ -266,14 +293,13 @@ router.post('/', async (req, res) => {
           <p><strong>Where:</strong> ${location}</p>
         `;
 
-        // Single email with multiple recipients (comma-separated)
         await sendEmail(emailRecipients.join(','), subject, html);
       }
     } catch (emailErr) {
       console.error('Error sending event notification emails:', emailErr);
     }
 
-    // Send response with event details
+    // Respond with created event
     res.status(201).json({
       event_id: newEventId,
       title,
@@ -291,16 +317,65 @@ router.post('/', async (req, res) => {
       status: finalStatus,
       registered_count: 0,
       org_id: orgId,
+      members_only: membersOnlyValue,
     });
   } catch (err) {
     console.error('Error creating event:', err);
+
+    // handle unique constraint (title + time + location)
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({
+        message:
+          'An event with the same title, start time, and location already exists.',
+      });
+    }
+
     res
       .status(500)
       .json({ message: 'Failed to create event', error: err.message });
   }
 });
 
-// ---------------- UPDATE EVENT (admin/creator) ----------------
+/* ================================
+   (Optional legacy) GET pending events for a specific faculty
+   /api/events/faculty/:faculty_id/pending
+   This will usually return 0 now since we auto-approve,
+   but keeping it in case you reuse later.
+================================== */
+router.get('/faculty/:faculty_id/pending', async (req, res) => {
+  const facultyId = req.params.faculty_id;
+
+  if (!facultyId) {
+    return res
+      .status(400)
+      .json({ message: 'Invalid faculty id for pending events' });
+  }
+
+  const query = `
+    SELECT e.*,
+      (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
+    FROM events e
+    WHERE e.approved_by = ?
+      AND e.status = 'pending'
+    ORDER BY e.start_datetime ASC
+  `;
+
+  try {
+    const [rows] = await pool.query(query, [facultyId]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Faculty pending events fetch error:', err);
+    res.status(500).json({
+      message: 'Failed to fetch faculty pending events',
+      error: err.message,
+    });
+  }
+});
+
+/* ================================
+   UPDATE event (admin/creator)
+   PUT /api/events/:event_id
+================================== */
 router.put('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
 
@@ -317,21 +392,20 @@ router.put('/:event_id', async (req, res) => {
   } = req.body;
 
   try {
-    // Update main fields (we are NOT touching created_by or status here)
     await pool.query(
       `
-      UPDATE events
-      SET
-        title = ?,
-        description = ?,
-        start_datetime = ?,
-        end_datetime = ?,
-        location = ?,
-        capacity = ?,
-        category_id = ?,
-        registration_required = ?,
-        instructor_email = ?
-      WHERE event_id = ?
+        UPDATE events
+        SET
+          title = ?,
+          description = ?,
+          start_datetime = ?,
+          end_datetime = ?,
+          location = ?,
+          capacity = ?,
+          category_id = ?,
+          registration_required = ?,
+          instructor_email = ?
+        WHERE event_id = ?
       `,
       [
         title,
@@ -347,18 +421,17 @@ router.put('/:event_id', async (req, res) => {
       ]
     );
 
-    // Return the updated row with registered_count
     const [rows] = await pool.query(
       `
-      SELECT
-        e.*,
-        (
-          SELECT COUNT(*)
-          FROM event_registrations er
-          WHERE er.event_id = e.event_id
-        ) AS registered_count
-      FROM events e
-      WHERE e.event_id = ?
+        SELECT
+          e.*,
+          (
+            SELECT COUNT(*)
+            FROM event_registrations er
+            WHERE er.event_id = e.event_id
+          ) AS registered_count
+        FROM events e
+        WHERE e.event_id = ?
       `,
       [eventId]
     );
@@ -377,12 +450,15 @@ router.put('/:event_id', async (req, res) => {
   }
 });
 
-// ---------------- DELETE / CANCEL EVENT (hard delete) ----------------
+/* ================================
+   DELETE / CANCEL event (hard delete)
+   DELETE /api/events/:event_id
+================================== */
 router.delete('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
 
   try {
-    // First delete registrations for this event (to avoid FK issues)
+    // First delete registrations for this event
     await pool.query(
       'DELETE FROM event_registrations WHERE event_id = ?',
       [eventId]
