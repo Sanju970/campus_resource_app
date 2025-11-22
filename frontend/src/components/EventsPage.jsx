@@ -118,8 +118,8 @@ export default function EventsPage() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [showCreatedEventsOnly, setShowCreatedEventsOnly] = useState(false);
-  const [showRegisteredEventsOnly, setShowRegisteredEventsOnly] =
-    useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'upcoming' | 'ongoing' | 'completed'
+  const [showRegisteredEventsOnly, setShowRegisteredEventsOnly] = useState(false);
 
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -1037,7 +1037,7 @@ const handleOpenEditDialog = (event) => {
               !showCreatedEventsOnly &&
               !showRegisteredEventsOnly &&
               selectedCategory === null &&
-              !showPastEvents
+              statusFilter === 'all'
                 ? 'default'
                 : 'outline'
             }
@@ -1046,12 +1046,11 @@ const handleOpenEditDialog = (event) => {
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
-              setShowPastEvents(false); // ✅ back to upcoming dashboard
+              setStatusFilter('all') // ✅ back to upcoming dashboard
             }}
           >
             All Events
           </Button>
-
 
           {/*Created Events*/}
           <Button
@@ -1061,7 +1060,7 @@ const handleOpenEditDialog = (event) => {
               setShowCreatedEventsOnly(true);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
-              setShowPastEvents(false);
+              setStatusFilter('all');
             }}
           >
           Created Events
@@ -1075,45 +1074,58 @@ const handleOpenEditDialog = (event) => {
               setShowRegisteredEventsOnly(true);
               setShowCreatedEventsOnly(false);
               setSelectedCategory(null);
-              setShowPastEvents(false);
+              setStatusFilter('all');
             }}
           >
             Registered Events
           </Button>
           
-          {/* Past Events */}
+          {/* upcoming events */}
           <Button
-            variant={showPastEvents ? 'default' : 'outline'}
+            type="button"
+            variant={statusFilter === 'upcoming' ? 'default' : 'outline'}
             size="sm"
             onClick={() => {
-              setShowPastEvents(true);
+              setStatusFilter('upcoming');
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
               // we keep selectedCategory so they can still filter by category in past view
             }}
           >
-            Past Events
+            Upcoming Events
           </Button>
 
+          {/* Ongoing  events */}
+          <Button
+            type="button"
+            variant={statusFilter === 'Ongoing' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setStatusFilter('Ongoing');
+              setShowCreatedEventsOnly(false);
+              setShowRegisteredEventsOnly(false);
+            }}
+          >
+            Ongoing Events
+          </Button>
+          {/* Completed events */}
+          <Button
+            type="button"
+            variant={statusFilter === 'Completed' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setStatusFilter('Completed');
+              setShowCreatedEventsOnly(false);
+              setShowRegisteredEventsOnly(false);
+              // we keep selectedCategory so they can still filter by category in past view
+            }}
+          >
+            Completed Events
+          </Button>
+          </div>         
+
           {/* Category filters (only for All Events view visually, but we keep them active) */}
-          {user.role !== 'admin' &&
-          eventCategories.map((category) => (
-            <Button
-              key={category.id}
-              variant={
-                selectedCategory === category.id ? 'default' : 'outline'
-              }
-              size="sm"
-              onClick={() => {
-                setSelectedCategory((prev) =>
-                  prev === category.id ? null : category.id
-                );
-              }}
-            >
-              {category.name}
-            </Button>
-          ))}
-        </div>
+          <div className="hidden"></div>
       </div>
    
       {/* Events list */}
