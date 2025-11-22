@@ -41,32 +41,17 @@ const CATEGORY_FACULTY_UID = {
 
 // ---------------- GET events (student view: approved + own events) ----------------
 router.get('/', async (req, res) => {
-  const { user_id } = req.query; // optional
+  const { user_id } = req.query; 
 
   let query;
   let params = [];
-
-  if (user_id) {
     // Approved events + events created by this user
     query = `
       SELECT e.*,
              (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
       FROM events e
-      WHERE e.status = 'approved'
-         OR e.created_by = ?
       ORDER BY e.start_datetime DESC
     `;
-    params = [user_id];
-  } else {
-    // Only approved events
-    query = `
-      SELECT e.*,
-             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
-      FROM events e
-      WHERE e.status = 'approved'
-      ORDER BY e.start_datetime DESC
-    `;
-  }
 
   try {
     const [results] = await pool.query(query, params);
@@ -213,7 +198,7 @@ router.post('/', async (req, res) => {
     }
 
     const finalInstructorEmail = instructor_email || approverEmail || null;
-    const finalStatus = status || 'approved';
+    const finalStatus = 'approved';
 
     // Insert event
     const insertQuery = `
