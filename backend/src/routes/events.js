@@ -179,14 +179,17 @@ router.post('/', async (req, res) => {
     registration_required,
     instructor_email,
     created_by,       // user_id from auth
-    status,           // default 'pending'
+    status,
+    organization_id        // default 'pending'
   } = req.body;
 
   const startTime = start_datetime || date_time;
   const endTime = end_datetime || end_time;
   const catId = category_id ? Number(category_id) : null;
+  const orgId = organization_id ? Number(organization_id) : null;
 
-  if (!title || !description || !startTime || !endTime || !location || !capacity || !catId) {
+  if (!title || !description || !startTime || !endTime || !location || !capacity || !catId || !orgId
+  ) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -217,8 +220,8 @@ router.post('/', async (req, res) => {
       INSERT INTO events
         (title, description, start_datetime, end_datetime, location,
          capacity, category_id, category, registration_required, instructor_email,
-         created_by, approved_by, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         created_by, approved_by, status,org_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [results] = await pool.query(insertQuery, [
       title,
@@ -234,6 +237,7 @@ router.post('/', async (req, res) => {
       created_by,
       approvedByUserId,
       finalStatus,
+      orgId
     ]);
 
     const newEventId = results.insertId;
@@ -299,6 +303,7 @@ router.post('/', async (req, res) => {
       approved_by: approvedByUserId,
       status: finalStatus,
       registered_count: 0,
+      org_id: orgId,
     });
   } catch (err) {
     console.error('Error creating event:', err);

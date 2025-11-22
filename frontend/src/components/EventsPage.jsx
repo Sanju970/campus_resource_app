@@ -154,7 +154,23 @@ export default function EventsPage() {
   };
   const [minDateTime] = useState(() => getCurrentDateTimeLocal());
 
-  const canCreateOrApprove = true;
+    const PRIVILEGED_ORG_ROLES = [
+    'admin_delegate',
+    'lead_faculty',
+    'coordinator',
+    'event_manager',
+  ];
+
+const canCreateOrApprove =
+  user.role === 'admin' ||
+  organizations.some(
+  (org) => PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
+);
+// Organizations where this user is allowed to create events
+const eligibleOrganizations = organizations.filter((org) =>
+  PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
+);
+
 
   // ---------------- Fetch Events ----------------
   const fetchEvents = async () => {
@@ -476,8 +492,6 @@ const toggleFavorite = async (eventId) => {
   }
 };
 
-
-
   // ---------------- Create Event ----------------
   const handleCreateEvent = async () => {
     const {
@@ -498,6 +512,23 @@ const toggleFavorite = async (eventId) => {
       startDate && startTime ? `${startDate}T${startTime}` : '';
     const combinedEnd =
       endDate && endTime ? `${endDate}T${endTime}` : '';
+
+      // --- NEW: Per-organization permission check ---
+  const privilegedOrgIds = organizations
+    .filter((org) => PRIVILEGED_ORG_ROLES.includes(org?.current_org_role))
+    .map((org) => org.id);
+
+  if (!newEvent.organization_id) {
+    toast.error('Please select an organization for this event');
+    return;
+  }
+
+  if (!privilegedOrgIds.includes(newEvent.organization_id)) {
+    toast.error(
+      'You can only create events for organizations where you are coordinator, event manager, lead faculty, or admin delegate.'
+    );
+    return;
+  }
 
     if (
       !title ||
@@ -564,6 +595,7 @@ const toggleFavorite = async (eventId) => {
         capacity: '',
         category_id: '',
         registration_required: false,
+        members_only: false,
         instructor_email: '',
       });
       setStartTime('');
@@ -1054,7 +1086,7 @@ const handleOpenEditDialog = (event) => {
                       }}
                     >
                       <option value="">Select Organization</option>
-                      {organizations.map((org) => (
+                      {eligibleOrganizations.map((org) => (
                         <option key={org.id} value={org.id}>
                           {org.title}
                         </option>
