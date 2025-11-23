@@ -962,23 +962,36 @@ router.get("/dashboard", async (req, res) => {
   }
 });
 
+/* ============================================================
+   GET Mutual Organizations Between Two Users
+   viewerId = logged-in user
+   profileId = profile you are viewing
+============================================================ */
 router.get("/mutual-orgs/:viewerId/:profileId", async (req, res) => {
   const { viewerId, profileId } = req.params;
 
   try {
-    const [rows] = await db.query(`
-      SELECT o.id, o.title
+    const [rows] = await db.query(
+      `
+      SELECT 
+        o.org_id AS id,
+        o.title
       FROM organization_members m1
-      JOIN organization_members m2 
+      JOIN organization_members m2
         ON m1.org_id = m2.org_id
       JOIN organizations o 
-        ON o.id = m1.org_id
-      WHERE m1.user_id = ? AND m2.user_id = ?
-    `, [viewerId, profileId]);
+        ON o.org_id = m1.org_id
+      WHERE m1.user_id = ? 
+        AND m2.user_id = ?
+        AND o.is_active = 1
+      ORDER BY o.title
+      `,
+      [viewerId, profileId]
+    );
 
     res.json(rows);
   } catch (err) {
-    console.error("Mutual orgs error:", err);
+    console.error("Mutual organizations error:", err);
     res.status(500).json({ message: "Error loading mutual organizations" });
   }
 });
