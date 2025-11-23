@@ -17,8 +17,10 @@ import {
   Heart,
   Pin,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { sampleAnnouncements } from '../types/announcements';
@@ -41,6 +43,10 @@ export default function FavoritesPage() {
       return [];
     }
   });
+
+  // For description popup (events)
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [isEventDescriptionOpen, setIsEventDescriptionOpen] = useState(false);
 
   // Derive favorite events from all events + favoriteEventIds
   const favoriteEvents = events.filter((event) =>
@@ -67,7 +73,7 @@ export default function FavoritesPage() {
 
         setFavoriteEventIds(favEventIds);
 
-        // 2) Get all events (your actual events endpoint with optional user_id param)
+        // 2) Get all events
         const eventsRes = await axios.get(
           `http://localhost:5000/api/events?user_id=${user.user_id}`
         );
@@ -180,46 +186,78 @@ export default function FavoritesPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favoriteEvents.map((event) => (
-                <Card
-                  key={event.event_id}
-                  className="hover:shadow-lg transition-shadow"
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between mb-2">
-                      <Badge>Category {event.category_id}</Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeFavoriteEvent(event.event_id)}
-                      >
-                        <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                      </Button>
-                    </div>
-                    <CardTitle className="text-lg">{event.title}</CardTitle>
-                    <CardDescription>{event.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {formatDateTime(event.start_datetime || event.date_time)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{event.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {event.registered_count || 0} / {event.capacity || 0}{' '}
-                        registered
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {favoriteEvents.map((event) => {
+                const fullDescription = event.description || '';
+                const MAX_PREVIEW_CHARS = 35;
+
+                const shouldShowMore =
+                  fullDescription.length > MAX_PREVIEW_CHARS;
+
+                const previewDescription = shouldShowMore
+                  ? fullDescription.slice(0, MAX_PREVIEW_CHARS).trimEnd() + '...'
+                  : fullDescription;
+
+                return (
+                  <Card
+                    key={event.event_id}
+                    className="hover:shadow-lg transition-shadow"
+                  >
+                    <CardHeader>
+                      <div className="flex items-start justify-between mb-2">
+                        <Badge>Category {event.category_id}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeFavoriteEvent(event.event_id)}
+                        >
+                          <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                        </Button>
+                      </div>
+                      <CardTitle className="text-lg">{event.title}</CardTitle>
+
+                      {/* DESCRIPTION LINE WITH SHOW MORE */}
+                      <CardDescription className="space-y-1">
+                        <div className="flex items-center gap-1 max-w-full">
+                          <span className="truncate flex-1 min-w-0">
+                            {previewDescription}
+                          </span>
+                          {shouldShowMore && (
+                            <button
+                              type="button"
+                              className="text-xs text-blue-600 hover:underline flex-shrink-0"
+                              onClick={() => {
+                                setSelectedEvent(event);
+                                setIsEventDescriptionOpen(true);
+                              }}
+                            >
+                              Show more
+                            </button>
+                          )}
+                        </div>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {formatDateTime(event.start_datetime || event.date_time)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span>{event.location}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {event.registered_count || 0} / {event.capacity || 0}{' '}
+                          registered
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -247,7 +285,9 @@ export default function FavoritesPage() {
                           {announcement.is_pinned && (
                             <Pin className="h-4 w-4 text-primary" />
                           )}
-                          <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                          <CardTitle className="text-lg">
+                            {announcement.title}
+                          </CardTitle>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
                           <span>Posted by {announcement.created_by_name}</span>
@@ -265,7 +305,9 @@ export default function FavoritesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeFavoriteAnnouncement(announcement.id)}
+                          onClick={() =>
+                            removeFavoriteAnnouncement(announcement.id)
+                          }
                           aria-label="Remove announcement from favorites"
                           title="Remove announcement from favorites"
                         >
@@ -291,10 +333,34 @@ export default function FavoritesPage() {
           <div className="text-sm text-muted-foreground">Favorite Events</div>
         </div>
         <div className="text-center space-y-1">
-          <div className="text-3xl font-semibold">{favoriteAnnouncements.length}</div>
-          <div className="text-sm text-muted-foreground">Favorite Announcements</div>
+          <div className="text-3xl font-semibold">
+            {favoriteAnnouncements.length}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Favorite Announcements
+          </div>
         </div>
       </div>
+
+      {/* FULL DESCRIPTION POPUP FOR EVENTS */}
+      <Dialog
+        open={isEventDescriptionOpen}
+        onOpenChange={(open) => {
+          setIsEventDescriptionOpen(open);
+          if (!open) setSelectedEvent(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedEvent?.title}</DialogTitle>
+            <DialogDescription>
+              <span className="whitespace-pre-wrap">
+                {selectedEvent?.description}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
