@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Card,
@@ -104,8 +103,6 @@ const timeOptions = [
 
 export default function EventsPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
-
 
   if (!user) {
     throw new Error("EventsPage must be used within an AuthProvider");
@@ -126,6 +123,12 @@ export default function EventsPage() {
 
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+
+  // --- Registered Members Modal state (Option A) ---
+  const [membersModalEvent, setMembersModalEvent] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [isMembersLoading, setIsMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState(null);
 
   const initialNewEventState = {
     title: "",
@@ -235,6 +238,21 @@ export default function EventsPage() {
     }
   };
 
+  // Fetch organizations for the Organization dropdown
+  const fetchOrganizations = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/organizations", {
+        params: { user_id: user.user_id },
+      });
+
+      // Backend returns an array of orgs
+      setOrganizations(res.data || []);
+    } catch (err) {
+      console.error("Error fetching organizations:", err);
+      toast.error("Failed to load organizations");
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
@@ -329,14 +347,9 @@ export default function EventsPage() {
   });
 
   // ---------------- Stats baseline: "All Events" view ----------------
-  // This ignores Created/Registered toggles and statusFilter.
-  // It always behaves like: statusFilter = 'all' (upcoming + ongoing)
-  // but still respects search, category, and members-only visibility.
   const allEventsForStats = combinedEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
-    const isRegistered = registeredEvents.includes(event.event_id);
 
-    // Same members-only rule as filteredEvents
     const eventOrg = organizations.find(
       (org) => Number(org.id) === Number(event.org_id)
     );
@@ -356,29 +369,12 @@ export default function EventsPage() {
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // Force "All Events" time logic here: upcoming + ongoing only
     const eventStatus = getEventStatus(event);
     const matchesStatus =
       eventStatus === "upcoming" || eventStatus === "ongoing";
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
-
-
-  // Fetch organizations for the Organization dropdown
-  const fetchOrganizations = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/organizations", {
-        params: { user_id: user.user_id },
-      });
-
-      // Backend returns an array of orgs
-      setOrganizations(res.data || []);
-    } catch (err) {
-      console.error("Error fetching organizations:", err);
-      toast.error("Failed to load organizations");
-    }
-  };
 
   // ---------------- RSVP (students + faculty) ----------------
   const handleRSVP = async (eventId) => {
@@ -463,7 +459,6 @@ export default function EventsPage() {
     const isFavorite = favoriteEvents.includes(eventId);
 
     if (!isFavorite) {
-      // ADD to favorites: insert into DB
       try {
         await axios.post("http://localhost:5000/api/favorites", {
           user_id: user.user_id,
@@ -475,7 +470,6 @@ export default function EventsPage() {
         toast.success("Event added to favorites");
       } catch (err) {
         if (err.response?.status === 409) {
-          // duplicate – already exists in DB
           toast.info("Already in favorites");
           if (!favoriteEvents.includes(eventId)) {
             setFavoriteEvents((prev) => [...prev, eventId]);
@@ -486,7 +480,6 @@ export default function EventsPage() {
         }
       }
     } else {
-      // REMOVE from favorites: delete from DB
       try {
         await axios.delete("http://localhost:5000/api/favorites", {
           data: {
@@ -525,10 +518,9 @@ export default function EventsPage() {
       startDate && startTime ? `${startDate}T${startTime}` : "";
     const combinedEnd = endDate && endTime ? `${endDate}T${endTime}` : "";
 
-    // ⭐ ADMIN CHANGE: org permission check only for non-admins
     const privilegedOrgIds =
       user.role === "admin"
-        ? organizations.map((org) => org.id) // admin can use any org
+        ? organizations.map((org) => org.id)
         : organizations
             .filter((org) =>
               PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
@@ -541,7 +533,7 @@ export default function EventsPage() {
     }
 
     if (
-      user.role !== "admin" && // admin skips this restriction
+      user.role !== "admin" &&
       !privilegedOrgIds.includes(newEvent.organization_id)
     ) {
       toast.error(
@@ -583,9 +575,8 @@ export default function EventsPage() {
       toast.error("Start time must be in the future");
       return;
     }
-    // 2) end must be at least 30 minutes after start
     const diffMs = end.getTime() - start.getTime();
-    const minDurationMs = 30 * 60 * 1000; // 30 mins
+    const minDurationMs = 30 * 60 * 1000;
     if (diffMs < minDurationMs) {
       toast.error(
         "End time must be at least 30 minutes after the start time"
@@ -619,18 +610,7 @@ export default function EventsPage() {
       setEvents((prev) => [savedEvent, ...prev]);
       setIsCreateDialogOpen(false);
 
-      setNewEvent({
-        title: "",
-        description: "",
-        date_time: "",
-        end_time: "",
-        location: "",
-        capacity: "",
-        category_id: "",
-        registration_required: false,
-        members_only: false,
-        instructor_email: "",
-      });
+      setNewEvent(initialNewEventState);
       setStartTime("");
       setEndTime("");
 
@@ -685,10 +665,6 @@ export default function EventsPage() {
       return;
     }
 
-    const nowUpdate = new Date();
-    const start = new Date(combinedStart);
-    const end = new Date(combinedEnd);
-
     const eventToSend = {
       title,
       description,
@@ -724,20 +700,9 @@ export default function EventsPage() {
         )
       );
 
-      // Reset dialog + form
       setEditingEvent(null);
       setIsCreateDialogOpen(false);
-      setNewEvent({
-        title: "",
-        description: "",
-        date_time: "",
-        end_time: "",
-        location: "",
-        capacity: "",
-        category_id: "",
-        registration_required: false,
-        instructor_email: "",
-      });
+      setNewEvent(initialNewEventState);
       setStartTime("");
       setEndTime("");
 
@@ -756,8 +721,6 @@ export default function EventsPage() {
     const isCreator = Number(eventToCancel.created_by) === Number(user.user_id);
     const isAdmin = user.role === "admin";
 
-    // ✅ Admin can cancel/delete ANY event
-    // ✅ Non-admins can only cancel their own events
     if (!isAdmin && !isCreator) return;
 
     if (!window.confirm("Are you sure you want to delete/cancel this event?")) {
@@ -782,7 +745,6 @@ export default function EventsPage() {
         prevEvents.filter((e) => e.event_id !== eventId)
       );
 
-      // Also remove from registered list if it was there
       setRegisteredEvents((prev) => prev.filter((id) => id !== eventId));
 
       toast.success("Event deleted/cancelled successfully");
@@ -799,7 +761,6 @@ export default function EventsPage() {
 
     if (!isAdmin && !isCreator) return;
 
-    // Convert existing datetimes into date + time fields
     const parseDate = (dt) => {
       if (!dt) return "";
       const d = new Date(dt);
@@ -856,8 +817,42 @@ export default function EventsPage() {
       ? event.registered_count >= event.capacity
       : false;
 
+  // ------------- Registered Members Modal handlers (Option A) -------------
+  const openMembersModal = async (event) => {
+    setMembersModalEvent(event);
+    setMembers([]);
+    setMembersError(null);
+    setIsMembersLoading(true);
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/events/${event.event_id}/members`
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to load event members");
+      }
+
+      const data = await res.json();
+      setMembers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Event members fetch error:", err);
+      setMembersError(err.message || "Failed to load event members");
+      toast.error(err.message || "Failed to load event members");
+    } finally {
+      setIsMembersLoading(false);
+    }
+  };
+
+  const closeMembersModal = () => {
+    setMembersModalEvent(null);
+    setMembers([]);
+    setMembersError(null);
+    setIsMembersLoading(false);
+  };
+
   // ---------------- Stats for footer ----------------
-  // Always based on the "All Events" baseline (allEventsForStats)
   const totalEventsCount = allEventsForStats.length;
 
   const createdEventsCount = allEventsForStats.filter(
@@ -868,7 +863,6 @@ export default function EventsPage() {
     registeredEvents.includes(event.event_id)
   ).length;
 
- 
   // ---------------- JSX ----------------
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -1121,7 +1115,7 @@ export default function EventsPage() {
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
-              setStatusFilter("all"); // back to upcoming dashboard
+              setStatusFilter("all");
             }}
           >
             All Events
@@ -1198,11 +1192,10 @@ export default function EventsPage() {
           </Button>
         </div>
 
-        {/* Category filters (only for All Events view visually, but we keep them active) */}
-        <div className="hidden"></div>
+        <div className="hidden" />
       </div>
 
-      {/* Events list – same card grid for all roles & filters */}
+      {/* Events list */}
       <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => {
@@ -1214,9 +1207,8 @@ export default function EventsPage() {
             const isFull = isEventFull(event);
             const isCreator = Number(event.created_by) === Number(user.user_id);
             const isAdmin = user.role === "admin";
-            const showRSVP = !isCreator; // anyone who is NOT the creator
+            const showRSVP = !isCreator;
 
-            // per-event status + completed flag
             const eventStatus = getEventStatus(event);
             const isCompleted = eventStatus === "completed";
 
@@ -1283,15 +1275,19 @@ export default function EventsPage() {
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span>{event.location}</span>
                     </div>
-                    <div className="flex items-center gap-2 cursor-pointer hover:underline"
-                      onClick={() => navigate(`/events/${event.event_id}/members`)}
-                      >    
+
+                    {/* Registered members count → open centered modal */}
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline focus:outline-none"
+                      onClick={() => openMembersModal(event)}
+                    >
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>
                         {event.registered_count || 0} / {event.capacity || 0}{" "}
                         registered
                       </span>
-                    </div>
+                    </button>
                   </div>
 
                   {/* hide RSVP for completed events */}
@@ -1323,7 +1319,6 @@ export default function EventsPage() {
                   {(isAdmin || isCreator) && (
                     <div className="w-full space-y-2">
                       {isCompleted ? (
-                        // COMPLETED EVENT → only show "Event completed."
                         <Button
                           size="sm"
                           variant="default"
@@ -1334,7 +1329,6 @@ export default function EventsPage() {
                         </Button>
                       ) : (
                         <>
-                          {/* Only creator sees this text */}
                           {isCreator && (
                             <Button
                               size="sm"
@@ -1422,6 +1416,114 @@ export default function EventsPage() {
           </div>
         </div>
       </div>
+
+      {/* Centered modal for Registered Members (Option A) */}
+      <Dialog
+        open={!!membersModalEvent}
+        onOpenChange={(open) => {
+          if (!open) closeMembersModal();
+        }}
+      >
+        <DialogContent className="max-w-4xl w-[90vw] max-h-[80vh] overflow-hidden">
+          <DialogHeader className="space-y-1">
+            <DialogTitle>Registered Members</DialogTitle>
+            {membersModalEvent && (
+              <DialogDescription>
+                <span className="font-medium text-foreground">
+                  {membersModalEvent.title}
+                </span>{" "}
+                ·{" "}
+                {membersModalEvent.location && (
+                  <span className="text-muted-foreground">
+                    {membersModalEvent.location}
+                  </span>
+                )}
+                <br />
+                <span className="text-muted-foreground text-xs">
+                  {membersModalEvent.start_datetime &&
+                    new Date(
+                      membersModalEvent.start_datetime
+                    ).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}{" "}
+                  {membersModalEvent.end_datetime && " – "}
+                  {membersModalEvent.end_datetime &&
+                    new Date(
+                      membersModalEvent.end_datetime
+                    ).toLocaleString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                </span>
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          {/* Stats row */}
+          <div className="flex items-center gap-3 mb-3 text-sm">
+            <span className="px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
+              {members.length} member{members.length === 1 ? "" : "s"}
+            </span>
+            {membersModalEvent && (
+              <span className="px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                Capacity: {membersModalEvent.capacity || 0}
+              </span>
+            )}
+          </div>
+
+          {/* Content area */}
+          <div className="border rounded-xl bg-muted/40 overflow-hidden">
+            {isMembersLoading ? (
+              <div className="p-6 text-sm text-muted-foreground">
+                Loading members…
+              </div>
+            ) : membersError ? (
+              <div className="p-6 text-sm text-destructive">
+                {membersError}
+              </div>
+            ) : members.length === 0 ? (
+              <div className="p-6 text-sm text-muted-foreground">
+                No members have registered for this event yet.
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-2">User UID</th>
+                      <th className="px-4 py-2">Name</th>
+                      <th className="px-4 py-2">Email</th>
+                      <th className="px-4 py-2">Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map((m) => (
+                      <tr
+                        key={m.user_id}
+                        className="border-t bg-background/60 hover:bg-muted/60"
+                      >
+                        <td className="px-4 py-2">{m.user_uid}</td>
+                        <td className="px-4 py-2">
+                          {m.first_name} {m.last_name}
+                        </td>
+                        <td className="px-4 py-2">{m.email}</td>
+                        <td className="px-4 py-2 capitalize">
+                          {m.role_name || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
