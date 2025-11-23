@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -125,16 +126,17 @@ export default function EventsPage() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // --- Registered Members Modal state (Option A) ---
+  // Registered Members Modal
   const [membersModalEvent, setMembersModalEvent] = useState(null);
   const [members, setMembers] = useState([]);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState(null);
-  // NEW: cancel confirmation dialog state
+
+  // Cancel confirmation dialog state
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
 
-  // NEW: description popup dialog state
+  // Description popup dialog state
   const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] =
     useState(false);
   const [descriptionEvent, setDescriptionEvent] = useState(null);
@@ -153,6 +155,9 @@ export default function EventsPage() {
     instructor_email: "",
   };
 
+  // New event form state
+  const [newEvent, setNewEvent] = useState(initialNewEventState);
+
   const handleDialogOpenChange = (open) => {
     setIsCreateDialogOpen(open);
 
@@ -164,9 +169,6 @@ export default function EventsPage() {
       setEndTime("");
     }
   };
-
-  // New event form state
-  const [newEvent, setNewEvent] = useState(initialNewEventState);
 
   // helper to format current time for <input type="date" /> min
   const getCurrentDateTimeLocal = () => {
@@ -254,7 +256,6 @@ export default function EventsPage() {
         params: { user_id: user.user_id },
       });
 
-      // Backend returns an array of orgs
       setOrganizations(res.data || []);
     } catch (err) {
       console.error("Error fetching organizations:", err);
@@ -295,14 +296,13 @@ export default function EventsPage() {
     const isCreator = Number(event.created_by) === Number(user.user_id);
     const isRegistered = registeredEvents.includes(event.event_id);
 
-    // 🔹 Find this event's organization and membership
     const eventOrg = organizations.find(
       (org) => Number(org.id) === Number(event.org_id)
     );
     const isOrgMember = eventOrg ? Boolean(eventOrg.is_member) : false;
     const isMembersOnly = Boolean(event.members_only);
 
-    // 🔒 Hide members-only events from non-members (except admin + creator)
+    // Hide members-only events from non-members (except admin + creator)
     if (isMembersOnly && !isOrgMember && !isCreator && user.role !== "admin") {
       return false;
     }
@@ -325,10 +325,10 @@ export default function EventsPage() {
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // 🔹 Status filter: all | upcoming | ongoing | completed
+    // Status filter: all | upcoming | ongoing | completed
     const eventStatus = getEventStatus(event);
 
-    // ⭐ Completed-events 30-day logic
+    // Completed-events 30-day logic
     const endDate = event.end_datetime ? new Date(event.end_datetime) : null;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -722,19 +722,22 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Cancel/Delete Event ----------------
-  const handleCancelEvent = async (eventId) => {
-    const eventToCancel = events.find((e) => e.event_id === eventId);
-    if (!eventToCancel) return;
-
-    const isCreator = Number(eventToCancel.created_by) === Number(user.user_id);
+  // ---------------- Cancel/Delete Event: OPEN dialog ----------------
+  const handleCancelClick = (event) => {
+    const isCreator = Number(event.created_by) === Number(user.user_id);
     const isAdmin = user.role === "admin";
 
     if (!isAdmin && !isCreator) return;
 
-    if (!window.confirm("Are you sure you want to delete/cancel this event?")) {
-      return;
-    }
+    setEventToCancel(event);
+    setIsCancelDialogOpen(true);
+  };
+
+  // ---------------- Confirm Cancel in dialog ----------------
+  const confirmCancelEvent = async () => {
+    if (!eventToCancel) return;
+
+    const eventId = eventToCancel.event_id;
 
     try {
       const response = await fetch(
@@ -760,6 +763,9 @@ export default function EventsPage() {
     } catch (err) {
       console.error("Cancel event error:", err);
       toast.error(err.message || "Failed to cancel event");
+    } finally {
+      setIsCancelDialogOpen(false);
+      setEventToCancel(null);
     }
   };
 
@@ -797,6 +803,8 @@ export default function EventsPage() {
       category_id: event.category_id || "",
       registration_required: !!event.registration_required,
       instructor_email: event.instructor_email || "",
+      organization_id: event.org_id || "",
+      members_only: !!event.members_only,
     });
 
     setStartTime(parseTime(event.start_datetime));
@@ -826,7 +834,7 @@ export default function EventsPage() {
       ? event.registered_count >= event.capacity
       : false;
 
-  // ------------- Registered Members Modal handlers (Option A) -------------
+  // ------------- Registered Members Modal handlers -------------
   const openMembersModal = async (event) => {
     setMembersModalEvent(event);
     setMembers([]);
@@ -840,15 +848,15 @@ export default function EventsPage() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to load register members");
+        throw new Error(body.message || "Failed to load registered members");
       }
 
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("register members fetch error:", err);
-      setMembersError(err.message || "Failed to load register members");
-      toast.error(err.message || "Failed to load register members");
+      console.error("registered members fetch error:", err);
+      setMembersError(err.message || "Failed to load registered members");
+      toast.error(err.message || "Failed to load registered members");
     } finally {
       setIsMembersLoading(false);
     }
@@ -1268,7 +1276,9 @@ export default function EventsPage() {
 
                   <CardTitle className="text-lg">{event.title}</CardTitle>
                   <CardDescription className="space-y-1">
-                    <span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">{description}</span>
+                    <span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                      {description}
+                    </span>
                     {shouldShowMore && (
                       <button
                         type="button"
@@ -1304,22 +1314,17 @@ export default function EventsPage() {
                     </div>
 
                     {/* Registered members count → open centered modal */}
-                    <button>
-                      type="button"
-                      className="flex items-center gap-2 text-sm text-primary hover:underline focus:outline-none"
+                    <div
+                      className="flex items-center gap-2 cursor-pointer hover:underline text-sm text-primary"
                       onClick={() => openMembersModal(event)}
-                    <div className="flex items-center gap-2 cursor-pointer hover:underline"
-                      onClick={() =>
-                        navigate(`/events/${event.event_id}/members`)
-                      }
                     >
-                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <Users className="h-4 w-4" />
                       <span>
                         {event.registered_count || 0} / {event.capacity || 0}{" "}
                         registered
                       </span>
                     </div>
-                  </button>
+                  </div>
 
                   {/* hide RSVP for completed events */}
                   {showRSVP && !isCompleted && (
@@ -1500,7 +1505,7 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Centered modal for Registered Members (Option A) */}
+      {/* Centered modal for Registered Members */}
       <Dialog
         open={!!membersModalEvent}
         onOpenChange={(open) => {
