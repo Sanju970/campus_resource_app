@@ -134,6 +134,11 @@ export default function EventsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
 
+  // NEW: description popup dialog state
+  const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] =
+    useState(false);
+  const [descriptionEvent, setDescriptionEvent] = useState(null);
+
   const initialNewEventState = {
     title: "",
     description: "",
@@ -1216,6 +1221,10 @@ export default function EventsPage() {
             const eventStatus = getEventStatus(event);
             const isCompleted = eventStatus === "completed";
 
+            const description = event.description || "";
+            const shouldShowMore =
+              description.length > 80 || description.includes("\n");
+
             const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
               isRegistered ? "border-green-500" : "border-gray-200"
             }`;
@@ -1258,7 +1267,21 @@ export default function EventsPage() {
                   </div>
 
                   <CardTitle className="text-lg">{event.title}</CardTitle>
-                  <CardDescription>{event.description}</CardDescription>
+                  <CardDescription className="space-y-1">
+                    <span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">{description}</span>
+                    {shouldShowMore && (
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 hover:underline"
+                        onClick={() => {
+                          setDescriptionEvent(event);
+                          setIsDescriptionDialogOpen(true);
+                        }}
+                      >
+                        Show more
+                      </button>
+                    )}
+                  </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
@@ -1380,6 +1403,24 @@ export default function EventsPage() {
           </div>
         )}
       </>
+
+      {/* Description Dialog */}
+      <Dialog
+        open={isDescriptionDialogOpen}
+        onOpenChange={(open) => {
+          setIsDescriptionDialogOpen(open);
+          if (!open) setDescriptionEvent(null);
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{descriptionEvent?.title}</DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {descriptionEvent?.description}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel Event Confirmation Dialog */}
       <Dialog
