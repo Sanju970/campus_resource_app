@@ -18,6 +18,7 @@ const registrationRoutes = require('./routes/event_registrations');
 const organizationRoutes = require('./routes/organizations');
 const orgCategoriesRoutes = require("./routes/orgCategories");
 const facultyRoutes = require("./routes/faculty");
+const scheduleRoutes = require("./routes/scheduleRoutes");
 
 // --- Initialize Express App ---
 const app = express();
@@ -45,6 +46,8 @@ app.use('/api/event_registrations', registrationRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use("/api/org-categories", orgCategoriesRoutes);
 app.use("/api/faculty", facultyRoutes);
+app.use("/api/schedule", scheduleRoutes);
+
 
 
 // --- Root Endpoint ---
