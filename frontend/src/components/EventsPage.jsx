@@ -124,20 +124,32 @@ export default function EventsPage() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
+  const initialNewEventState = {
+  title: "",
+  description: "",
+  date_time: "",
+  end_time: "",
+  location: "",
+  capacity: "",
+  category_id: "",
+  organization_id: "",
+  registration_required: false,
+  members_only: false,
+  instructor_email: "",
+};
+const handleDialogOpenChange = (open) => {
+  setIsCreateDialogOpen(open);
+
+  // When dialog closes → reset everything
+  if (!open) {
+    setEditingEvent(null);
+    setNewEvent(initialNewEventState);
+    setStartTime("");
+    setEndTime("");
+  }
+};
   // New event form state
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    description: "",
-    date_time: "",
-    end_time: "",
-    location: "",
-    capacity: "",
-    category_id: "",
-    organization_id: "",
-    registration_required: false,
-    members_only: false,
-    instructor_email: "",
-  });
+  const [newEvent, setNewEvent] = useState(initialNewEventState);
 
   // helper to format current time for <input type="date" /> min
   const getCurrentDateTimeLocal = () => {
@@ -491,20 +503,37 @@ export default function EventsPage() {
       toast.error("Capacity must be between 1 and 1000");
       return;
     }
+      const start = new Date(combinedStart);
+      const end = new Date(combinedEnd);
+      const now = new Date();
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    toast.error("Invalid start or end time");
+    return;
+    }
 
-    const now = new Date();
-    const start = new Date(combinedStart);
-    const end = new Date(combinedEnd);
-
-    const event = {
-      ...newEvent,
-      start_datetime: combinedStart,
-      end_datetime: combinedEnd,
-      capacity: capacityNum,
-      created_by: user.user_id,
-      registered_count: 0,
-      status: "approved",
-    };
+    if (start <= now) {
+    toast.error("Start time must be in the future");
+    return;
+    }
+      // 2) end must be at least 30 minutes after start
+    const diffMs = end.getTime() - start.getTime();
+    const minDurationMs = 30 * 60 * 1000; // 30 mins
+    if (diffMs < minDurationMs) {
+    toast.error(
+      "End time must be at least 30 minutes after the start time"
+      );
+      return;
+    }
+    
+  const event = {
+    ...newEvent,
+    start_datetime: combinedStart,
+    end_datetime: combinedEnd,
+    capacity: capacityNum,
+    created_by: user.user_id,
+    registered_count: 0,
+    status: "approved",
+  };
 
     try {
       const res = await fetch("http://localhost:5000/api/events", {
@@ -786,7 +815,7 @@ export default function EventsPage() {
         {canCreateOrApprove && (
           <Dialog
             open={isCreateDialogOpen}
-            onOpenChange={setIsCreateDialogOpen}
+            onOpenChange={handleDialogOpenChange}
           >
             <DialogTrigger asChild>
               <Button>
