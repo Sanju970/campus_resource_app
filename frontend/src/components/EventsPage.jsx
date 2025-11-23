@@ -125,29 +125,31 @@ export default function EventsPage() {
   const [endTime, setEndTime] = useState("");
 
   const initialNewEventState = {
-  title: "",
-  description: "",
-  date_time: "",
-  end_time: "",
-  location: "",
-  capacity: "",
-  category_id: "",
-  organization_id: "",
-  registration_required: false,
-  members_only: false,
-  instructor_email: "",
-};
-const handleDialogOpenChange = (open) => {
-  setIsCreateDialogOpen(open);
+    title: "",
+    description: "",
+    date_time: "",
+    end_time: "",
+    location: "",
+    capacity: "",
+    category_id: "",
+    organization_id: "",
+    registration_required: false,
+    members_only: false,
+    instructor_email: "",
+  };
 
-  // When dialog closes → reset everything
-  if (!open) {
-    setEditingEvent(null);
-    setNewEvent(initialNewEventState);
-    setStartTime("");
-    setEndTime("");
-  }
-};
+  const handleDialogOpenChange = (open) => {
+    setIsCreateDialogOpen(open);
+
+    // When dialog closes → reset everything
+    if (!open) {
+      setEditingEvent(null);
+      setNewEvent(initialNewEventState);
+      setStartTime("");
+      setEndTime("");
+    }
+  };
+
   // New event form state
   const [newEvent, setNewEvent] = useState(initialNewEventState);
 
@@ -175,10 +177,14 @@ const handleDialogOpenChange = (open) => {
     organizations.some((org) =>
       PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
     );
-  // Organizations where this user is allowed to create events
-  const eligibleOrganizations = organizations.filter((org) =>
-    PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
-  );
+
+  // ⭐ ADMIN CHANGE: admin can see ALL organizations in dropdown
+  const eligibleOrganizations =
+    user.role === "admin"
+      ? organizations
+      : organizations.filter((org) =>
+          PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
+        );
 
   // ---------------- Fetch Events ----------------
   const fetchEvents = async () => {
@@ -207,6 +213,7 @@ const handleDialogOpenChange = (open) => {
       console.error("Error fetching registrations:", err);
     }
   };
+
   // ---------------- Fetch Favorite Events from backend ----------------
   const fetchFavoriteEvents = async () => {
     try {
@@ -233,7 +240,7 @@ const handleDialogOpenChange = (open) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const now = new Date();
+  const now = new Date(); // used for status + 30-day window
 
   // Decide event status based on time
   const getEventStatus = (event) => {
@@ -290,6 +297,12 @@ const handleDialogOpenChange = (open) => {
 
     // 🔹 Status filter: all | upcoming | ongoing | completed
     const eventStatus = getEventStatus(event);
+
+    // ⭐ Completed-events 30-day logic
+    const endDate = event.end_datetime ? new Date(event.end_datetime) : null;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     let matchesStatus = true;
 
     if (statusFilter === "upcoming") {
@@ -297,9 +310,16 @@ const handleDialogOpenChange = (open) => {
     } else if (statusFilter === "ongoing") {
       matchesStatus = eventStatus === "ongoing";
     } else if (statusFilter === "completed") {
-      matchesStatus = eventStatus === "completed";
+      // only completed events from the last 30 days
+      matchesStatus =
+        eventStatus === "completed" &&
+        endDate &&
+        endDate <= now &&
+        endDate >= thirtyDaysAgo;
     } else if (statusFilter === "all") {
-      matchesStatus = eventStatus === "upcoming" || eventStatus === "ongoing";
+      // keep only upcoming + ongoing in "All Events" view
+      matchesStatus =
+        eventStatus === "upcoming" || eventStatus === "ongoing";
     }
 
     return matchesSearch && matchesCategory && matchesStatus;
@@ -465,17 +485,25 @@ const handleDialogOpenChange = (open) => {
       startDate && startTime ? `${startDate}T${startTime}` : "";
     const combinedEnd = endDate && endTime ? `${endDate}T${endTime}` : "";
 
-    // --- NEW: Per-organization permission check ---
-    const privilegedOrgIds = organizations
-      .filter((org) => PRIVILEGED_ORG_ROLES.includes(org?.current_org_role))
-      .map((org) => org.id);
+    // ⭐ ADMIN CHANGE: org permission check only for non-admins
+    const privilegedOrgIds =
+      user.role === "admin"
+        ? organizations.map((org) => org.id) // admin can use any org
+        : organizations
+            .filter((org) =>
+              PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
+            )
+            .map((org) => org.id);
 
     if (!newEvent.organization_id) {
       toast.error("Please select an organization for this event");
       return;
     }
 
-    if (!privilegedOrgIds.includes(newEvent.organization_id)) {
+    if (
+      user.role !== "admin" && // admin skips this restriction
+      !privilegedOrgIds.includes(newEvent.organization_id)
+    ) {
       toast.error(
         "You can only create events for organizations where you are coordinator, event manager, lead faculty, or admin delegate."
       );
@@ -503,37 +531,37 @@ const handleDialogOpenChange = (open) => {
       toast.error("Capacity must be between 1 and 1000");
       return;
     }
-      const start = new Date(combinedStart);
-      const end = new Date(combinedEnd);
-      const now = new Date();
+    const start = new Date(combinedStart);
+    const end = new Date(combinedEnd);
+    const nowCreate = new Date();
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    toast.error("Invalid start or end time");
-    return;
+      toast.error("Invalid start or end time");
+      return;
     }
 
-    if (start <= now) {
-    toast.error("Start time must be in the future");
-    return;
+    if (start <= nowCreate) {
+      toast.error("Start time must be in the future");
+      return;
     }
-      // 2) end must be at least 30 minutes after start
+    // 2) end must be at least 30 minutes after start
     const diffMs = end.getTime() - start.getTime();
     const minDurationMs = 30 * 60 * 1000; // 30 mins
     if (diffMs < minDurationMs) {
-    toast.error(
-      "End time must be at least 30 minutes after the start time"
+      toast.error(
+        "End time must be at least 30 minutes after the start time"
       );
       return;
     }
-    
-  const event = {
-    ...newEvent,
-    start_datetime: combinedStart,
-    end_datetime: combinedEnd,
-    capacity: capacityNum,
-    created_by: user.user_id,
-    registered_count: 0,
-    status: "approved",
-  };
+
+    const event = {
+      ...newEvent,
+      start_datetime: combinedStart,
+      end_datetime: combinedEnd,
+      capacity: capacityNum,
+      created_by: user.user_id,
+      registered_count: 0,
+      status: "approved",
+    };
 
     try {
       const res = await fetch("http://localhost:5000/api/events", {
@@ -572,7 +600,8 @@ const handleDialogOpenChange = (open) => {
       toast.error(err.message || "Failed to create event");
     }
   };
-  // ---------------- Update Event (admin) ----------------
+
+  // ---------------- Update Event (admin/creator) ----------------
   const handleUpdateEvent = async () => {
     if (!editingEvent) return;
 
@@ -616,7 +645,7 @@ const handleDialogOpenChange = (open) => {
       return;
     }
 
-    const now = new Date();
+    const nowUpdate = new Date();
     const start = new Date(combinedStart);
     const end = new Date(combinedEnd);
 
@@ -723,12 +752,13 @@ const handleDialogOpenChange = (open) => {
     }
   };
 
-  // ---------------- Admin: open edit dialog ----------------
+  // ---------------- Admin/creator: open edit dialog ----------------
   const handleOpenEditDialog = (event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
     const isAdmin = user.role === "admin";
 
     if (!isAdmin && !isCreator) return;
+
     // Convert existing datetimes into date + time fields
     const parseDate = (dt) => {
       if (!dt) return "";
@@ -765,8 +795,8 @@ const handleDialogOpenChange = (open) => {
     setEditingEvent(event);
     setIsCreateDialogOpen(true);
   };
-  // ---------------- Helpers ----------------
 
+  // ---------------- Helpers ----------------
   const formatDateTime = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -785,6 +815,7 @@ const handleDialogOpenChange = (open) => {
     event.registered_count && event.capacity
       ? event.registered_count >= event.capacity
       : false;
+
   // ---------------- Stats for footer ----------------
   const totalEventsCount = combinedEvents.filter((event) => {
     return event.status === "approved";
@@ -1052,7 +1083,7 @@ const handleDialogOpenChange = (open) => {
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
-              setStatusFilter("all"); // ✅ back to upcoming dashboard
+              setStatusFilter("all"); // back to upcoming dashboard
             }}
           >
             All Events
@@ -1095,7 +1126,6 @@ const handleDialogOpenChange = (open) => {
               setStatusFilter("upcoming");
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
-              // we keep selectedCategory so they can still filter by category in past view
             }}
           >
             Upcoming Events
@@ -1114,6 +1144,7 @@ const handleDialogOpenChange = (open) => {
           >
             Ongoing Events
           </Button>
+
           {/* Completed events */}
           <Button
             type="button"
@@ -1123,7 +1154,6 @@ const handleDialogOpenChange = (open) => {
               setStatusFilter("completed");
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
-              // we keep selectedCategory so they can still filter by category in past view
             }}
           >
             Completed Events
@@ -1133,6 +1163,7 @@ const handleDialogOpenChange = (open) => {
         {/* Category filters (only for All Events view visually, but we keep them active) */}
         <div className="hidden"></div>
       </div>
+
       {/* Events list – same card grid for all roles & filters */}
       <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1145,17 +1176,15 @@ const handleDialogOpenChange = (open) => {
             const isFull = isEventFull(event);
             const isCreator = Number(event.created_by) === Number(user.user_id);
             const isAdmin = user.role === "admin";
-            const showRSVP = !isCreator; // anyone who is NOT the creator (admin or normal user)
+            const showRSVP = !isCreator; // anyone who is NOT the creator
 
+            // per-event status + completed flag
+            const eventStatus = getEventStatus(event);
+            const isCompleted = eventStatus === "completed";
 
             const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
               isRegistered ? "border-green-500" : "border-gray-200"
             }`;
-
-            let statusLabel = "";
-            if (isCreator) {
-              statusLabel = `You created this event. Status: ${event.status}`;
-            }
 
             return (
               <Card
@@ -1202,11 +1231,12 @@ const handleDialogOpenChange = (open) => {
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{formatDateTime(event.start_datetime)}
+                      <span>
+                        {formatDateTime(event.start_datetime)}
                         {event.end_datetime && (
                           <>
-                          {" - "}
-                          {formatDateTime(event.end_datetime)}
+                            {" - "}
+                            {formatDateTime(event.end_datetime)}
                           </>
                         )}
                       </span>
@@ -1223,7 +1253,9 @@ const handleDialogOpenChange = (open) => {
                       </span>
                     </div>
                   </div>
-                  {showRSVP &&(
+
+                  {/* hide RSVP for completed events */}
+                  {showRSVP && !isCompleted && (
                     <Button
                       size="sm"
                       variant={isRegistered ? "outline" : "default"}
@@ -1233,50 +1265,65 @@ const handleDialogOpenChange = (open) => {
                     >
                       {isRegistered ? (
                         <>
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Cancel RSVP   
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Cancel RSVP
                         </>
-                      ): isFull ? (
+                      ) : isFull ? (
                         "Event Full"
                       ) : (
-                        <><CheckCircle className="h-4 w-4 mr-1" />
-                        RSVP
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          RSVP
                         </>
                       )}
-                      </Button>
-                      )}
-
-                  {(isAdmin || isCreator) && (
-                    <div className="w-full space-y-2">
-                      {/* ✅ Only creator sees this text */}
-                      {isCreator && (
-                      <Button
-                      size="sm"
-                      variant="default"
-                      disabled
-                      className="w-full cursor-default select-none disabled:opacity-100 disabled:pointer-events-none"
-                      >
-                      You created this event.
-                      </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={() => handleOpenEditDialog(event)}
-                        className="w-full"
-                      >
-                        Edit Event
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleCancelEvent(event.event_id)}
-                        className="w-full"
-                      >
-                        <XCircle className="h-4 w-4 mr-1" /> Cancel Event
-                      </Button>
-                    </div>
+                    </Button>
                   )}
 
+                  {/* creator/admin block */}
+                  {(isAdmin || isCreator) && (
+                    <div className="w-full space-y-2">
+                      {isCompleted ? (
+                        // COMPLETED EVENT → only show "Event completed."
+                        <Button
+                          size="sm"
+                          variant="default"
+                          disabled
+                          className="w-full cursor-default select-none disabled:opacity-100 disabled:pointer-events-none"
+                        >
+                          Event completed.
+                        </Button>
+                      ) : (
+                        <>
+                          {/* Only creator sees this text */}
+                          {isCreator && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled
+                              className="w-full cursor-default select-none disabled:opacity-100 disabled:pointer-events-none"
+                            >
+                              You created this event.
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenEditDialog(event)}
+                            className="w-full"
+                          >
+                            Edit Event
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleCancelEvent(event.event_id)}
+                            className="w-full"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" /> Cancel Event
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
