@@ -136,7 +136,7 @@ export default function EventsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
 
-  // Description popup dialog state
+  // Description popup dialog state (like FavoritesPage)
   const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] =
     useState(false);
   const [descriptionEvent, setDescriptionEvent] = useState(null);
@@ -1229,9 +1229,15 @@ export default function EventsPage() {
             const eventStatus = getEventStatus(event);
             const isCompleted = eventStatus === "completed";
 
-            const description = event.description || "";
+            // --- description handling (same style as FavoritesPage) ---
+            const fullDescription = event.description || "";
+            const MAX_PREVIEW_CHARS = 35;
             const shouldShowMore =
-              description.length > 80 || description.includes("\n");
+              fullDescription.length > MAX_PREVIEW_CHARS;
+
+            const previewDescription = shouldShowMore
+              ? fullDescription.slice(0, MAX_PREVIEW_CHARS).trimEnd() + "..."
+              : fullDescription;
 
             const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
               isRegistered ? "border-green-500" : "border-gray-200"
@@ -1275,22 +1281,26 @@ export default function EventsPage() {
                   </div>
 
                   <CardTitle className="text-lg">{event.title}</CardTitle>
+
+                  {/* DESCRIPTION line + Show more (one line) */}
                   <CardDescription className="space-y-1">
-                    <span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
-                      {description}
-                    </span>
-                    {shouldShowMore && (
-                      <button
-                        type="button"
-                        className="text-xs text-blue-600 hover:underline"
-                        onClick={() => {
-                          setDescriptionEvent(event);
-                          setIsDescriptionDialogOpen(true);
-                        }}
-                      >
-                        Show more
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1 max-w-full">
+                      <span className="truncate flex-1 min-w-0">
+                        {previewDescription}
+                      </span>
+                      {shouldShowMore && (
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:underline flex-shrink-0"
+                          onClick={() => {
+                            setDescriptionEvent(event);
+                            setIsDescriptionDialogOpen(true);
+                          }}
+                        >
+                          Show more
+                        </button>
+                      )}
+                    </div>
                   </CardDescription>
                 </CardHeader>
 
@@ -1409,7 +1419,7 @@ export default function EventsPage() {
         )}
       </>
 
-      {/* Description Dialog */}
+      {/* Description Dialog (full text) */}
       <Dialog
         open={isDescriptionDialogOpen}
         onOpenChange={(open) => {
@@ -1420,8 +1430,10 @@ export default function EventsPage() {
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{descriptionEvent?.title}</DialogTitle>
-            <DialogDescription className="whitespace-pre-line">
-              {descriptionEvent?.description}
+            <DialogDescription>
+              <span className="whitespace-pre-wrap">
+                {descriptionEvent?.description}
+              </span>
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
