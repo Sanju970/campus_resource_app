@@ -53,7 +53,7 @@ CREATE TABLE organizations (
     contact VARCHAR(255),
     website VARCHAR(255),
     category_id INT,
-    created_by INT NOT NULL,     -- must be GLOBAL ADMIN
+    created_by INT NOT NULL,     
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -82,7 +82,7 @@ CREATE TABLE organization_members (
 );
 
 -- ============================================================
--- 4. EVENTS  (UPDATED WITH MISSING COLUMNS & FKs)
+-- 4. EVENTS 
 -- ============================================================
 
 CREATE TABLE events (
