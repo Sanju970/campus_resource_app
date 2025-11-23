@@ -103,6 +103,7 @@ const timeOptions = [
 
 export default function EventsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   if (!user) {
     throw new Error("EventsPage must be used within an AuthProvider");
@@ -129,6 +130,9 @@ export default function EventsPage() {
   const [members, setMembers] = useState([]);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState(null);
+  // NEW: cancel confirmation dialog state
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState(null);
 
   const initialNewEventState = {
     title: "",
@@ -184,7 +188,7 @@ export default function EventsPage() {
       PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
     );
 
-  // ⭐ ADMIN CHANGE: admin can see ALL organizations in dropdown
+  // ADMIN: admin can see ALL organizations in dropdown
   const eligibleOrganizations =
     user.role === "admin"
       ? organizations
@@ -831,15 +835,15 @@ export default function EventsPage() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to load event members");
+        throw new Error(body.message || "Failed to load register members");
       }
 
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Event members fetch error:", err);
-      setMembersError(err.message || "Failed to load event members");
-      toast.error(err.message || "Failed to load event members");
+      console.error("register members fetch error:", err);
+      setMembersError(err.message || "Failed to load register members");
+      toast.error(err.message || "Failed to load register members");
     } finally {
       setIsMembersLoading(false);
     }
@@ -1277,18 +1281,22 @@ export default function EventsPage() {
                     </div>
 
                     {/* Registered members count → open centered modal */}
-                    <button
+                    <button>
                       type="button"
                       className="flex items-center gap-2 text-sm text-primary hover:underline focus:outline-none"
                       onClick={() => openMembersModal(event)}
+                    <div className="flex items-center gap-2 cursor-pointer hover:underline"
+                      onClick={() =>
+                        navigate(`/events/${event.event_id}/members`)
+                      }
                     >
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>
                         {event.registered_count || 0} / {event.capacity || 0}{" "}
                         registered
                       </span>
-                    </button>
-                  </div>
+                    </div>
+                  </button>
 
                   {/* hide RSVP for completed events */}
                   {showRSVP && !isCompleted && (
@@ -1349,7 +1357,7 @@ export default function EventsPage() {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleCancelEvent(event.event_id)}
+                            onClick={() => handleCancelClick(event)}
                             className="w-full"
                           >
                             <XCircle className="h-4 w-4 mr-1" /> Cancel Event
@@ -1372,6 +1380,40 @@ export default function EventsPage() {
           </div>
         )}
       </>
+
+      {/* Cancel Event Confirmation Dialog */}
+      <Dialog
+        open={isCancelDialogOpen}
+        onOpenChange={(open) => {
+          setIsCancelDialogOpen(open);
+          if (!open) setEventToCancel(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this event?</DialogTitle>
+            <DialogDescription>
+              {eventToCancel
+                ? `Are you sure you want to cancel "${eventToCancel.title}"? This action cannot be undone.`
+                : "Are you sure you want to cancel this event? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCancelDialogOpen(false);
+                setEventToCancel(null);
+              }}
+            >
+              Keep Event
+            </Button>
+            <Button variant="destructive" onClick={confirmCancelEvent}>
+              Yes, Cancel Event
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick stats footer */}
       <div className="w-full mt-2 border-t pt-4 pb-4">

@@ -23,9 +23,10 @@ export default function Layout({ children, notificationCount = 0 }) {
     { id: 'events', label: 'Events', icon: CalendarDays, path: '/events' },
     { id: 'announcements', label: 'Announcements', icon: Bell, path: '/announcements' },
     { id: 'schedule', label: 'Schedule', icon: Calendar, path: '/schedule' },
-    { id: 'organizations', label: 'Organizations', icon: Info, path: '/organizations' },
-
-
+    // use Users icon for organizations
+    { id: 'organizations', label: 'Organizations', icon: Users, path: '/organizations' },
+    // NEW: About item using Info icon
+    { id: 'about', label: 'About us', icon: Info, path: '/about' },
   ];
 
   const getRoleBadgeColor = (role) => {
@@ -53,7 +54,6 @@ export default function Layout({ children, notificationCount = 0 }) {
             <span className="font-semibold">Campus Portal</span>
           </div>
           
-
           {/* Desktop Navigation - solid bg */}
           <nav className="hidden md:flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded">
             {navigationItems.map((item) => {

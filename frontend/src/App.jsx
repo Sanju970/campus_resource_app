@@ -24,6 +24,8 @@ import AllUsersPage from "./components/AllUsersPage";
 
 // ⭐ NEW IMPORT
 import EventMembersPage from "./components/EventMembersPage";
+// ⭐ NEW IMPORT
+import AboutPage from './components/AboutPage'; 
 
 function AppContent() {
   const { user, setUser } = useAuth();
@@ -58,6 +60,7 @@ function AppContent() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+      <Route path="/about" element={<AboutPage />}
 
       {/* If not logged in, redirect everything else to login */}
       {!user ? (
@@ -86,6 +89,10 @@ function AppContent() {
                 <Route path="/organizations/:orgId" element={<OrganizationDetails />} />
                 <Route path="/users/:userId" element={<UserPublicProfile />} />
                 <Route path="/people" element={<AllUsersPage />} />
+
+                 {/* ⭐ NEW ROUTE: About PAGE */}
+                <Route path="/about" element={<AboutPage />}
+                
 
                 <Route
                   path="/admin"
