@@ -106,7 +106,6 @@ export default function EventsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-
   if (!user) {
     throw new Error("EventsPage must be used within an AuthProvider");
   }
@@ -126,6 +125,10 @@ export default function EventsPage() {
 
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+
+  // NEW: cancel confirmation dialog state
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState(null);
 
   const initialNewEventState = {
     title: "",
@@ -181,7 +184,7 @@ export default function EventsPage() {
       PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
     );
 
-  // ⭐ ADMIN CHANGE: admin can see ALL organizations in dropdown
+  // ADMIN: admin can see ALL organizations in dropdown
   const eligibleOrganizations =
     user.role === "admin"
       ? organizations
@@ -235,6 +238,19 @@ export default function EventsPage() {
     }
   };
 
+  const fetchOrganizations = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/organizations", {
+        params: { user_id: user.user_id },
+      });
+
+      setOrganizations(res.data || []);
+    } catch (err) {
+      console.error("Error fetching organizations:", err);
+      toast.error("Failed to load organizations");
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
@@ -268,14 +284,13 @@ export default function EventsPage() {
     const isCreator = Number(event.created_by) === Number(user.user_id);
     const isRegistered = registeredEvents.includes(event.event_id);
 
-    // 🔹 Find this event's organization and membership
     const eventOrg = organizations.find(
       (org) => Number(org.id) === Number(event.org_id)
     );
     const isOrgMember = eventOrg ? Boolean(eventOrg.is_member) : false;
     const isMembersOnly = Boolean(event.members_only);
 
-    // 🔒 Hide members-only events from non-members (except admin + creator)
+    // Hide members-only events from non-members (except admin + creator)
     if (isMembersOnly && !isOrgMember && !isCreator && user.role !== "admin") {
       return false;
     }
@@ -298,10 +313,10 @@ export default function EventsPage() {
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // 🔹 Status filter: all | upcoming | ongoing | completed
+    // Status filter: all | upcoming | ongoing | completed
     const eventStatus = getEventStatus(event);
 
-    // ⭐ Completed-events 30-day logic
+    // Completed-events 30-day logic
     const endDate = event.end_datetime ? new Date(event.end_datetime) : null;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -329,14 +344,9 @@ export default function EventsPage() {
   });
 
   // ---------------- Stats baseline: "All Events" view ----------------
-  // This ignores Created/Registered toggles and statusFilter.
-  // It always behaves like: statusFilter = 'all' (upcoming + ongoing)
-  // but still respects search, category, and members-only visibility.
   const allEventsForStats = combinedEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
-    const isRegistered = registeredEvents.includes(event.event_id);
 
-    // Same members-only rule as filteredEvents
     const eventOrg = organizations.find(
       (org) => Number(org.id) === Number(event.org_id)
     );
@@ -356,29 +366,12 @@ export default function EventsPage() {
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // Force "All Events" time logic here: upcoming + ongoing only
     const eventStatus = getEventStatus(event);
     const matchesStatus =
       eventStatus === "upcoming" || eventStatus === "ongoing";
 
     return matchesSearch && matchesCategory && matchesStatus;
   });
-
-
-  // Fetch organizations for the Organization dropdown
-  const fetchOrganizations = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/organizations", {
-        params: { user_id: user.user_id },
-      });
-
-      // Backend returns an array of orgs
-      setOrganizations(res.data || []);
-    } catch (err) {
-      console.error("Error fetching organizations:", err);
-      toast.error("Failed to load organizations");
-    }
-  };
 
   // ---------------- RSVP (students + faculty) ----------------
   const handleRSVP = async (eventId) => {
@@ -463,7 +456,6 @@ export default function EventsPage() {
     const isFavorite = favoriteEvents.includes(eventId);
 
     if (!isFavorite) {
-      // ADD to favorites: insert into DB
       try {
         await axios.post("http://localhost:5000/api/favorites", {
           user_id: user.user_id,
@@ -475,7 +467,6 @@ export default function EventsPage() {
         toast.success("Event added to favorites");
       } catch (err) {
         if (err.response?.status === 409) {
-          // duplicate – already exists in DB
           toast.info("Already in favorites");
           if (!favoriteEvents.includes(eventId)) {
             setFavoriteEvents((prev) => [...prev, eventId]);
@@ -486,7 +477,6 @@ export default function EventsPage() {
         }
       }
     } else {
-      // REMOVE from favorites: delete from DB
       try {
         await axios.delete("http://localhost:5000/api/favorites", {
           data: {
@@ -525,10 +515,10 @@ export default function EventsPage() {
       startDate && startTime ? `${startDate}T${startTime}` : "";
     const combinedEnd = endDate && endTime ? `${endDate}T${endTime}` : "";
 
-    // ⭐ ADMIN CHANGE: org permission check only for non-admins
+    // org permission check only for non-admins
     const privilegedOrgIds =
       user.role === "admin"
-        ? organizations.map((org) => org.id) // admin can use any org
+        ? organizations.map((org) => org.id)
         : organizations
             .filter((org) =>
               PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
@@ -541,7 +531,7 @@ export default function EventsPage() {
     }
 
     if (
-      user.role !== "admin" && // admin skips this restriction
+      user.role !== "admin" &&
       !privilegedOrgIds.includes(newEvent.organization_id)
     ) {
       toast.error(
@@ -583,7 +573,6 @@ export default function EventsPage() {
       toast.error("Start time must be in the future");
       return;
     }
-    // 2) end must be at least 30 minutes after start
     const diffMs = end.getTime() - start.getTime();
     const minDurationMs = 30 * 60 * 1000; // 30 mins
     if (diffMs < minDurationMs) {
@@ -619,18 +608,7 @@ export default function EventsPage() {
       setEvents((prev) => [savedEvent, ...prev]);
       setIsCreateDialogOpen(false);
 
-      setNewEvent({
-        title: "",
-        description: "",
-        date_time: "",
-        end_time: "",
-        location: "",
-        capacity: "",
-        category_id: "",
-        registration_required: false,
-        members_only: false,
-        instructor_email: "",
-      });
+      setNewEvent(initialNewEventState);
       setStartTime("");
       setEndTime("");
 
@@ -685,10 +663,6 @@ export default function EventsPage() {
       return;
     }
 
-    const nowUpdate = new Date();
-    const start = new Date(combinedStart);
-    const end = new Date(combinedEnd);
-
     const eventToSend = {
       title,
       description,
@@ -724,20 +698,9 @@ export default function EventsPage() {
         )
       );
 
-      // Reset dialog + form
       setEditingEvent(null);
       setIsCreateDialogOpen(false);
-      setNewEvent({
-        title: "",
-        description: "",
-        date_time: "",
-        end_time: "",
-        location: "",
-        capacity: "",
-        category_id: "",
-        registration_required: false,
-        instructor_email: "",
-      });
+      setNewEvent(initialNewEventState);
       setStartTime("");
       setEndTime("");
 
@@ -748,21 +711,22 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Cancel/Delete Event ----------------
-  const handleCancelEvent = async (eventId) => {
-    const eventToCancel = events.find((e) => e.event_id === eventId);
-    if (!eventToCancel) return;
-
-    const isCreator = Number(eventToCancel.created_by) === Number(user.user_id);
+  // ---------------- Cancel/Delete Event: OPEN dialog ----------------
+  const handleCancelClick = (event) => {
+    const isCreator = Number(event.created_by) === Number(user.user_id);
     const isAdmin = user.role === "admin";
 
-    // ✅ Admin can cancel/delete ANY event
-    // ✅ Non-admins can only cancel their own events
     if (!isAdmin && !isCreator) return;
 
-    if (!window.confirm("Are you sure you want to delete/cancel this event?")) {
-      return;
-    }
+    setEventToCancel(event);
+    setIsCancelDialogOpen(true);
+  };
+
+  // ---------------- Confirm Cancel in dialog ----------------
+  const confirmCancelEvent = async () => {
+    if (!eventToCancel) return;
+
+    const eventId = eventToCancel.event_id;
 
     try {
       const response = await fetch(
@@ -782,13 +746,15 @@ export default function EventsPage() {
         prevEvents.filter((e) => e.event_id !== eventId)
       );
 
-      // Also remove from registered list if it was there
       setRegisteredEvents((prev) => prev.filter((id) => id !== eventId));
 
       toast.success("Event deleted/cancelled successfully");
     } catch (err) {
       console.error("Cancel event error:", err);
       toast.error(err.message || "Failed to cancel event");
+    } finally {
+      setIsCancelDialogOpen(false);
+      setEventToCancel(null);
     }
   };
 
@@ -799,7 +765,6 @@ export default function EventsPage() {
 
     if (!isAdmin && !isCreator) return;
 
-    // Convert existing datetimes into date + time fields
     const parseDate = (dt) => {
       if (!dt) return "";
       const d = new Date(dt);
@@ -827,6 +792,8 @@ export default function EventsPage() {
       category_id: event.category_id || "",
       registration_required: !!event.registration_required,
       instructor_email: event.instructor_email || "",
+      organization_id: event.org_id || "",
+      members_only: !!event.members_only,
     });
 
     setStartTime(parseTime(event.start_datetime));
@@ -857,7 +824,6 @@ export default function EventsPage() {
       : false;
 
   // ---------------- Stats for footer ----------------
-  // Always based on the "All Events" baseline (allEventsForStats)
   const totalEventsCount = allEventsForStats.length;
 
   const createdEventsCount = allEventsForStats.filter(
@@ -868,7 +834,6 @@ export default function EventsPage() {
     registeredEvents.includes(event.event_id)
   ).length;
 
- 
   // ---------------- JSX ----------------
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -1121,13 +1086,13 @@ export default function EventsPage() {
               setShowCreatedEventsOnly(false);
               setShowRegisteredEventsOnly(false);
               setSelectedCategory(null);
-              setStatusFilter("all"); // back to upcoming dashboard
+              setStatusFilter("all");
             }}
           >
             All Events
           </Button>
 
-          {/*Created Events*/}
+          {/* Created Events */}
           <Button
             variant={showCreatedEventsOnly ? "default" : "outline"}
             size="sm"
@@ -1169,7 +1134,7 @@ export default function EventsPage() {
             Upcoming Events
           </Button>
 
-          {/* Ongoing  events */}
+          {/* Ongoing events */}
           <Button
             type="button"
             variant={statusFilter === "ongoing" ? "default" : "outline"}
@@ -1198,11 +1163,10 @@ export default function EventsPage() {
           </Button>
         </div>
 
-        {/* Category filters (only for All Events view visually, but we keep them active) */}
         <div className="hidden"></div>
       </div>
 
-      {/* Events list – same card grid for all roles & filters */}
+      {/* Events list */}
       <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => {
@@ -1214,9 +1178,8 @@ export default function EventsPage() {
             const isFull = isEventFull(event);
             const isCreator = Number(event.created_by) === Number(user.user_id);
             const isAdmin = user.role === "admin";
-            const showRSVP = !isCreator; // anyone who is NOT the creator
+            const showRSVP = !isCreator;
 
-            // per-event status + completed flag
             const eventStatus = getEventStatus(event);
             const isCompleted = eventStatus === "completed";
 
@@ -1283,9 +1246,12 @@ export default function EventsPage() {
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span>{event.location}</span>
                     </div>
-                    <div className="flex items-center gap-2 cursor-pointer hover:underline"
-                      onClick={() => navigate(`/events/${event.event_id}/members`)}
-                      >    
+                    <div
+                      className="flex items-center gap-2 cursor-pointer hover:underline"
+                      onClick={() =>
+                        navigate(`/events/${event.event_id}/members`)
+                      }
+                    >
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>
                         {event.registered_count || 0} / {event.capacity || 0}{" "}
@@ -1319,11 +1285,9 @@ export default function EventsPage() {
                     </Button>
                   )}
 
-                  {/* creator/admin block */}
                   {(isAdmin || isCreator) && (
                     <div className="w-full space-y-2">
                       {isCompleted ? (
-                        // COMPLETED EVENT → only show "Event completed."
                         <Button
                           size="sm"
                           variant="default"
@@ -1334,7 +1298,6 @@ export default function EventsPage() {
                         </Button>
                       ) : (
                         <>
-                          {/* Only creator sees this text */}
                           {isCreator && (
                             <Button
                               size="sm"
@@ -1355,7 +1318,7 @@ export default function EventsPage() {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleCancelEvent(event.event_id)}
+                            onClick={() => handleCancelClick(event)}
                             className="w-full"
                           >
                             <XCircle className="h-4 w-4 mr-1" /> Cancel Event
@@ -1378,6 +1341,40 @@ export default function EventsPage() {
           </div>
         )}
       </>
+
+      {/* Cancel Event Confirmation Dialog */}
+      <Dialog
+        open={isCancelDialogOpen}
+        onOpenChange={(open) => {
+          setIsCancelDialogOpen(open);
+          if (!open) setEventToCancel(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this event?</DialogTitle>
+            <DialogDescription>
+              {eventToCancel
+                ? `Are you sure you want to cancel "${eventToCancel.title}"? This action cannot be undone.`
+                : "Are you sure you want to cancel this event? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCancelDialogOpen(false);
+                setEventToCancel(null);
+              }}
+            >
+              Keep Event
+            </Button>
+            <Button variant="destructive" onClick={confirmCancelEvent}>
+              Yes, Cancel Event
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick stats footer */}
       <div className="w-full mt-2 border-t pt-4 pb-4">
