@@ -67,6 +67,39 @@ router.get('/', async (req, res) => {
       .json({ message: 'Failed to fetch events', error: err.message });
   }
 });
+/* ================================
+   GET all registered users for ONE event
+   GET /api/events/:event_id/registrations
+================================== */
+router.get('/:event_id/registrations', async (req, res) => {
+  const eventId = req.params.event_id;
+
+  const query = `
+    SELECT 
+      u.user_id,
+      u.user_uid,
+      u.first_name,
+      u.last_name,
+      u.email,
+      r.role_name
+    FROM event_registrations er
+    JOIN users u ON er.user_id = u.user_id
+    JOIN roles r ON u.role_id = r.role_id
+    WHERE er.event_id = ?
+    ORDER BY u.first_name ASC
+  `;
+
+  try {
+    const [rows] = await pool.query(query, [eventId]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Fetch event members error:', err);
+    res.status(500).json({
+      message: 'Failed to fetch event members',
+      error: err.message,
+    });
+  }
+});
 
 /* ================================
    GET user registrations
