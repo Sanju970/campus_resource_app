@@ -1138,11 +1138,11 @@ export default function EventsPage() {
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-1">
                       {category && (
-                        <Badge className={category.color}>
+                        <div className="text-sm font-semibold text-foreground">
                           {category.name}
-                        </Badge>
+                        </div>
                       )}
 
                       {isRegistered && (
@@ -1173,7 +1173,14 @@ export default function EventsPage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{formatDateTime(event.start_datetime)}</span>
+                      <span>{formatDateTime(event.start_datetime)}
+                        {event.end_datetime && (
+                          <>
+                          {" - "}
+                          {formatDateTime(event.end_datetime)}
+                          </>
+                        )}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
