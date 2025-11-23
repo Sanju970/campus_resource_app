@@ -325,6 +325,43 @@ export default function EventsPage() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
+  // ---------------- Stats baseline: "All Events" view ----------------
+  // This ignores Created/Registered toggles and statusFilter.
+  // It always behaves like: statusFilter = 'all' (upcoming + ongoing)
+  // but still respects search, category, and members-only visibility.
+  const allEventsForStats = combinedEvents.filter((event) => {
+    const isCreator = Number(event.created_by) === Number(user.user_id);
+    const isRegistered = registeredEvents.includes(event.event_id);
+
+    // Same members-only rule as filteredEvents
+    const eventOrg = organizations.find(
+      (org) => Number(org.id) === Number(event.org_id)
+    );
+    const isOrgMember = eventOrg ? Boolean(eventOrg.is_member) : false;
+    const isMembersOnly = Boolean(event.members_only);
+
+    if (isMembersOnly && !isOrgMember && !isCreator && user.role !== "admin") {
+      return false;
+    }
+
+    const matchesSearch =
+      searchQuery === "" ||
+      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.location.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory =
+      !selectedCategory || event.category_id === selectedCategory;
+
+    // Force "All Events" time logic here: upcoming + ongoing only
+    const eventStatus = getEventStatus(event);
+    const matchesStatus =
+      eventStatus === "upcoming" || eventStatus === "ongoing";
+
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+
   // Fetch organizations for the Organization dropdown
   const fetchOrganizations = async () => {
     try {
@@ -817,17 +854,17 @@ export default function EventsPage() {
       : false;
 
   // ---------------- Stats for footer ----------------
-  // ---------------- Stats for footer ----------------
-  // Use the same filteredEvents that drives the visible cards
-  const totalEventsCount = filteredEvents.length;
+  // Always based on the "All Events" baseline (allEventsForStats)
+  const totalEventsCount = allEventsForStats.length;
 
-  const createdEventsCount = filteredEvents.filter(
+  const createdEventsCount = allEventsForStats.filter(
     (event) => Number(event.created_by) === Number(user.user_id)
   ).length;
 
-  const registeredEventsCount = filteredEvents.filter((event) =>
+  const registeredEventsCount = allEventsForStats.filter((event) =>
     registeredEvents.includes(event.event_id)
   ).length;
+
  
   // ---------------- JSX ----------------
   return (
