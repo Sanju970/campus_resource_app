@@ -22,6 +22,9 @@ import OrganizationDetails from './components/OrganizationDetails';
 import UserPublicProfile from "./components/UserPublicProfile";
 import AllUsersPage from "./components/AllUsersPage";
 
+// ⭐ NEW IMPORT
+import EventMembersPage from "./components/EventMembersPage";
+
 function AppContent() {
   const { user, setUser } = useAuth();
   const [currentPage, setCurrentPage] = useState("home");
@@ -68,6 +71,10 @@ function AppContent() {
               <Routes>
                 <Route path="/" element={<HomePage onNavigate={setCurrentPage} />} />
                 <Route path="/events" element={<EventsPage />} />
+
+                {/* ⭐ NEW ROUTE: EVENT MEMBERS PAGE */}
+                <Route path="/events/:eventId/members" element={<EventMembersPage />} />
+
                 <Route path="/announcements" element={<AnnouncementsPage />} />
                 <Route path="/materials" element={<MaterialsPage />} />
                 <Route path="/organizations" element={<OrganizationsPage />} />

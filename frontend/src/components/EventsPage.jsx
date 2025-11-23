@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Card,
@@ -103,6 +104,8 @@ const timeOptions = [
 
 export default function EventsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
 
   if (!user) {
     throw new Error("EventsPage must be used within an AuthProvider");
@@ -1280,7 +1283,9 @@ export default function EventsPage() {
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span>{event.location}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 cursor-pointer hover:underline"
+                      onClick={() => navigate(`/events/${event.event_id}/members`)}
+                      >    
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>
                         {event.registered_count || 0} / {event.capacity || 0}{" "}
