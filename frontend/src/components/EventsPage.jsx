@@ -1214,9 +1214,14 @@ export default function EventsPage() {
                     <div className="w-full space-y-2">
                       {/* ✅ Only creator sees this text */}
                       {isCreator && (
-                      <p className="text-xs text-muted-foreground">
+                      <Button
+                      size="sm"
+                      variant="default"
+                      disabled
+                      className="w-full cursor-default select-none disabled:opacity-100 disabled:pointer-events-none"
+                      >
                       You created this event.
-                      </p>
+                      </Button>
                       )}
                       <Button
                         size="sm"
