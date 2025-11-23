@@ -817,20 +817,18 @@ export default function EventsPage() {
       : false;
 
   // ---------------- Stats for footer ----------------
-  const totalEventsCount = combinedEvents.filter((event) => {
-    return event.status === "approved";
-  }).length;
+  // ---------------- Stats for footer ----------------
+  // Use the same filteredEvents that drives the visible cards
+  const totalEventsCount = filteredEvents.length;
 
-  const createdEventsCount = combinedEvents.filter(
+  const createdEventsCount = filteredEvents.filter(
     (event) => Number(event.created_by) === Number(user.user_id)
   ).length;
 
-  // "My events" = events I'm registered for AND approved
-  const registeredEventsCount = combinedEvents.filter(
-    (event) =>
-      registeredEvents.includes(event.event_id) && event.status === "approved"
+  const registeredEventsCount = filteredEvents.filter((event) =>
+    registeredEvents.includes(event.event_id)
   ).length;
-
+ 
   // ---------------- JSX ----------------
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
