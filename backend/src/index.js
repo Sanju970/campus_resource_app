@@ -38,7 +38,7 @@ app.use(
 app.use((req, res, next) => {
   // echo the configured frontend origin (only if set)
   if (FRONTEND_URL) {
-    res.header("Access-Control-Allow-Origin", FRONTEND_URL);
+    res.header("Access-Control-Allow-Origin", FRONTEND_URL  || "http://localhost:3000");
   }
   res.header("Access-Control-Allow-Credentials", "true");
   res.header(
