@@ -417,16 +417,6 @@ export default function ProfilePage() {
             <NotificationToggle />
           </div>
 
-          <div className="flex items-center justify-between border-t pt-4">
-            <div>
-              <p>Privacy Settings</p>
-              <p className="text-sm text-muted-foreground">
-                Control who can see your profile
-              </p>
-            </div>
-            <Button variant="outline" size="sm">Manage</Button>
-          </div>
-
           {/* Change Password Dropdown Section */}
           <ChangePasswordSection />
         </CardContent>
