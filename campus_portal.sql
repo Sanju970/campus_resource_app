@@ -201,8 +201,9 @@ VALUES
 ('Karen', 'Mitchell', 'fac0001', 'fac0001@gmail.com',
  '$2a$10$jOeOu5nm3qsxZzfTJOJ/YeGoedwZK0alkuU/daw1sFhUwt1bmKsQi', 2),
 ('Bob', 'Lee', 'stu0001', 'stu0001@gmail.com',
- '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
-
+ '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1),
+('Ron', 'Weasley', 'adm913540', 'adm913540@gmail.com',
+ '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3);
 
 INSERT INTO campus_locations (location_name, building, room) VALUES
 ('Central Building', 'Central Building', NULL),
