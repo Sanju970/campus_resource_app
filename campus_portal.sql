@@ -291,7 +291,7 @@ INSERT INTO events (
   created_by, org_id, members_only
 )
 VALUES
-('Career Fair 2025', 'Meet top companies and explore career opportunities.',
+('Career Fair 2025', 'Meet top companies',
  '2025-11-15 10:00:00', '2025-11-15 16:00:00',
  (SELECT location_id FROM campus_locations WHERE location_name = 'Main Hall, Student Union'),
  200, 3, 'Career', NULL, 1, 'approved', 1, 3, 0),
@@ -313,3 +313,131 @@ VALUES
 ('Faculty Meeting Scheduled', 'Mandatory faculty meeting Friday at 3 PM.', 'high', 2, 1),
 ('Research Grant Applications', 'Apply for new government grants.', 'medium', 2, 1),
 ('Faculty Development Workshop', 'Training on modern teaching techniques.', 'low', 2, 1);
+
+-- ============================================================
+-- ADDITIONAL SAMPLE EVENTS (ADDED FOR DEMO / FILTER TESTING)
+-- (these were appended; original SQL above unchanged)
+-- ============================================================
+
+-- 1) Upcoming: Resume Building Workshop (registration required)
+INSERT INTO events (
+ title, description, start_datetime, end_datetime,
+ location_id, capacity, category_id, category,
+ instructor_email, registration_required, status,
+ created_by, org_id, members_only
+)
+VALUES
+('Resume Building Workshop', 'Improve your resume with expert feedback.',
+ '2025-12-02 10:00:00', '2025-12-02 12:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Success Center 201'),
+ 40, 3, 'Workshop', 'fac0004@gmail.com', 1, 'approved',
+ 2, 3, 0);
+
+-- 2) Upcoming: Library Night Study Session (no registration)
+INSERT INTO events (
+ title, description, start_datetime, end_datetime, location_id,
+ capacity, category_id, category, registration_required, status,
+ created_by, org_id, members_only
+)
+VALUES
+('Library Night Study Session', 'Extended hours with snacks provided.',
+ '2025-12-05 18:00:00', '2025-12-06 00:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Central Building'),
+ 100, 1, 'Study', 0, 'approved',
+ 1, 1, 0);
+
+-- 3) Members-only: IT Club Private Coding Meetup
+INSERT INTO events (
+ title, description, start_datetime, end_datetime, location_id,
+ capacity, category_id, category, registration_required, status,
+ created_by, org_id, members_only
+)
+VALUES
+('IT Club Private Coding Meetup', 'Exclusive coding session for club members.',
+ '2025-12-10 15:00:00', '2025-12-10 17:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='IT Building 1st Floor'),
+ 20, 5, 'Meetup', 1, 'approved',
+ 6, 5, 1);
+
+-- 4) Pending: Creative Writing Contest (awaiting approval)
+INSERT INTO events (
+ title, description, start_datetime, end_datetime,
+ location_id, capacity, category_id, category,
+ registration_required, status, created_by, org_id, members_only
+)
+VALUES
+('Creative Writing Contest', 'Submit stories, poems, and essays.',
+ '2025-12-15 09:00:00', '2025-12-15 17:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Student Union 210'),
+ 80, 2, 'Contest', 0, 'pending',
+ 3, 2, 0);
+
+-- 5) Rejected event (for filtering)
+INSERT INTO events (
+ title, description, start_datetime, end_datetime,
+ location_id, capacity, category_id, category,
+ registration_required, status, created_by, org_id, members_only
+)
+VALUES
+('Unapproved Music Jam', 'Informal jam session.',
+ '2025-12-18 14:00:00', '2025-12-18 16:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Auditorium'),
+ 150, 6, 'Music', 0, 'rejected',
+ 7, 6, 0);
+
+-- 6) Past event: Midterm Stress Relief Yoga
+INSERT INTO events (
+ title, description, start_datetime, end_datetime,
+ location_id, capacity, category_id, category,
+ registration_required, status, created_by, org_id, members_only
+)
+VALUES
+('Midterm Stress Relief Yoga', 'Relaxing yoga for students.',
+ '2025-10-20 08:00:00', '2025-10-20 09:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Wellness Center Building'),
+ 60, 4, 'Wellness', 0, 'approved',
+ 5, 4, 0);
+
+-- 7) High-capacity: Winter Cultural Fest
+INSERT INTO events (
+ title, description, start_datetime, end_datetime,
+ location_id, capacity, category_id, category,
+ registration_required, status, created_by, org_id, members_only
+)
+VALUES
+('Winter Cultural Fest', 'Dance, music, and cultural stalls.',
+ '2025-12-22 17:00:00', '2025-12-22 22:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Auditorium'),
+ 500, 6, 'Festival', 0, 'approved',
+ 1, 6, 0);
+
+-- 8) IT category: Cybersecurity Basics
+INSERT INTO events (
+ title, description, start_datetime, end_datetime,
+ location_id, capacity, category_id, category,
+ instructor_email, registration_required, status,
+ created_by, org_id, members_only
+)
+VALUES
+('Cybersecurity Basics', 'Learn about secure passwords and phishing.',
+ '2025-12-08 09:00:00', '2025-12-08 11:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='IT Building 1st Floor'),
+ 70, 5, 'Tech', 'fac0001@gmail.com', 1, 'approved',
+ 2, 5, 0);
+
+-- 9 & 10) Multiple events same day: Morning Meditation & Career Counseling Drop-In
+INSERT INTO events (
+ title, description, start_datetime, end_datetime, location_id,
+ capacity, category_id, category, registration_required,
+ status, created_by, org_id, members_only
+)
+VALUES
+('Morning Meditation', 'Start your day peacefully.',
+ '2025-12-01 07:00:00', '2025-12-01 08:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Wellness Center Building'),
+ 50, 4, 'Wellness', 0, 'approved', 5, 4, 0),
+
+('Career Counseling Drop-In', 'Meet career advisors for quick advice.',
+ '2025-12-01 10:00:00', '2025-12-01 13:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name='Admin Building 2nd Floor'),
+ 30, 3, 'Career', 0, 'approved', 1, 3, 0);

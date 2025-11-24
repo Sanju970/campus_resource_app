@@ -1,3 +1,4 @@
+// src/pages/EventsPage.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
@@ -159,6 +160,7 @@ export default function EventsPage() {
   // New event form state
   const [newEvent, setNewEvent] = useState(initialNewEventState);
 
+  // Handles dialog open/close reset logic (must exist for Dialog onOpenChange)
   const handleDialogOpenChange = (open) => {
     setIsCreateDialogOpen(open);
 
@@ -201,16 +203,27 @@ export default function EventsPage() {
           PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
         );
 
+  // --------------- Helper: detect non-json HTML responses ---------------
+  const logNonJson = async (err) => {
+    try {
+      const text = err?.response?.data;
+      if (typeof text === "string" && text.trim().startsWith("<")) {
+        console.error("Server returned HTML (not JSON):", text.slice(0, 1000));
+      } else {
+        console.error("Server response error:", err.response || err.message || err);
+      }
+    } catch (e) {
+      console.error("Error reading non-json response:", e);
+    }
+  };
+
   // ---------------- Fetch Events ----------------
   const fetchEvents = async () => {
     try {
-      const res = await fetch(
-        `/events?user_id=${user.user_id}`
-      );
-      if (!res.ok) throw new Error("Network error");
-      const data = await res.json();
-      setEvents(data);
+      const res = await api.get("/events", { params: { user_id: user.user_id } });
+      setEvents(res.data || []);
     } catch (err) {
+      await logNonJson(err);
       console.error("Error fetching events:", err);
       toast.error("Failed to fetch events");
     }
@@ -218,29 +231,23 @@ export default function EventsPage() {
 
   const fetchRegisteredEvents = async () => {
     try {
-      const res = await fetch(
-        `/events/registrations/${user.user_id}`
-      );
-      if (!res.ok) throw new Error("Network error");
-      const data = await res.json();
-      setRegisteredEvents(data.map((r) => r.event_id));
+      const res = await api.get(`/events/registrations/${user.user_id}`);
+      setRegisteredEvents((res.data || []).map((r) => Number(r.event_id)));
     } catch (err) {
+      await logNonJson(err);
       console.error("Error fetching registrations:", err);
     }
   };
 
   const fetchFavoriteEvents = async () => {
     try {
-      const res = await api.get(
-        `/favorites/user/${user.user_id}`
-      );
-
+      const res = await api.get(`/favorites/user/${user.user_id}`);
       const favEventIds = res.data
         .filter((fav) => fav.item_type === "event")
         .map((fav) => Number(fav.item_id));
-
       setFavoriteEvents(favEventIds);
     } catch (err) {
+      await logNonJson(err);
       console.error("Error fetching favorite events:", err);
     }
   };
@@ -254,6 +261,7 @@ export default function EventsPage() {
 
       setOrganizations(res.data || []);
     } catch (err) {
+      await logNonJson(err);
       console.error("Error fetching organizations:", err);
       toast.error("Failed to load organizations");
     }
@@ -265,6 +273,7 @@ export default function EventsPage() {
       const res = await api.get("/locations");
       setLocations(res.data || []);
     } catch (err) {
+      await logNonJson(err);
       console.error("Error fetching locations:", err);
       toast.error("Failed to load locations");
     }
@@ -426,18 +435,11 @@ export default function EventsPage() {
       let res;
 
       if (registeredEvents.includes(eventId)) {
-        res = await fetch(`/events/${eventId}/rsvp`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.user_id }),
+        res = await api.delete(`/events/${eventId}/rsvp`, {
+          data: { user_id: user.user_id },
         });
 
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.message || "Failed to cancel RSVP");
-        }
-
-        const data = await res.json();
+        const data = res.data || {};
 
         setRegisteredEvents((prev) => prev.filter((id) => id !== eventId));
 
@@ -451,18 +453,11 @@ export default function EventsPage() {
 
         toast.success("RSVP cancelled successfully");
       } else {
-        res = await fetch(`/events/${eventId}/rsvp`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.user_id }),
+        res = await api.post(`/events/${eventId}/rsvp`, {
+          user_id: user.user_id,
         });
 
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.message || "Failed to register");
-        }
-
-        const data = await res.json();
+        const data = res.data || {};
 
         setRegisteredEvents((prev) => [...prev, eventId]);
 
@@ -477,6 +472,7 @@ export default function EventsPage() {
         toast.success("RSVP confirmed!");
       }
     } catch (err) {
+      await logNonJson(err);
       console.error("RSVP error:", err);
       toast.error(err.message || "Failed to process RSVP");
     }
@@ -497,6 +493,7 @@ export default function EventsPage() {
         setFavoriteEvents((prev) => [...prev, eventId]);
         toast.success("Event added to favorites");
       } catch (err) {
+        await logNonJson(err);
         if (err.response?.status === 409) {
           toast.info("Already in favorites");
           if (!favoriteEvents.includes(eventId)) {
@@ -520,6 +517,7 @@ export default function EventsPage() {
         setFavoriteEvents((prev) => prev.filter((id) => id !== eventId));
         toast.info("Event removed from favorites");
       } catch (err) {
+        await logNonJson(err);
         console.error("Error removing favorite:", err);
         toast.error("Could not remove favorite");
       }
@@ -625,18 +623,9 @@ export default function EventsPage() {
     };
 
     try {
-      const res = await fetch("/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(event),
-      });
+      const res = await api.post("/events", event);
 
-      if (!res.ok) {
-        const errorBody = await res.json().catch(() => ({}));
-        throw new Error(errorBody.message || "Failed to create event");
-      }
-
-      const savedEvent = await res.json();
+      const savedEvent = res.data;
       setEvents((prev) => [savedEvent, ...prev]);
       setIsCreateDialogOpen(false);
 
@@ -646,8 +635,9 @@ export default function EventsPage() {
 
       toast.success("Event created successfully");
     } catch (err) {
+      await logNonJson(err);
       console.error("Error creating event:", err);
-      toast.error(err.message || "Failed to create event");
+      toast.error(err.response?.data?.message || err.message || "Failed to create event");
     }
   };
 
@@ -708,21 +698,12 @@ export default function EventsPage() {
     };
 
     try {
-      const res = await fetch(
+      const res = await api.put(
         `/events/${editingEvent.event_id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(eventToSend),
-        }
+        eventToSend
       );
 
-      if (!res.ok) {
-        const errorBody = await res.json().catch(() => ({}));
-        throw new Error(errorBody.message || "Failed to update event");
-      }
-
-      const updatedEvent = await res.json();
+      const updatedEvent = res.data;
 
       setEvents((prev) =>
         prev.map((e) =>
@@ -738,8 +719,9 @@ export default function EventsPage() {
 
       toast.success("Event updated successfully");
     } catch (err) {
+      await logNonJson(err);
       console.error("Update event error:", err);
-      toast.error(err.message || "Failed to update event");
+      toast.error(err.response?.data?.message || err.message || "Failed to update event");
     }
   };
 
@@ -760,18 +742,7 @@ export default function EventsPage() {
     const eventId = eventToCancel.event_id;
 
     try {
-      const response = await fetch(
-        `/events/${eventId}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        const message = body?.message || "Failed to cancel event";
-        throw new Error(message);
-      }
+      const response = await api.delete(`/events/${eventId}`);
 
       setEvents((prevEvents) =>
         prevEvents.filter((e) => e.event_id !== eventId)
@@ -781,8 +752,9 @@ export default function EventsPage() {
 
       toast.success("Event deleted/cancelled successfully");
     } catch (err) {
+      await logNonJson(err);
       console.error("Cancel event error:", err);
-      toast.error(err.message || "Failed to cancel event");
+      toast.error(err.response?.data?.message || err.message || "Failed to cancel event");
     } finally {
       setIsCancelDialogOpen(false);
       setEventToCancel(null);
@@ -858,6 +830,26 @@ export default function EventsPage() {
   const registeredEventsCount = allEventsForStats.filter((event) =>
     registeredEvents.includes(event.event_id)
   ).length;
+
+  // ---------------- Members modal fetch ----------------
+  const openMembersModal = async (event) => {
+    setMembersModalEvent(event);
+    setIsMembersLoading(true);
+    setMembers([]);
+    setMembersError(null);
+
+    try {
+      // backend endpoint: GET /events/:id/registrations (adjust if your route differs)
+      const res = await api.get(`/events/${event.event_id}/registrations`);
+      setMembers(res.data || []);
+    } catch (err) {
+      await logNonJson(err);
+      console.error("Error fetching members:", err);
+      setMembersError(err.response?.data?.message || err.message || "Failed to load members");
+    } finally {
+      setIsMembersLoading(false);
+    }
+  };
 
   // ---------------- JSX ----------------
   return (
@@ -1359,7 +1351,7 @@ export default function EventsPage() {
                           disabled
                           className="w-full cursor-default select-none disabled:opacity-100 disabled:pointer-events-none"
                         >
-                          Event completed.
+                          Event completed
                         </Button>
                       ) : (
                         <>
