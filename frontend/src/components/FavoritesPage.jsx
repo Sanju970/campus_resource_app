@@ -25,6 +25,50 @@ import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { sampleAnnouncements } from '../types/announcements';
 
+// Categories (ids MUST match organization_categories.category_id in DB)
+const eventCategories = [
+  {
+    id: 1,
+    key: "Library & Study Spaces",
+    name: "Library & Study Spaces",
+    color: "bg-blue-100 text-blue-800",
+  },
+  {
+    id: 2,
+    key: "Academic Support",
+    name: "Academic Support",
+    color: "bg-green-100 text-green-800",
+  },
+  {
+    id: 3,
+    key: "Career Services",
+    name: "Career Services",
+    color: "bg-purple-100 text-purple-800",
+  },
+  {
+    id: 4,
+    key: "Health & Wellness",
+    name: "Health & Wellness",
+    color: "bg-pink-100 text-pink-800",
+  },
+  {
+    id: 5,
+    key: "IT Services",
+    name: "IT Services",
+    color: "bg-yellow-100 text-yellow-800",
+  },
+  {
+    id: 6,
+    key: "Activities",
+    name: "Activities & Student Life",
+    color: "bg-red-100 text-red-800",
+  },
+];
+
+function getCategoryById(id) {
+  return eventCategories.find((c) => c.id === Number(id));
+}
+
 export default function FavoritesPage() {
   const { user } = useAuth();
 
@@ -196,7 +240,7 @@ export default function FavoritesPage() {
                 const previewDescription = shouldShowMore
                   ? fullDescription.slice(0, MAX_PREVIEW_CHARS).trimEnd() + '...'
                   : fullDescription;
-
+                const cat = getCategoryById(event.category_id);
                 return (
                   <Card
                     key={event.event_id}
@@ -204,7 +248,11 @@ export default function FavoritesPage() {
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between mb-2">
-                        <Badge>Category {event.category_id}</Badge>
+                        <Badge className={`px-3 py-1 text-sm font-semibold rounded-md ${
+                          cat ? cat.color : ''
+                        }`}>
+                          {cat ? cat.name : `Category ${event.category_id}`}
+                        </Badge>
                         <Button
                           variant="ghost"
                           size="icon"
