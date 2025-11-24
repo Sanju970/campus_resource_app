@@ -77,6 +77,12 @@ router.post("/register", async (req, res) => {
     }
 
     const email = `${cleanUid}@gmail.com`;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+         message: "Generated email is invalid. Contact administrator.",
+      });
+    }
     const hashedPassword = await bcrypt.hash(cleanPass, 10);
 
     const sql = `
@@ -146,6 +152,7 @@ router.post("/login", async (req, res) => {
         message: "Email/User ID and password are required.",
       });
     }
+
     if (identifier.includes("@")) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(identifier.trim().toLowerCase())) {
