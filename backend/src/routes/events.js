@@ -23,7 +23,6 @@ async function createNotification(userId, message) {
    CATEGORY / FACULTY MAPPING
 ================================== */
 
-// category_id -> display name
 const CATEGORY_NAME_BY_ID = {
   1: 'Library & Study Spaces',
   2: 'Academic Support',
@@ -33,7 +32,6 @@ const CATEGORY_NAME_BY_ID = {
   6: 'Activities',
 };
 
-// category_id -> faculty user_uid
 const CATEGORY_FACULTY_UID = {
   1: 'fac0001',
   2: 'fac0002',
@@ -48,11 +46,10 @@ const CATEGORY_FACULTY_UID = {
    Return ALL events + registered_count
 ================================== */
 router.get('/', async (req, res) => {
-  // currently we ignore user_id here and let frontend filter
   let query = `
     SELECT e.*,
            (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id)
-             AS registered_count
+            AS registered_count
     FROM events e
     ORDER BY e.start_datetime DESC
   `;
@@ -62,11 +59,10 @@ router.get('/', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('Events fetch error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to fetch events', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch events', error: err.message });
   }
 });
+
 /* ================================
    GET all registered users for ONE event
    GET /api/events/:event_id/registrations
@@ -94,14 +90,11 @@ router.get('/:event_id/registrations', async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error('Fetch event members error:', err);
-    res.status(500).json({
-      message: 'Failed to fetch event members',
-      error: err.message,
-    });
+    res.status(500).json({ message: 'Failed to fetch event members', error: err.message });
   }
 });
 
- /* ================================
+/* ================================
    GET all registered members for ONE event
    GET /api/events/:event_id/members
 ================================== */
@@ -131,10 +124,7 @@ router.get('/:event_id/members', async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error('Fetch event members error:', err);
-    res.status(500).json({
-      message: 'Failed to fetch event members',
-      error: err.message,
-    });
+    res.status(500).json({ message: 'Failed to fetch event members', error: err.message });
   }
 });
 
@@ -151,9 +141,7 @@ router.get('/registrations/:user_id', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('Registration fetch error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to fetch registrations', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch registrations', error: err.message });
   }
 });
 
@@ -190,9 +178,7 @@ router.post('/:event_id/rsvp', async (req, res) => {
     res.json({ registered_count });
   } catch (err) {
     console.error('RSVP register error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to register for event', error: err.message });
+    res.status(500).json({ message: 'Failed to register for event', error: err.message });
   }
 });
 
@@ -224,34 +210,34 @@ router.delete('/:event_id/rsvp', async (req, res) => {
     res.json({ registered_count });
   } catch (err) {
     console.error('RSVP cancel error:', err);
-    res
-      .status(500)
-      .json({ message: 'Failed to cancel RSVP', error: err.message });
+    res.status(500).json({ message: 'Failed to cancel RSVP', error: err.message });
   }
 });
+
 
 /* ================================
    CREATE event
    POST /api/events
    - auto-approved
    - supports org_id + members_only
+   - sends notifications
 ================================== */
 router.post('/', async (req, res) => {
   const {
     title,
     description,
-    date_time,       // optional
-    end_time,        // optional
-    start_datetime,  // preferred if provided from frontend
-    end_datetime,    // preferred if provided from frontend
+    date_time,
+    end_time,
+    start_datetime,
+    end_datetime,
     location,
     capacity,
-    category_id,     // 1–6
+    category_id,
     registration_required,
     instructor_email,
-    created_by,      // user_id
-    organization_id, // org_id for this event
-    members_only,    // boolean from frontend
+    created_by,
+    organization_id,
+    members_only,
   } = req.body;
 
   const startTime = start_datetime || date_time;
@@ -279,10 +265,8 @@ router.post('/', async (req, res) => {
     let approvedByUserId = null;
     let approverEmail = null;
 
-    // Lookup approver user_id and email if approver UID exists
     if (approverUid) {
-      const facultyQuery =
-        'SELECT user_id, email FROM users WHERE user_uid = ? LIMIT 1';
+      const facultyQuery = 'SELECT user_id, email FROM users WHERE user_uid = ? LIMIT 1';
       const [facRows] = await pool.query(facultyQuery, [approverUid]);
       const approver = facRows[0] || null;
       if (approver) {
@@ -300,7 +284,7 @@ router.post('/', async (req, res) => {
         ? 1
         : 0;
 
-    // Insert event (now includes members_only + org_id)
+    // Insert event
     const insertQuery = `
       INSERT INTO events
         (title, description, start_datetime, end_datetime, location,
@@ -329,29 +313,38 @@ router.post('/', async (req, res) => {
 
     const newEventId = results.insertId;
 
-    // 🔔 1) Notify creator
+    // Notify creator
     await createNotification(
       created_by,
       `Your event "${title}" has been created.`
     );
 
-    // 🔔 2) Notify all other users
-    const [users] = await pool.query('SELECT user_id, email FROM users');
-    const notifiedUsers = users.filter(
-      (user) => user.user_id !== created_by
-    );
+    // Notify relevant users
+    let notifiedUsers;
+    if (membersOnlyValue) {
+      // Notify only org members
+      const [members] = await pool.query(
+        `SELECT user_id FROM organization_members WHERE org_id = ?`,
+        [orgId]
+      );
+      notifiedUsers = members;
+    } else {
+      // Notify all except creator
+      const [users] = await pool.query('SELECT user_id, email FROM users');
+      notifiedUsers = users.filter(user => user.user_id !== created_by);
+    }
 
     const notifyMessage = `A new event "${title}" has been created.`;
-    const notificationPromises = notifiedUsers.map((user) =>
+    const notificationPromises = notifiedUsers.map(user =>
       createNotification(user.user_id, notifyMessage)
     );
     await Promise.all(notificationPromises);
 
-    // Email notifications (best-effort; failures shouldn't break event creation)
+    // Email notifications (best-effort)
     try {
       const emailRecipients = notifiedUsers
-        .map((user) => user.email)
-        .filter((email) => !!email);
+        .map(user => user.email)
+        .filter(email => !!email);
 
       if (emailRecipients.length > 0) {
         const subject = `New Event: ${title}`;
@@ -369,7 +362,6 @@ router.post('/', async (req, res) => {
       console.error('Error sending event notification emails:', emailErr);
     }
 
-    // Respond with created event
     res.status(201).json({
       event_id: newEventId,
       title,
@@ -392,7 +384,6 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Error creating event:', err);
 
-    // handle unique constraint (title + time + location)
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
         message:
@@ -400,55 +391,17 @@ router.post('/', async (req, res) => {
       });
     }
 
-    res
-      .status(500)
-      .json({ message: 'Failed to create event', error: err.message });
-  }
-});
-
-/* ================================
-   (Optional legacy) GET pending events for a specific faculty
-   /api/events/faculty/:faculty_id/pending
-   This will usually return 0 now since we auto-approve,
-   but keeping it in case you reuse later.
-================================== */
-router.get('/faculty/:faculty_id/pending', async (req, res) => {
-  const facultyId = req.params.faculty_id;
-
-  if (!facultyId) {
-    return res
-      .status(400)
-      .json({ message: 'Invalid faculty id for pending events' });
-  }
-
-  const query = `
-    SELECT e.*,
-      (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id) AS registered_count
-    FROM events e
-    WHERE e.approved_by = ?
-      AND e.status = 'pending'
-    ORDER BY e.start_datetime ASC
-  `;
-
-  try {
-    const [rows] = await pool.query(query, [facultyId]);
-    res.json(rows);
-  } catch (err) {
-    console.error('Faculty pending events fetch error:', err);
-    res.status(500).json({
-      message: 'Failed to fetch faculty pending events',
-      error: err.message,
-    });
+    res.status(500).json({ message: 'Failed to create event', error: err.message });
   }
 });
 
 /* ================================
    UPDATE event (admin/creator)
    PUT /api/events/:event_id
+   - Notify after update
 ================================== */
 router.put('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
-
   const {
     title,
     description,
@@ -491,18 +444,9 @@ router.put('/:event_id', async (req, res) => {
       ]
     );
 
+    // Fetch event details to notify users
     const [rows] = await pool.query(
-      `
-        SELECT
-          e.*,
-          (
-            SELECT COUNT(*)
-            FROM event_registrations er
-            WHERE er.event_id = e.event_id
-          ) AS registered_count
-        FROM events e
-        WHERE e.event_id = ?
-      `,
+      'SELECT * FROM events WHERE event_id = ?',
       [eventId]
     );
 
@@ -510,40 +454,55 @@ router.put('/:event_id', async (req, res) => {
       return res.status(404).json({ message: 'Event not found after update' });
     }
 
-    res.json(rows[0]);
+    const event = rows[0];
+
+    // Notify creator
+    await createNotification(event.created_by, `Your event "${event.title}" has been updated.`);
+
+    // Notify registered users except creator
+    const [registeredUsers] = await pool.query(
+      'SELECT user_id FROM event_registrations WHERE event_id = ? AND user_id != ?',
+      [eventId, event.created_by]
+    );
+
+    const notifyMsg = `Event "${event.title}" has been updated.`;
+    await Promise.all(registeredUsers.map(u => createNotification(u.user_id, notifyMsg)));
+
+    res.json(event);
   } catch (err) {
     console.error('Update event error:', err);
-    res.status(500).json({
-      message: 'Failed to update event',
-      error: err.message,
-    });
+    res.status(500).json({ message: 'Failed to update event', error: err.message });
   }
 });
 
 /* ================================
    DELETE / CANCEL event (hard delete)
    DELETE /api/events/:event_id
+   - Notify registered users before deletion
 ================================== */
 router.delete('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
 
   try {
-    // First delete registrations for this event
-    await pool.query(
-      'DELETE FROM event_registrations WHERE event_id = ?',
+    // Notify registered users before delete
+    const [registeredUsers] = await pool.query(
+      'SELECT user_id FROM event_registrations WHERE event_id = ?',
       [eventId]
     );
 
-    // Then delete the event itself
+    const notifyMsg = 'The event you registered for has been cancelled.';
+    await Promise.all(registeredUsers.map(u => createNotification(u.user_id, notifyMsg)));
+
+    // Delete registrations
+    await pool.query('DELETE FROM event_registrations WHERE event_id = ?', [eventId]);
+
+    // Delete event
     await pool.query('DELETE FROM events WHERE event_id = ?', [eventId]);
 
     res.json({ message: 'Event deleted successfully' });
   } catch (err) {
     console.error('Delete event error:', err);
-    res.status(500).json({
-      message: 'Failed to delete event',
-      error: err.message,
-    });
+    res.status(500).json({ message: 'Failed to delete event', error: err.message });
   }
 });
 
