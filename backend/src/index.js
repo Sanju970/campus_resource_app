@@ -23,7 +23,7 @@ const locationRoutes = require("./routes/location");
 // --- Initialize Express App ---
 const app = express();
 
-// Read frontend origin from env (fallback to localhost for local dev)
+// Read frontend origin from env ( for local dev)
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // Setup CORS using the frontend URL
