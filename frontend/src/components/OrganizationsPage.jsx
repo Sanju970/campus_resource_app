@@ -23,13 +23,16 @@ export default function OrganizationsPage() {
   const [categories, setCategories] = useState([]);
   const [admins, setAdmins] = useState([]);
 
+  // NEW: locations for dropdown
+  const [locations, setLocations] = useState([]);
+
   const isGlobalAdmin =
     user?.role === "admin" || user?.role === 3 || user?.role === "3";
 
   const [form, setForm] = useState({
     title: "",
     description: "",
-    location: "",
+    location_id: "",
     hours_days_main: "",
     hours_start_main: "",
     hours_end_main: "",
@@ -61,6 +64,9 @@ export default function OrganizationsPage() {
       .finally(() => setLoading(false));
   };
 
+  /* ============================
+     LOAD CATEGORIES
+  ============================ */
   useEffect(() => {
     axios
       .get("http://localhost:5000/api/org-categories")
@@ -68,6 +74,9 @@ export default function OrganizationsPage() {
       .catch(() => {});
   }, []);
 
+  /* ============================
+     LOAD GLOBAL ADMINS
+  ============================ */
   useEffect(() => {
     axios
       .get("http://localhost:5000/api/organizations/global-admins")
@@ -75,53 +84,65 @@ export default function OrganizationsPage() {
       .catch(() => {});
   }, []);
 
+  /* ============================
+     LOAD ORGS WHEN USER READY
+  ============================ */
   useEffect(() => {
     if (user) loadOrganizations();
   }, [user]);
+
+  /* ============================
+     LOAD AVAILABLE LOCATIONS
+     Trigger: whenever modal opens
+  ============================ */
+  useEffect(() => {
+    if (!modalOpen) return;
+
+    axios
+      .get("http://localhost:5000/api/locations/available")
+      .then((res) => setLocations(res.data))
+      .catch(() => toast.error("Failed to load locations"));
+  }, [modalOpen]);
 
   /* ============================
      FILTERS
   ============================ */
   const filteredOrganizations = useMemo(() => {
     let list = organizations;
-
-    // Search filter
     const q = searchQuery.toLowerCase();
+
     if (q.trim()) {
       list = list.filter((o) =>
-        [o.title, o.description, o.location, o.contact, o.hours]
+        [o.title, o.description, o.location_name, o.contact, o.hours]
           .filter(Boolean)
           .some((x) => x.toLowerCase().includes(q))
       );
     }
 
-    // Category filter — FIXED
     if (selectedCategory) {
       list = list.filter((o) => o.category_id === selectedCategory);
     }
 
-    // My Organizations
     if (showMyOrgsOnly) {
       list = list.filter((o) => o.is_member);
     }
 
-    // Managed organizations
     if (showManagedOnly) {
       list = list.filter((o) => o.is_org_admin === 1 || isGlobalAdmin);
     }
 
     return list;
-  }, [organizations, searchQuery, selectedCategory, showMyOrgsOnly, showManagedOnly, isGlobalAdmin]);
-
-  // Stats
-  const totalOrgsCount = organizations.length;
-  const myOrgsCount = organizations.filter((o) => o.is_member).length;
-  const managedOrgsCount = organizations.filter(
-    (o) => o.is_org_admin === 1 || isGlobalAdmin
-  ).length;
+  }, [
+    organizations,
+    searchQuery,
+    selectedCategory,
+    showMyOrgsOnly,
+    showManagedOnly,
+    isGlobalAdmin,
+  ]);
 
   /* ============================
-     HOURS HELPERS
+     HOURS HELPER
   ============================ */
   const parseHours = (hoursString) => {
     const clean = (hoursString || "").trim();
@@ -133,7 +154,11 @@ export default function OrganizationsPage() {
       const [daysPart, timePart] = block.split(":");
       if (!daysPart || !timePart) return {};
       const [start, end] = timePart.split("–");
-      return { days: daysPart.trim(), start: start?.trim(), end: end?.trim() };
+      return {
+        days: daysPart.trim(),
+        start: start?.trim(),
+        end: end?.trim(),
+      };
     };
 
     return {
@@ -149,10 +174,11 @@ export default function OrganizationsPage() {
     const { b1, b2 } = parseHours(org.hours);
 
     setEditingOrg(org);
+
     setForm({
       title: org.title || "",
       description: org.description || "",
-      location: org.location || "",
+      location_id: org.location_id || "",
       hours_days_main: b1.days || "",
       hours_start_main: b1.start || "",
       hours_end_main: b1.end || "",
@@ -165,24 +191,34 @@ export default function OrganizationsPage() {
       new_admin_id: "",
     });
 
+    // ensure current location appears in dropdown
+    axios.get("http://localhost:5000/api/locations").then((res) => {
+      const all = res.data;
+      const current = all.find(
+        (l) => l.location_id === org.location_id
+      );
+      if (current) {
+        setLocations((prev) => {
+          const exists = prev.some((l) => l.location_id === current.location_id);
+          return exists ? prev : [...prev, current];
+        });
+      }
+    });
+
     setModalOpen(true);
   };
 
   const openEdit = (org) => {
     const isOrgAdmin = org.is_org_admin === 1 || isGlobalAdmin;
-    if (!isOrgAdmin) {
-      toast.error("You do not have permission to edit this organization.");
-      return;
-    }
+    if (!isOrgAdmin)
+      return toast.error("You do not have permission to edit this organization.");
     loadEditForm(org);
   };
 
-  /* ============================
-     SAVE ORGANIZATION
-  ============================ */
   const handleSave = async () => {
     if (!form.title.trim()) return toast.error("Title is required");
-    if (!form.category_id) return toast.error("Please select a category.");
+    if (!form.category_id) return toast.error("Please select category");
+    if (!form.location_id) return toast.error("Please select a location");
 
     const blocks = [];
 
@@ -195,7 +231,6 @@ export default function OrganizationsPage() {
         `${form.hours_days_main}: ${form.hours_start_main} – ${form.hours_end_main}`
       );
     }
-
     if (
       form.hours_days_secondary &&
       form.hours_start_secondary &&
@@ -213,13 +248,17 @@ export default function OrganizationsPage() {
         await axios.put(
           `http://localhost:5000/api/organizations/${editingOrg.id}`,
           {
-            ...form,
+            title: form.title,
+            description: form.description,
+            location_id: form.location_id,
             hours: hoursFormatted,
+            contact: form.contact,
+            website: form.website,
+            category_id: form.category_id,
             updated_by: user.user_id,
           }
         );
 
-        // Admin transfer
         if (form.new_admin_id) {
           await axios.post(
             `http://localhost:5000/api/organizations/${editingOrg.id}/transfer-admin`,
@@ -235,23 +274,26 @@ export default function OrganizationsPage() {
         toast.success("Organization updated");
       } else {
         await axios.post("http://localhost:5000/api/organizations", {
-          ...form,
+          title: form.title,
+          description: form.description,
+          location_id: form.location_id,
           hours: hoursFormatted,
+          contact: form.contact,
+          website: form.website,
+          category_id: form.category_id,
           created_by: user.user_id,
         });
+
         loadOrganizations();
         toast.success("Organization created");
       }
 
       setModalOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to save organization");
+      toast.error(err.response?.data?.message || "Failed to save");
     }
   };
 
-  /* ============================
-     JOIN / LEAVE — FIXED
-  ============================ */
   const handleJoin = async (org, isLeaving) => {
     try {
       if (isLeaving) {
@@ -268,26 +310,19 @@ export default function OrganizationsPage() {
         toast.success("Joined organization!");
       }
 
-      // **CRITICAL FIX — Reload updated data**
       await loadOrganizations();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to update membership");
+      toast.error(err.response?.data?.message || "Membership update failed");
     }
   };
 
-  /* ============================
-     DELETE ORG
-  ============================ */
   const handleDelete = async (org) => {
     const isOrgAdmin = org.is_org_admin === 1 || isGlobalAdmin;
 
-    if (!isOrgAdmin) {
-      toast.error("You do not have permission to delete this organization.");
-      return;
-    }
+    if (!isOrgAdmin)
+      return toast.error("You do not have permission to delete this organization.");
 
-    if (!window.confirm(`Delete "${org.title}"? This cannot be undone.`))
-      return;
+    if (!window.confirm(`Delete "${org.title}" permanently?`)) return;
 
     try {
       await axios.delete(`http://localhost:5000/api/organizations/${org.id}`, {
@@ -303,10 +338,11 @@ export default function OrganizationsPage() {
 
   const openCreateModal = () => {
     setEditingOrg(null);
+
     setForm({
       title: "",
       description: "",
-      location: "",
+      location_id: "",
       hours_days_main: "",
       hours_start_main: "",
       hours_end_main: "",
@@ -318,12 +354,10 @@ export default function OrganizationsPage() {
       category_id: "",
       new_admin_id: "",
     });
+
     setModalOpen(true);
   };
 
-  /* ============================
-     RENDER UI
-  ============================ */
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
@@ -331,7 +365,7 @@ export default function OrganizationsPage() {
         <div>
           <h1>Campus Organizations</h1>
           <p className="text-muted-foreground">
-            Discover campus services, support centers, and student life offices
+            Discover campus services and student life offices
           </p>
         </div>
 
@@ -342,8 +376,9 @@ export default function OrganizationsPage() {
         )}
       </div>
 
-      {/* Search & Filters */}
+      {/* Search and Filters */}
       <div className="space-y-4">
+
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -356,7 +391,6 @@ export default function OrganizationsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {/* All */}
           <Button
             variant={
               !showMyOrgsOnly &&
@@ -375,7 +409,6 @@ export default function OrganizationsPage() {
             All Organizations
           </Button>
 
-          {/* My Orgs */}
           <Button
             variant={showMyOrgsOnly ? "default" : "outline"}
             size="sm"
@@ -388,7 +421,6 @@ export default function OrganizationsPage() {
             My Organizations
           </Button>
 
-          {/* Managed */}
           {isGlobalAdmin && (
             <Button
               variant={showManagedOnly ? "default" : "outline"}
@@ -403,7 +435,6 @@ export default function OrganizationsPage() {
             </Button>
           )}
 
-          {/* Category filters — FIXED */}
           {categories.map((cat) => (
             <Button
               key={cat.category_id}
@@ -423,16 +454,14 @@ export default function OrganizationsPage() {
         </div>
       </div>
 
-      {/* Grid */}
+      {/* ORG GRID */}
       {loading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading organizations...</p>
+        <div className="text-center py-12 text-muted-foreground">
+          Loading organizations...
         </div>
       ) : filteredOrganizations.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            No organizations found matching your criteria.
-          </p>
+        <div className="text-center py-12 text-muted-foreground">
+          No organizations found.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -451,49 +480,6 @@ export default function OrganizationsPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="w-full mt-2 border-t pt-4 pb-4">
-        <div className="max-w-5xl mx-auto flex justify-between px-10">
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div
-              className="font-semibold"
-              style={{ fontSize: "2rem", lineHeight: "1" }}
-            >
-              {totalOrgsCount}
-            </div>
-            <div className="text-base text-muted-foreground mt-1">
-              Total Organizations
-            </div>
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div
-              className="font-semibold"
-              style={{ fontSize: "2rem", lineHeight: "1" }}
-            >
-              {myOrgsCount}
-            </div>
-            <div className="text-base text-muted-foreground mt-1">
-              My Organizations
-            </div>
-          </div>
-
-          {isGlobalAdmin && (
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <div
-                className="font-semibold"
-                style={{ fontSize: "2rem", lineHeight: "1" }}
-              >
-                {managedOrgsCount}
-              </div>
-              <div className="text-base text-muted-foreground mt-1">
-                Managed
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Modal */}
       <OrganizationModal
         open={modalOpen}
@@ -503,6 +489,7 @@ export default function OrganizationsPage() {
         onSave={handleSave}
         categories={categories}
         admins={admins}
+        locations={locations}
         isEdit={Boolean(editingOrg)}
       />
     </div>

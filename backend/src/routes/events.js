@@ -48,15 +48,82 @@ function isPositiveInt(value) {
   return Number.isInteger(num) && num > 0;
 }
 /* ================================
+   LOCATION HELPERS (location_id)
+================================== */
+
+async function isValidLocationId(location_id) {
+  if (!location_id) return false;
+  const [rows] = await pool.query(
+    `SELECT 1 FROM campus_locations WHERE location_id = ? LIMIT 1`,
+    [location_id]
+  );
+  return rows.length > 0;
+}
+
+async function getLocationLabel(location_id) {
+  const [rows] = await pool.query(
+    `SELECT location_name, building, room
+     FROM campus_locations
+     WHERE location_id = ?
+     LIMIT 1`,
+    [location_id]
+  );
+  const loc = rows[0];
+  if (!loc) return `Location #${location_id}`;
+
+  const parts = [];
+  if (loc.location_name) parts.push(loc.location_name);
+  if (loc.building) parts.push(loc.building);
+  if (loc.room) parts.push(`Room ${loc.room}`);
+  return parts.join(', ');
+}
+
+/**
+ * Check if any OTHER event at same location_id overlaps in time.
+ * Overlap condition:
+ *   NOT (existing.end <= new.start OR existing.start >= new.end)
+ */
+async function hasOverlappingEventAtLocation(location_id, startTime, endTime, excludeEventId = null) {
+  if (!location_id || !startTime || !endTime) return false;
+
+  let sql = `
+    SELECT COUNT(*) AS cnt
+    FROM events
+    WHERE location_id = ?
+      AND NOT (end_datetime <= ? OR start_datetime >= ?)
+  `;
+  const params = [location_id, startTime, endTime];
+
+  if (excludeEventId) {
+    sql += ' AND event_id <> ?';
+    params.push(excludeEventId);
+  }
+
+  const [rows] = await pool.query(sql, params);
+  const count = rows[0]?.cnt || 0;
+  return count > 0;
+}
+
+/* ================================
    GET /api/events
    Return ALL events + registered_count
+   + campus location details
 ================================== */
 router.get('/', async (req, res) => {
-  let query = `
-    SELECT e.*,
-           (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.event_id)
-            AS registered_count
+  const query = `
+    SELECT 
+      e.*,
+      cl.location_name,
+      cl.building,
+      cl.room,
+      (
+        SELECT COUNT(*) 
+        FROM event_registrations er 
+        WHERE er.event_id = e.event_id
+      ) AS registered_count
     FROM events e
+    LEFT JOIN campus_locations cl
+      ON cl.location_id = e.location_id
     ORDER BY e.start_datetime DESC
   `;
 
@@ -249,13 +316,15 @@ router.delete('/:event_id/rsvp', async (req, res) => {
   }
 });
 
-
 /* ================================
    CREATE event
    POST /api/events
    - auto-approved
    - supports org_id + members_only
    - sends notifications
+   - VALIDATES:
+       * location_id exists
+       * no overlapping events at same location_id
 ================================== */
 router.post('/', async (req, res) => {
   const {
@@ -265,7 +334,7 @@ router.post('/', async (req, res) => {
     end_time,
     start_datetime,
     end_datetime,
-    location,
+    location_id,
     capacity,
     category_id,
     registration_required,
@@ -276,16 +345,17 @@ router.post('/', async (req, res) => {
   } = req.body;
 
   const startTime = start_datetime || date_time;
-  const endTime = end_datetime || end_time;
+  const endTimeValue = end_datetime || end_time;
   const catId = category_id ? Number(category_id) : null;
   const orgId = organization_id ? Number(organization_id) : null;
+  const locId = location_id ? Number(location_id) : null;
 
   if (
     !title ||
     !description ||
     !startTime ||
-    !endTime ||
-    !location ||
+    !endTimeValue ||
+    !locId ||
     !capacity ||
     !catId ||
     !orgId
@@ -295,7 +365,6 @@ router.post('/', async (req, res) => {
     // Extra input validation
   const cleanTitle = title.trim();
   const cleanDescription = description.trim();
-  const cleanLocation = location.trim();
 
   if (cleanTitle.length < 3) {
     return res.status(400).json({
@@ -306,12 +375,6 @@ router.post('/', async (req, res) => {
   if (cleanDescription.length < 10) {
     return res.status(400).json({
       message: 'Description must be at least 10 characters long.',
-    });
-  }
-
-  if (cleanLocation.length < 3) {
-    return res.status(400).json({
-      message: 'Location must be at least 3 characters long.',
     });
   }
 
@@ -340,7 +403,7 @@ router.post('/', async (req, res) => {
   }
 
   const start = new Date(startTime);
-  const end = new Date(endTime);
+  const end = new Date(endTimeValue);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return res.status(400).json({
@@ -361,10 +424,24 @@ router.post('/', async (req, res) => {
     });
   }
 
-  const categoryName = CATEGORY_NAME_BY_ID[catId] || null;
-  const approverUid = CATEGORY_FACULTY_UID[catId] || null;
-
   try {
+    // Location must exist
+    if (!(await isValidLocationId(locId))) {
+      return res.status(400).json({ message: 'Invalid location' });
+    }
+
+    // No overlapping events at same location_id
+    const overlaps = await hasOverlappingEventAtLocation(locId, startTime, endTimeValue, null);
+    if (overlaps) {
+      return res.status(400).json({
+        message:
+          'Another event at this location overlaps with the selected time. Please choose a different time or location.',
+      });
+    }
+
+    const categoryName = CATEGORY_NAME_BY_ID[catId] || null;
+    const approverUid = CATEGORY_FACULTY_UID[catId] || null;
+
     let approvedByUserId = null;
     let approverEmail = null;
 
@@ -381,16 +458,12 @@ router.post('/', async (req, res) => {
     const finalInstructorEmail = instructor_email || approverEmail || null;
     const finalStatus = 'approved'; // no pending flow
     const membersOnlyValue =
-      members_only === true ||
-      members_only === 1 ||
-      members_only === '1'
-        ? 1
-        : 0;
+      members_only === true || members_only === 1 || members_only === '1' ? 1 : 0;
 
     // Insert event
     const insertQuery = `
       INSERT INTO events
-        (title, description, start_datetime, end_datetime, location,
+        (title, description, start_datetime, end_datetime, location_id,
          capacity, category_id, category, registration_required, instructor_email,
          created_by, approved_by, status, org_id, members_only)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -400,8 +473,8 @@ router.post('/', async (req, res) => {
       title,
       description,
       startTime,
-      endTime,
-      location,
+      endTimeValue,
+      locId,
       parseInt(capacity, 10),
       catId,
       categoryName,
@@ -416,11 +489,11 @@ router.post('/', async (req, res) => {
 
     const newEventId = results.insertId;
 
+    // Build location label for emails
+    const locationLabel = await getLocationLabel(locId);
+
     // Notify creator
-    await createNotification(
-      created_by,
-      `Your event "${title}" has been created.`
-    );
+    await createNotification(created_by, `Your event "${title}" has been created.`);
 
     // Notify relevant users
     let notifiedUsers;
@@ -434,11 +507,11 @@ router.post('/', async (req, res) => {
     } else {
       // Notify all except creator
       const [users] = await pool.query('SELECT user_id, email FROM users');
-      notifiedUsers = users.filter(user => user.user_id !== created_by);
+      notifiedUsers = users.filter((user) => user.user_id !== created_by);
     }
 
     const notifyMessage = `A new event "${title}" has been created.`;
-    const notificationPromises = notifiedUsers.map(user =>
+    const notificationPromises = notifiedUsers.map((user) =>
       createNotification(user.user_id, notifyMessage)
     );
     await Promise.all(notificationPromises);
@@ -446,8 +519,8 @@ router.post('/', async (req, res) => {
     // Email notifications (best-effort)
     try {
       const emailRecipients = notifiedUsers
-        .map(user => user.email)
-        .filter(email => !!email);
+        .map((user) => user.email)
+        .filter((email) => !!email);
 
       if (emailRecipients.length > 0) {
         const subject = `New Event: ${title}`;
@@ -455,11 +528,16 @@ router.post('/', async (req, res) => {
           <p>A new event has been created:</p>
           <p><strong>${title}</strong></p>
           <p>${description}</p>
-          <p><strong>When:</strong> ${startTime} - ${endTime}</p>
-          <p><strong>Where:</strong> ${location}</p>
+          <p><strong>When:</strong> ${startTime} - ${endTimeValue}</p>
+          <p><strong>Where:</strong> ${locationLabel}</p>
         `;
 
-        await sendEmail(emailRecipients.join(','), subject, html);
+        await sendEmail({
+          to: emailRecipients.join(','),
+          subject,
+          html,
+        });
+
       }
     } catch (emailErr) {
       console.error('Error sending event notification emails:', emailErr);
@@ -470,8 +548,8 @@ router.post('/', async (req, res) => {
       title,
       description,
       start_datetime: startTime,
-      end_datetime: endTime,
-      location,
+      end_datetime: endTimeValue,
+      location_id: locId,
       capacity: parseInt(capacity, 10),
       category_id: catId,
       category: categoryName,
@@ -502,6 +580,9 @@ router.post('/', async (req, res) => {
    UPDATE event (admin/creator)
    PUT /api/events/:event_id
    - Notify after update
+   - VALIDATES:
+       * location_id exists
+       * no overlapping events at same location_id
 ================================== */
 router.put('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
@@ -510,7 +591,7 @@ router.put('/:event_id', async (req, res) => {
     description,
     start_datetime,
     end_datetime,
-    location,
+    location_id,
     capacity,
     category_id,
     registration_required,
@@ -521,7 +602,7 @@ router.put('/:event_id', async (req, res) => {
     return res.status(400).json({ message: 'Invalid event id.' });
   }
 
-  if (!title || !description || !start_datetime || !end_datetime || !location || !capacity || !category_id) {
+  if (!title || !description || !start_datetime || !end_datetime || !location_id || !capacity || !category_id) {
     return res.status(400).json({
       message: 'Title, description, start time, end time, location, capacity, and category are required.',
     });
@@ -529,7 +610,7 @@ router.put('/:event_id', async (req, res) => {
 
   const cleanTitle = title.trim();
   const cleanDescription = description.trim();
-  const cleanLocation = location.trim();
+  // const cleanLocation = location.trim();
 
   if (cleanTitle.length < 3) {
     return res.status(400).json({
@@ -543,11 +624,11 @@ router.put('/:event_id', async (req, res) => {
     });
   }
 
-  if (cleanLocation.length < 3) {
-    return res.status(400).json({
-      message: 'Location must be at least 3 characters long.',
-    });
-  }
+  // if (cleanLocation.length < 3) {
+  //   return res.status(400).json({
+  //     message: 'Location must be at least 3 characters long.',
+  //   });
+  // }
 
   const capacityNum = Number(capacity);
   if (Number.isNaN(capacityNum)) {
@@ -580,8 +661,41 @@ router.put('/:event_id', async (req, res) => {
       message: 'End time must be after the start time.',
     });
   }
+  const locId = location_id ? Number(location_id) : null;
+  const catId = category_id ? Number(category_id) : null;
 
   try {
+    if (
+      !title ||
+      !description ||
+      !start_datetime ||
+      !end_datetime ||
+      !locId ||
+      !capacity ||
+      !catId
+    ) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Location must exist
+    if (!(await isValidLocationId(locId))) {
+      return res.status(400).json({ message: 'Invalid location' });
+    }
+
+    // No overlapping events at same location_id (excluding this event)
+    const overlaps = await hasOverlappingEventAtLocation(
+      locId,
+      start_datetime,
+      end_datetime,
+      eventId
+    );
+    if (overlaps) {
+      return res.status(400).json({
+        message:
+          'Another event at this location overlaps with the selected time. Please choose a different time or location.',
+      });
+    }
+
     await pool.query(
       `
         UPDATE events
@@ -590,7 +704,7 @@ router.put('/:event_id', async (req, res) => {
           description = ?,
           start_datetime = ?,
           end_datetime = ?,
-          location = ?,
+          location_id = ?,
           capacity = ?,
           category_id = ?,
           registration_required = ?,
@@ -602,9 +716,9 @@ router.put('/:event_id', async (req, res) => {
         description,
         start_datetime,
         end_datetime,
-        location,
+        locId,
         capacity,
-        category_id,
+        catId,
         registration_required ? 1 : 0,
         instructor_email,
         eventId,
@@ -624,7 +738,10 @@ router.put('/:event_id', async (req, res) => {
     const event = rows[0];
 
     // Notify creator
-    await createNotification(event.created_by, `Your event "${event.title}" has been updated.`);
+    await createNotification(
+      event.created_by,
+      `Your event "${event.title}" has been updated.`
+    );
 
     // Notify registered users except creator
     const [registeredUsers] = await pool.query(
@@ -633,9 +750,19 @@ router.put('/:event_id', async (req, res) => {
     );
 
     const notifyMsg = `Event "${event.title}" has been updated.`;
-    await Promise.all(registeredUsers.map(u => createNotification(u.user_id, notifyMsg)));
+    await Promise.all(
+      registeredUsers.map((u) => createNotification(u.user_id, notifyMsg))
+    );
 
-    res.json(event);
+    const [withLocation] = await pool.query(
+      `SELECT e.*, l.location_name, l.building, l.room
+      FROM events e
+      LEFT JOIN campus_locations l ON e.location_id = l.location_id
+      WHERE e.event_id = ?`,
+      [eventId]
+    );
+
+    res.json(withLocation[0]);
   } catch (err) {
     console.error('Update event error:', err);
     res.status(500).json({ message: 'Failed to update event', error: err.message });
@@ -662,10 +789,14 @@ router.delete('/:event_id', async (req, res) => {
     );
 
     const notifyMsg = 'The event you registered for has been cancelled.';
-    await Promise.all(registeredUsers.map(u => createNotification(u.user_id, notifyMsg)));
+    await Promise.all(
+      registeredUsers.map((u) => createNotification(u.user_id, notifyMsg))
+    );
 
     // Delete registrations
-    await pool.query('DELETE FROM event_registrations WHERE event_id = ?', [eventId]);
+    await pool.query('DELETE FROM event_registrations WHERE event_id = ?', [
+      eventId,
+    ]);
 
     // Delete event
     await pool.query('DELETE FROM events WHERE event_id = ?', [eventId]);

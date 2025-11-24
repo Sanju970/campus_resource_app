@@ -112,11 +112,19 @@ export default function Layout({ children, notificationCount = 0 }) {
                 Favorites
               </DropdownMenuItem>
               {user?.role === 'admin' && (
-                <DropdownMenuItem onClick={() => navigate('/admin')}>
-                  <Users className="mr-2 h-4 w-4" />
-                  User Data
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <Users className="mr-2 h-4 w-4" />
+                    User Data
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => navigate('/locations')}>
+                    <Home className="mr-2 h-4 w-4" />
+                    Manage Locations
+                  </DropdownMenuItem>
+                </>
               )}
+
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />

@@ -6,9 +6,9 @@ const db = require("../config/db");
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key";
 
-/**
- * Simple auth middleware using the same JWT style as routes/auth.js
- */
+/* ============================================================
+   AUTH MIDDLEWARE — same JWT as /auth/login
+============================================================ */
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const parts = authHeader.split(" ");
@@ -21,8 +21,7 @@ function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    // token from /api/auth/login: { user_id, user_uid, email, role_id }
-    req.user = decoded;
+    req.user = decoded; // contains { user_id, email, role_id, user_uid }
     next();
   } catch (err) {
     console.error("JWT verify error (schedule):", err);
@@ -30,19 +29,17 @@ function authMiddleware(req, res, next) {
   }
 }
 
-/**
- * QUICK TEST ROUTE
- * GET /api/schedule
- */
+/* ============================================================
+   QUICK TEST
+============================================================ */
 router.get("/", (req, res) => {
   res.json({ message: "✅ scheduleRoutes root is working" });
 });
 
-/**
- * MAIN ROUTE
- * GET /api/schedule/my
- * Returns events the logged-in user is registered for
- */
+/* ============================================================
+   GET /api/schedule/my
+   Fetch all APPROVED events the user registered for
+============================================================ */
 router.get("/my", authMiddleware, async (req, res) => {
   try {
     const userId = req.user?.user_id;
@@ -58,13 +55,22 @@ router.get("/my", authMiddleware, async (req, res) => {
         e.description,
         e.start_datetime,
         e.end_datetime,
-        e.location,
+
+        e.location_id,
+        cl.location_name,
+        cl.building,
+        cl.room,
+
         e.category,
         e.instructor_email,
         e.registration_required,
         e.status
       FROM event_registrations er
       JOIN events e ON er.event_id = e.event_id
+
+      LEFT JOIN campus_locations cl 
+        ON cl.location_id = e.location_id
+
       WHERE er.user_id = ?
         AND e.status = 'approved'
       ORDER BY e.start_datetime;

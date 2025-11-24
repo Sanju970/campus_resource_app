@@ -23,13 +23,9 @@ export default function OrganizationsCard({
   const navigate = useNavigate();
   const stop = (e) => e.stopPropagation();
 
-  // User membership
   const joined = Boolean(isMember || resource?.is_member);
-
-  // Extract the user's org-level role
   const orgRole = resource.current_org_role;
 
-  // Leave restriction logic
   const isOnlyAdminDelegate =
     orgRole === "admin_delegate" &&
     resource.admin_delegate_count === 1;
@@ -40,20 +36,23 @@ export default function OrganizationsCard({
 
   const cannotLeave = isOnlyAdminDelegate || isOnlyLeadFaculty;
 
-  // Global admin detection
   const isGlobalAdmin =
     userRole === "admin" || userRole === 3 || userRole === "3";
 
-  // Edit/Delete are allowed by:
-  // - global admin
-  // - admin_delegate
-  // - lead_faculty
   const canManageOrg =
     isGlobalAdmin ||
     orgRole === "admin_delegate" ||
     orgRole === "lead_faculty";
 
   const category = categories.find((c) => c.id === resource.category_id);
+
+const formattedLocation =
+  resource.location_name
+    ? `${resource.location_name}${
+        resource.building ? ` — ${resource.building}` : ""
+      }${resource.room ? ` — Room ${resource.room}` : ""}`
+    : resource.legacy_location;
+
 
   return (
     <Card
@@ -95,10 +94,12 @@ export default function OrganizationsCard({
 
         {/* ORG DETAILS */}
         <div className="space-y-2 text-sm">
-          {resource.location && (
+
+          {/* 🌍 LOCATION FIXED */}
+          {formattedLocation && (
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{resource.location}</span>
+              <span>{formattedLocation}</span>
             </div>
           )}
 
@@ -117,7 +118,7 @@ export default function OrganizationsCard({
           )}
         </div>
 
-        {/* MANAGEMENT BUTTONS (Edit/Delete) */}
+        {/* MANAGEMENT BUTTONS */}
         {canManageOrg && (
           <div className="w-full space-y-2">
             <Button
@@ -145,7 +146,7 @@ export default function OrganizationsCard({
           </div>
         )}
 
-        {/* JOIN / LEAVE BUTTONS — ALWAYS SHOWN FOR EVERY USER */}
+        {/* JOIN / LEAVE */}
         <div className="w-full space-y-2 mt-2">
           {joined ? (
             <>
@@ -155,7 +156,7 @@ export default function OrganizationsCard({
                 disabled={cannotLeave}
                 onClick={(e) => {
                   stop(e);
-                  onJoin(resource, true); // leave
+                  onJoin(resource, true);
                 }}
                 className="w-full"
               >
@@ -175,7 +176,7 @@ export default function OrganizationsCard({
               className="w-full"
               onClick={(e) => {
                 stop(e);
-                onJoin(resource, false); // join
+                onJoin(resource, false);
               }}
             >
               Join Organization

@@ -34,6 +34,13 @@ CREATE TABLE users (
     FOREIGN KEY (role_id) REFERENCES roles(role_id)
 );
 
+CREATE TABLE campus_locations (
+    location_id INT AUTO_INCREMENT PRIMARY KEY,
+    location_name VARCHAR(200) NOT NULL UNIQUE,
+    building VARCHAR(200),
+    room VARCHAR(50)
+);
+
 -- ============================================================
 -- 2. ORGANIZATION TABLES
 -- ============================================================
@@ -48,7 +55,7 @@ CREATE TABLE organizations (
     org_id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(150) NOT NULL,
     description TEXT,
-    location VARCHAR(255),
+    location_id INT UNIQUE,
     hours VARCHAR(255),
     contact VARCHAR(255),
     website VARCHAR(255),
@@ -58,7 +65,8 @@ CREATE TABLE organizations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(user_id),
-    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id)
+    FOREIGN KEY (category_id) REFERENCES organization_categories(category_id),
+    FOREIGN KEY (location_id) REFERENCES campus_locations(location_id)
 );
 
 -- ============================================================
@@ -91,7 +99,7 @@ CREATE TABLE events (
   description TEXT,
   start_datetime DATETIME NOT NULL,
   end_datetime DATETIME NOT NULL,
-  location VARCHAR(200),
+  location_id INT NOT NULL,  -- validated location
   capacity INT,
   category_id INT NOT NULL,
   category VARCHAR(100),
@@ -103,7 +111,8 @@ CREATE TABLE events (
   org_id INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   members_only BOOLEAN NOT NULL DEFAULT 0,
-  UNIQUE (title, start_datetime, location),
+  UNIQUE (title, start_datetime, location_id),
+  FOREIGN KEY (location_id) REFERENCES campus_locations(location_id),
   FOREIGN KEY (created_by) REFERENCES users(user_id),
   FOREIGN KEY (approved_by) REFERENCES users(user_id),
   FOREIGN KEY (category_id) REFERENCES organization_categories(category_id),
@@ -194,6 +203,19 @@ VALUES
 ('Bob', 'Lee', 'stu0001', 'stu0001@gmail.com',
  '$2a$10$ydPYgxkqPJoKT4wzjKYfTuUujMGfN19zqYj5kVa0BC0PjQPSwXNo6', 1);
 
+
+INSERT INTO campus_locations (location_name, building, room) VALUES
+('Central Building', 'Central Building', NULL),
+('Success Center 201', 'Success Center', '201'),
+('Admin Building 2nd Floor', 'Admin Building', '2nd Floor'),
+('Wellness Center Building', 'Wellness Center', NULL),
+('IT Building 1st Floor', 'IT Building', '1st Floor'),
+('Student Union 210', 'Student Union', '210'),
+('Main Hall, Student Union', 'Student Union', 'Main Hall'),
+('Lab 101', 'Engineering Lab', '101'),
+('Auditorium', 'Main Auditorium', NULL);
+
+
 -- CATEGORIES
 INSERT INTO organization_categories (category_key, category_name)
 VALUES
@@ -205,20 +227,34 @@ VALUES
 ('activities', 'Activities & Student Life');
 
 -- ORGANIZATIONS
-INSERT INTO organizations (title, description, location, hours, contact, website, category_id, created_by)
+INSERT INTO organizations (
+    title, description, location_id, hours, contact, website, category_id, created_by
+)
 VALUES
-('Central Library', 'Comprehensive research library...', 'Central Building', '7am-11pm',
- 'library@campus.edu', 'https://library.campus.edu', 1, 1),
-('Writing Center', 'Tutoring for writing...', 'Success Center 201', '9am-8pm',
- 'writing@campus.edu', 'https://writing.campus.edu', 2, 1),
-('Career Development Center', 'Career counseling...', 'Admin Building 2nd floor', '8:30am-5pm',
- 'careers@campus.edu', 'https://careers.campus.edu', 3, 1),
-('Health & Wellness Center', 'Health & wellness services...', 'Wellness Center Building', '8am-6pm',
- 'wellness@campus.edu', 'https://wellness.campus.edu', 4, 1),
-('IT Services', 'Technology support...', 'IT Building 1st floor', '24/7',
- 'itsupport@campus.edu', 'https://it.campus.edu', 5, 1),
-('Student Activities Office', 'Campus events & clubs...', 'Student Union 210', '9am-5pm',
- 'activities@campus.edu', 'https://activities.campus.edu', 6, 1);
+('Central Library', 'Comprehensive research library...',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Central Building'),
+ '7am-11pm', 'library@campus.edu', 'https://library.campus.edu', 1, 1),
+
+('Writing Center', 'Tutoring for writing...',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Success Center 201'),
+ '9am-8pm', 'writing@campus.edu', 'https://writing.campus.edu', 2, 1),
+
+('Career Development Center', 'Career counseling...',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Admin Building 2nd Floor'),
+ '8:30am-5pm', 'careers@campus.edu', 'https://careers.campus.edu', 3, 1),
+
+('Health & Wellness Center', 'Health & wellness services...',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Wellness Center Building'),
+ '8am-6pm', 'wellness@campus.edu', 'https://wellness.campus.edu', 4, 1),
+
+('IT Services', 'Technology support...',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'IT Building 1st Floor'),
+ '24/7', 'itsupport@campus.edu', 'https://it.campus.edu', 5, 1),
+
+('Student Activities Office', 'Campus events & clubs...',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Student Union 210'),
+ '9am-5pm', 'activities@campus.edu', 'https://activities.campus.edu', 6, 1);
+
 
 -- ORG MEMBERS (CORRECT ROLES ONLY)
 INSERT INTO organization_members (org_id, user_id, role)
@@ -248,33 +284,27 @@ VALUES
 --  3 = Career Development Center, 5 = IT Services, 6 = Student Activities Office
 
 INSERT INTO events (
-  title,
-  description,
-  start_datetime,
-  end_datetime,
-  location,
-  capacity,
-  category_id,
-  category,
-  instructor_email,
-  registration_required,
-  status,
-  created_by,
-  org_id,
-  members_only
+  title, description, start_datetime, end_datetime,
+  location_id, capacity, category_id, category,
+  instructor_email, registration_required, status,
+  created_by, org_id, members_only
 )
 VALUES
 ('Career Fair 2025', 'Meet top companies and explore career opportunities.',
- '2025-11-15 10:00:00', '2025-11-15 16:00:00', 'Main Hall, Student Union',
+ '2025-11-15 10:00:00', '2025-11-15 16:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Main Hall, Student Union'),
  200, 3, 'Career', NULL, 1, 'approved', 1, 3, 0),
 
 ('AI Workshop', 'Hands-on workshop on AI and ML.',
- '2025-11-20 14:00:00', '2025-11-20 17:00:00', 'Lab 101',
+ '2025-11-20 14:00:00', '2025-11-20 17:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Lab 101'),
  50, 5, 'Workshop', 'fac0001@gmail.com', 1, 'approved', 2, 5, 0),
 
 ('Music Concert', 'Enjoy live performances by student bands.',
- '2025-11-25 18:00:00', '2025-11-25 21:00:00', 'Auditorium',
+ '2025-11-25 18:00:00', '2025-11-25 21:00:00',
+ (SELECT location_id FROM campus_locations WHERE location_name = 'Auditorium'),
  300, 6, 'Concert', NULL, 0, 'approved', 1, 6, 0);
+
 
 -- SAMPLE ANNOUNCEMENTS
 INSERT INTO announcements (title, content, priority, created_by, org_id)

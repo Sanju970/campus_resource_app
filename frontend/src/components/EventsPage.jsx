@@ -112,6 +112,7 @@ export default function EventsPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [organizations, setOrganizations] = useState([]);
+  const [locations, setLocations] = useState([]); // 🔹 campus locations
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [events, setEvents] = useState([]);
   const [registeredEvents, setRegisteredEvents] = useState([]);
@@ -119,7 +120,7 @@ export default function EventsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showCreatedEventsOnly, setShowCreatedEventsOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'upcoming' | 'ongoing' | 'completed'
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showRegisteredEventsOnly, setShowRegisteredEventsOnly] =
     useState(false);
 
@@ -136,7 +137,7 @@ export default function EventsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
 
-  // Description popup dialog state (like FavoritesPage)
+  // Description popup dialog state
   const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] =
     useState(false);
   const [descriptionEvent, setDescriptionEvent] = useState(null);
@@ -146,7 +147,7 @@ export default function EventsPage() {
     description: "",
     date_time: "",
     end_time: "",
-    location: "",
+    location_id: "", // 🔹 use location_id instead of free-text location
     capacity: "",
     category_id: "",
     organization_id: "",
@@ -161,7 +162,6 @@ export default function EventsPage() {
   const handleDialogOpenChange = (open) => {
     setIsCreateDialogOpen(open);
 
-    // When dialog closes → reset everything
     if (!open) {
       setEditingEvent(null);
       setNewEvent(initialNewEventState);
@@ -170,7 +170,6 @@ export default function EventsPage() {
     }
   };
 
-  // helper to format current time for <input type="date" /> min
   const getCurrentDateTimeLocal = () => {
     const now = new Date();
     const y = now.getFullYear();
@@ -195,7 +194,6 @@ export default function EventsPage() {
       PRIVILEGED_ORG_ROLES.includes(org?.current_org_role)
     );
 
-  // ADMIN: admin can see ALL organizations in dropdown
   const eligibleOrganizations =
     user.role === "admin"
       ? organizations
@@ -231,14 +229,12 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Fetch Favorite Events from backend ----------------
   const fetchFavoriteEvents = async () => {
     try {
       const res = await axios.get(
         `http://localhost:5000/api/favorites/user/${user.user_id}`
       );
 
-      // keep only favorites where item_type = 'event'
       const favEventIds = res.data
         .filter((fav) => fav.item_type === "event")
         .map((fav) => Number(fav.item_id));
@@ -249,7 +245,7 @@ export default function EventsPage() {
     }
   };
 
-  // Fetch organizations for the Organization dropdown
+  // Fetch organizations for dropdown
   const fetchOrganizations = async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/organizations", {
@@ -263,17 +259,28 @@ export default function EventsPage() {
     }
   };
 
+  // 🔹 Fetch campus locations for dropdown (same as orgs page style)
+  const fetchLocations = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/locations");
+      setLocations(res.data || []);
+    } catch (err) {
+      console.error("Error fetching locations:", err);
+      toast.error("Failed to load locations");
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
     fetchRegisteredEvents();
     fetchFavoriteEvents();
     fetchOrganizations();
+    fetchLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const now = new Date(); // used for status + 30-day window
+  const now = new Date();
 
-  // Decide event status based on time
   const getEventStatus = (event) => {
     if (!event?.start_datetime || !event?.end_datetime) return "all";
 
@@ -284,12 +291,20 @@ export default function EventsPage() {
       return "all";
     }
 
-    if (end < now) return "completed"; // past
-    if (start > now) return "upcoming"; // future
-    return "ongoing"; // between start & end
+    if (end < now) return "completed";
+    if (start > now) return "upcoming";
+    return "ongoing";
   };
 
-  // ---------------- Filters ----------------
+  // helper to construct location label from event
+  const buildLocationLabel = (event) => {
+    const parts = [];
+    if (event.location_name) parts.push(event.location_name);
+    if (event.building) parts.push(event.building);
+    if (event.room) parts.push(`Room ${event.room}`);
+    return parts.join(" · ") || "";
+  };
+
   const combinedEvents = events;
 
   const filteredEvents = combinedEvents.filter((event) => {
@@ -302,12 +317,10 @@ export default function EventsPage() {
     const isOrgMember = eventOrg ? Boolean(eventOrg.is_member) : false;
     const isMembersOnly = Boolean(event.members_only);
 
-    // Hide members-only events from non-members (except admin + creator)
     if (isMembersOnly && !isOrgMember && !isCreator && user.role !== "admin") {
       return false;
     }
 
-    // View modes
     if (showCreatedEventsOnly && !isCreator) {
       return false;
     }
@@ -316,19 +329,21 @@ export default function EventsPage() {
       return false;
     }
 
+    const locationLabel = buildLocationLabel(event);
+
     const matchesSearch =
       searchQuery === "" ||
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase());
+      (event.description || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      locationLabel.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
 
-    // Status filter: all | upcoming | ongoing | completed
     const eventStatus = getEventStatus(event);
 
-    // Completed-events 30-day logic
     const endDate = event.end_datetime ? new Date(event.end_datetime) : null;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -340,14 +355,12 @@ export default function EventsPage() {
     } else if (statusFilter === "ongoing") {
       matchesStatus = eventStatus === "ongoing";
     } else if (statusFilter === "completed") {
-      // only completed events from the last 30 days
       matchesStatus =
         eventStatus === "completed" &&
         endDate &&
         endDate <= now &&
         endDate >= thirtyDaysAgo;
     } else if (statusFilter === "all") {
-      // keep only upcoming + ongoing in "All Events" view
       matchesStatus =
         eventStatus === "upcoming" || eventStatus === "ongoing";
     }
@@ -355,7 +368,6 @@ export default function EventsPage() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // ---------------- Stats baseline: "All Events" view ----------------
   const allEventsForStats = combinedEvents.filter((event) => {
     const isCreator = Number(event.created_by) === Number(user.user_id);
 
@@ -369,11 +381,15 @@ export default function EventsPage() {
       return false;
     }
 
+    const locationLabel = buildLocationLabel(event);
+
     const matchesSearch =
       searchQuery === "" ||
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase());
+      (event.description || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      locationLabel.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
       !selectedCategory || event.category_id === selectedCategory;
@@ -385,7 +401,12 @@ export default function EventsPage() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // ---------------- RSVP (students + faculty) ----------------
+  // ---------------- RSVP ----------------
+  const isEventFull = (event) =>
+    event.registered_count && event.capacity
+      ? event.registered_count >= event.capacity
+      : false;
+
   const handleRSVP = async (eventId) => {
     try {
       const alreadyRegistered = registeredEvents.includes(eventId);
@@ -405,7 +426,6 @@ export default function EventsPage() {
       let res;
 
       if (registeredEvents.includes(eventId)) {
-        // Cancel RSVP
         res = await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -431,7 +451,6 @@ export default function EventsPage() {
 
         toast.success("RSVP cancelled successfully");
       } else {
-        // Register
         res = await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -463,7 +482,7 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Favorite (with backend) ----------------
+  // ---------------- Favorite ----------------
   const toggleFavorite = async (eventId) => {
     const isFavorite = favoriteEvents.includes(eventId);
 
@@ -514,7 +533,7 @@ export default function EventsPage() {
       description,
       date_time,
       end_time,
-      location,
+      location_id,
       capacity,
       category_id,
       instructor_email,
@@ -556,7 +575,7 @@ export default function EventsPage() {
       !description ||
       !date_time ||
       !end_time ||
-      !location ||
+      !location_id ||
       !capacity ||
       !category_id ||
       !startTime ||
@@ -572,6 +591,7 @@ export default function EventsPage() {
       toast.error("Capacity must be between 1 and 1000");
       return;
     }
+
     const start = new Date(combinedStart);
     const end = new Date(combinedEnd);
     const nowCreate = new Date();
@@ -595,6 +615,7 @@ export default function EventsPage() {
 
     const event = {
       ...newEvent,
+      location_id: Number(location_id),
       start_datetime: combinedStart,
       end_datetime: combinedEnd,
       capacity: capacityNum,
@@ -630,7 +651,7 @@ export default function EventsPage() {
     }
   };
 
-  // ---------------- Update Event (admin/creator) ----------------
+  // ---------------- Update Event ----------------
   const handleUpdateEvent = async () => {
     if (!editingEvent) return;
 
@@ -639,7 +660,7 @@ export default function EventsPage() {
       description,
       date_time,
       end_time,
-      location,
+      location_id,
       capacity,
       category_id,
       instructor_email,
@@ -657,7 +678,7 @@ export default function EventsPage() {
       !description ||
       !date_time ||
       !end_time ||
-      !location ||
+      !location_id ||
       !capacity ||
       !category_id ||
       !startTime ||
@@ -677,7 +698,7 @@ export default function EventsPage() {
     const eventToSend = {
       title,
       description,
-      location,
+      location_id: Number(location_id),
       capacity: capacityNum,
       category_id,
       registration_required: newEvent.registration_required,
@@ -733,7 +754,6 @@ export default function EventsPage() {
     setIsCancelDialogOpen(true);
   };
 
-  // ---------------- Confirm Cancel in dialog ----------------
   const confirmCancelEvent = async () => {
     if (!eventToCancel) return;
 
@@ -798,7 +818,7 @@ export default function EventsPage() {
       description: event.description || "",
       date_time: parseDate(event.start_datetime),
       end_time: parseDate(event.end_datetime),
-      location: event.location || "",
+      location_id: event.location_id || "",
       capacity: event.capacity || "",
       category_id: event.category_id || "",
       registration_required: !!event.registration_required,
@@ -829,47 +849,6 @@ export default function EventsPage() {
     });
   };
 
-  const isEventFull = (event) =>
-    event.registered_count && event.capacity
-      ? event.registered_count >= event.capacity
-      : false;
-
-  // ------------- Registered Members Modal handlers -------------
-  const openMembersModal = async (event) => {
-    setMembersModalEvent(event);
-    setMembers([]);
-    setMembersError(null);
-    setIsMembersLoading(true);
-
-    try {
-      const res = await fetch(
-        `http://localhost:5000/api/events/${event.event_id}/members`
-      );
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to load registered members");
-      }
-
-      const data = await res.json();
-      setMembers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("registered members fetch error:", err);
-      setMembersError(err.message || "Failed to load registered members");
-      toast.error(err.message || "Failed to load registered members");
-    } finally {
-      setIsMembersLoading(false);
-    }
-  };
-
-  const closeMembersModal = () => {
-    setMembersModalEvent(null);
-    setMembers([]);
-    setMembersError(null);
-    setIsMembersLoading(false);
-  };
-
-  // ---------------- Stats for footer ----------------
   const totalEventsCount = allEventsForStats.length;
 
   const createdEventsCount = allEventsForStats.filter(
@@ -1002,15 +981,33 @@ export default function EventsPage() {
                     </select>
                   </div>
                 </div>
+
+                {/* Location dropdown (campus_locations) */}
                 <div className="space-y-2">
                   <Label>Location</Label>
-                  <Input
-                    value={newEvent.location}
+                  <select
+                    className="border rounded-md w-full p-2"
+                    value={newEvent.location_id || ""}
                     onChange={(e) =>
-                      setNewEvent({ ...newEvent, location: e.target.value })
+                      setNewEvent({
+                        ...newEvent,
+                        location_id: e.target.value
+                          ? Number(e.target.value)
+                          : "",
+                      })
                     }
-                  />
+                  >
+                    <option value="">Select Location</option>
+                    {locations.map((loc) => (
+                      <option key={loc.location_id} value={loc.location_id}>
+                        {loc.location_name}
+                        {loc.building ? ` – ${loc.building}` : ""}
+                        {loc.room ? `, Room ${loc.room}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Capacity</Label>
@@ -1117,7 +1114,6 @@ export default function EventsPage() {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* All Events */}
           <Button
             variant={
               !showCreatedEventsOnly &&
@@ -1138,7 +1134,6 @@ export default function EventsPage() {
             All Events
           </Button>
 
-          {/*Created Events*/}
           <Button
             variant={showCreatedEventsOnly ? "default" : "outline"}
             size="sm"
@@ -1152,7 +1147,6 @@ export default function EventsPage() {
             Created Events
           </Button>
 
-          {/* My Events (registered) */}
           <Button
             variant={showRegisteredEventsOnly ? "default" : "outline"}
             size="sm"
@@ -1166,7 +1160,6 @@ export default function EventsPage() {
             Registered Events
           </Button>
 
-          {/* upcoming events */}
           <Button
             type="button"
             variant={statusFilter === "upcoming" ? "default" : "outline"}
@@ -1180,7 +1173,6 @@ export default function EventsPage() {
             Upcoming Events
           </Button>
 
-          {/* Ongoing  events */}
           <Button
             type="button"
             variant={statusFilter === "ongoing" ? "default" : "outline"}
@@ -1194,7 +1186,6 @@ export default function EventsPage() {
             Ongoing Events
           </Button>
 
-          {/* Completed events */}
           <Button
             type="button"
             variant={statusFilter === "completed" ? "default" : "outline"}
@@ -1229,7 +1220,6 @@ export default function EventsPage() {
             const eventStatus = getEventStatus(event);
             const isCompleted = eventStatus === "completed";
 
-            // --- description handling (same style as FavoritesPage) ---
             const fullDescription = event.description || "";
             const MAX_PREVIEW_CHARS = 35;
             const shouldShowMore =
@@ -1242,6 +1232,8 @@ export default function EventsPage() {
             const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
               isRegistered ? "border-green-500" : "border-gray-200"
             }`;
+
+            const locationLabel = buildLocationLabel(event);
 
             return (
               <Card
@@ -1282,7 +1274,6 @@ export default function EventsPage() {
 
                   <CardTitle className="text-lg">{event.title}</CardTitle>
 
-                  {/* DESCRIPTION line + Show more (one line) */}
                   <CardDescription className="space-y-1">
                     <div className="flex items-center gap-1 max-w-full">
                       <span className="truncate flex-1 min-w-0">
@@ -1320,10 +1311,9 @@ export default function EventsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{event.location}</span>
+                      <span>{locationLabel}</span>
                     </div>
 
-                    {/* Registered members count → open centered modal */}
                     <div
                       className="flex items-center gap-2 cursor-pointer hover:underline text-sm text-primary"
                       onClick={() => openMembersModal(event)}
@@ -1336,7 +1326,6 @@ export default function EventsPage() {
                     </div>
                   </div>
 
-                  {/* hide RSVP for completed events */}
                   {showRSVP && !isCompleted && (
                     <Button
                       size="sm"
@@ -1361,7 +1350,6 @@ export default function EventsPage() {
                     </Button>
                   )}
 
-                  {/* creator/admin block */}
                   {(isAdmin || isCreator) && (
                     <div className="w-full space-y-2">
                       {isCompleted ? (
@@ -1419,7 +1407,7 @@ export default function EventsPage() {
         )}
       </>
 
-      {/* Description Dialog (full text) */}
+      {/* Description Dialog */}
       <Dialog
         open={isDescriptionDialogOpen}
         onOpenChange={(open) => {
@@ -1476,7 +1464,6 @@ export default function EventsPage() {
       {/* Quick stats footer */}
       <div className="w-full mt-2 border-t pt-4 pb-4">
         <div className="max-w-5xl mx-auto flex justify-between px-10">
-          {/* Total Events */}
           <div className="flex-1 flex flex-col items-center justify-center">
             <div
               className="font-semibold"
@@ -1489,7 +1476,6 @@ export default function EventsPage() {
             </div>
           </div>
 
-          {/* Events Created */}
           <div className="flex-1 flex flex-col items-center justify-center">
             <div
               className="font-semibold"
@@ -1502,7 +1488,6 @@ export default function EventsPage() {
             </div>
           </div>
 
-          {/* Events Registered */}
           <div className="flex-1 flex flex-col items-center justify-center">
             <div
               className="font-semibold"
@@ -1517,11 +1502,16 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Centered modal for Registered Members */}
+      {/* Registered Members Modal */}
       <Dialog
         open={!!membersModalEvent}
         onOpenChange={(open) => {
-          if (!open) closeMembersModal();
+          if (!open) {
+            setMembersModalEvent(null);
+            setMembers([]);
+            setMembersError(null);
+            setIsMembersLoading(false);
+          }
         }}
       >
         <DialogContent className="max-w-4xl w-[90vw] max-h-[80vh] overflow-hidden">
@@ -1533,9 +1523,9 @@ export default function EventsPage() {
                   {membersModalEvent.title}
                 </span>{" "}
                 ·{" "}
-                {membersModalEvent.location && (
+                {buildLocationLabel(membersModalEvent) && (
                   <span className="text-muted-foreground">
-                    {membersModalEvent.location}
+                    {buildLocationLabel(membersModalEvent)}
                   </span>
                 )}
                 <br />
@@ -1564,7 +1554,6 @@ export default function EventsPage() {
             )}
           </DialogHeader>
 
-          {/* Stats row */}
           <div className="flex items-center gap-3 mb-3 text-sm">
             <span className="px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
               {members.length} member{members.length === 1 ? "" : "s"}
@@ -1576,7 +1565,6 @@ export default function EventsPage() {
             )}
           </div>
 
-          {/* Content area */}
           <div className="border rounded-xl bg-muted/40 overflow-hidden">
             {isMembersLoading ? (
               <div className="p-6 text-sm text-muted-foreground">

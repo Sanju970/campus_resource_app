@@ -21,6 +21,7 @@ import ResetPasswordPage from './components/ResetPasswordPage';
 import OrganizationDetails from './components/OrganizationDetails';
 import UserPublicProfile from "./components/UserPublicProfile";
 import AllUsersPage from "./components/AllUsersPage";
+import LocationsPage from "./components/LocationsPage";
 
 // ⭐ NEW IMPORT
 import EventMembersPage from "./components/EventMembersPage";
@@ -102,6 +103,18 @@ function AppContent() {
                     )
                   }
                 />
+
+                <Route
+                  path="/locations"
+                  element={
+                    user.role === 3 || user.role === "3" || user.role === "admin" ? (
+                      <LocationsPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+
               </Routes>
               <AIChat />
             </Layout>

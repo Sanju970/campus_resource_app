@@ -1,3 +1,5 @@
+// ======================= OrganizationDetails.jsx =========================
+
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -85,11 +87,12 @@ export default function OrganizationDetails() {
 
   const [categories, setCategories] = useState([]);
   const [admins, setAdmins] = useState([]);
+  const [locations, setLocations] = useState([]);
 
   const [form, setForm] = useState({
     title: "",
     description: "",
-    location: "",
+    location_id: "",
     hours_days_main: "",
     hours_start_main: "",
     hours_end_main: "",
@@ -159,6 +162,33 @@ export default function OrganizationDetails() {
       .then((res) => setAdmins(res.data || []))
       .catch(() => {});
   }, []);
+
+  /* ---------- load locations ---------- */
+
+  const loadLocations = async (currentLocationId) => {
+    try {
+      const available = await axios.get(
+        "http://localhost:5000/api/locations/available"
+      );
+
+      let list = available.data;
+
+      if (currentLocationId) {
+        const all = await axios.get("http://localhost:5000/api/locations");
+        const found = all.data.find(
+          (l) => l.location_id === currentLocationId
+        );
+
+        if (found && !list.some((l) => l.location_id === found.location_id)) {
+          list.push(found);
+        }
+      }
+
+      setLocations(list);
+    } catch (err) {
+      toast.error("Failed to load locations");
+    }
+  };
 
   /* ---------- permission helpers ---------- */
 
@@ -241,7 +271,7 @@ export default function OrganizationDetails() {
     };
   };
 
-  const openEditModal = () => {
+  const openEditModal = async () => {
     if (!org) return;
 
     if (!canManageOrg) {
@@ -254,7 +284,7 @@ export default function OrganizationDetails() {
     setForm({
       title: org.title || "",
       description: org.description || "",
-      location: org.location || "",
+      location_id: org.location_id || "",
       hours_days_main: b1.days || "",
       hours_start_main: b1.start || "",
       hours_end_main: b1.end || "",
@@ -267,12 +297,15 @@ export default function OrganizationDetails() {
       new_admin_id: "",
     });
 
+    await loadLocations(org.location_id);
+
     setModalOpen(true);
   };
 
   const handleSaveOrg = async () => {
     if (!form.title.trim()) return toast.error("Title is required");
     if (!form.category_id) return toast.error("Select a category");
+    if (!form.location_id) return toast.error("Select a location");
 
     // ---- Time validation (US Central Time) ----
     if (form.hours_days_main && form.hours_start_main && form.hours_end_main) {
@@ -340,7 +373,13 @@ export default function OrganizationDetails() {
       }
 
       setOrg((prev) =>
-        prev ? { ...prev, ...form, hours: hoursFormatted } : prev
+        prev
+          ? {
+              ...prev,
+              ...form,
+              hours: hoursFormatted,
+            }
+          : prev
       );
 
       toast.success("Organization updated");
@@ -478,14 +517,18 @@ export default function OrganizationDetails() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-          {/* Location */}
-          {org.location && (
+          {/* Location (new campus_locations + legacy) */}
+          {(org.location_name || org.legacy_location) && (
             <div className="flex items-start gap-3">
               <MapPin className="h-5 w-5 text-primary mt-1" />
               <div>
                 <p className="text-sm font-semibold">Location</p>
                 <p className="text-sm text-muted-foreground">
-                  {org.location}
+                  {org.location_name
+                    ? `${org.location_name}${
+                        org.building ? ` — ${org.building}` : ""
+                      }${org.room ? ` — Room ${org.room}` : ""}`
+                    : org.legacy_location}
                 </p>
               </div>
             </div>
@@ -599,10 +642,10 @@ export default function OrganizationDetails() {
                   <div>
                     <div className="flex items-center gap-2">
                       <Link
-                      to={`/users/${m.user_id}`}
-                      className="font-medium text-base text-blue-600 hover:underline"
+                        to={`/users/${m.user_id}`}
+                        className="font-medium text-base text-blue-600 hover:underline"
                       >
-                      {m.first_name} {m.last_name}
+                        {m.first_name} {m.last_name}
                       </Link>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -662,6 +705,7 @@ export default function OrganizationDetails() {
         onSave={handleSaveOrg}
         categories={categories}
         admins={admins}
+        locations={locations}
         isEdit={true}
         canTransferAdmin={isGlobalAdmin || isAdminDelegate}
       />

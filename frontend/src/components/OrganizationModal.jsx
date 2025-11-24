@@ -1,3 +1,5 @@
+// ======================= OrganizationModal.jsx =========================
+
 import {
   Dialog,
   DialogContent,
@@ -18,7 +20,6 @@ const TIME_OPTIONS = [
   "6 PM","7 PM","8 PM","9 PM","10 PM","11 PM",
 ];
 
-// Convert "5 PM" → minutes since midnight (1020)
 function convertToMinutes(timeStr) {
   if (!timeStr) return null;
 
@@ -39,13 +40,11 @@ export default function OrganizationModal({
   setForm,
   onSave,
   categories = [],
-  faculty = [],
   admins = [],
+  locations = [],
   isEdit = false,
   canTransferAdmin = false,
 }) {
-
-  /* ------------------------------ TIME VALIDATION ------------------------------ */
 
   const validateTimes = () => {
     const check = (days, start, end, label) => {
@@ -54,50 +53,26 @@ export default function OrganizationModal({
       const s = convertToMinutes(start);
       const e = convertToMinutes(end);
 
-      if (!s || !e) return true;
-
       if (e <= s) {
-        toast.error(`${label}: End time must be after start time (US Central Time).`);
+        toast.error(`${label}: End time must be after start time.`);
         return false;
       }
       return true;
     };
 
-    if (
-      !check(
-        form.hours_days_main,
-        form.hours_start_main,
-        form.hours_end_main,
-        "Primary Hours"
-      )
-    ) return false;
-
-    if (
-      !check(
-        form.hours_days_secondary,
-        form.hours_start_secondary,
-        form.hours_end_secondary,
-        "Secondary Hours"
-      )
-    ) return false;
+    if (!check(form.hours_days_main, form.hours_start_main, form.hours_end_main, "Primary Hours")) return false;
+    if (!check(form.hours_days_secondary, form.hours_start_secondary, form.hours_end_secondary, "Secondary Hours")) return false;
 
     return true;
   };
 
   const handleSave = () => {
+    if (!form.location_id) return toast.error("Please select a location.");
     if (!validateTimes()) return;
-    onSave(); // call parent handler only if valid
+    onSave();
   };
 
-  /* ------------------------------ RENDER HOURS BLOCK ------------------------------ */
-
-  const renderHoursBlock = (
-    label,
-    daysKey,
-    startKey,
-    endKey,
-    isOptional = false
-  ) => (
+  const renderHoursBlock = (label, daysKey, startKey, endKey, isOptional = false) => (
     <div className="space-y-2">
       <Label>
         {label}
@@ -127,7 +102,9 @@ export default function OrganizationModal({
         >
           <option value="">Start Time</option>
           {TIME_OPTIONS.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
 
@@ -138,7 +115,9 @@ export default function OrganizationModal({
         >
           <option value="">End Time</option>
           {TIME_OPTIONS.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
       </div>
@@ -158,10 +137,6 @@ export default function OrganizationModal({
     form.hours_end_secondary
       ? `${form.hours_days_secondary}: ${form.hours_start_secondary} – ${form.hours_end_secondary}`
       : "";
-
-  const showAdminTransfer = isEdit && canTransferAdmin;
-
-  /* ------------------------------ UI ------------------------------ */
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -210,20 +185,37 @@ export default function OrganizationModal({
             </select>
           </div>
 
-          {/* LOCATION */}
+          {/* LOCATION DROPDOWN */}
           <div className="space-y-2">
             <Label>Location</Label>
-            <Input
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-            />
+
+            <select
+              className="border rounded-md w-full p-2"
+              value={form.location_id || ""}
+              onChange={(e) =>
+                setForm({ ...form, location_id: Number(e.target.value) })
+              }
+            >
+              <option value="">Select Location</option>
+              {locations.map((loc) => (
+                <option key={loc.location_id} value={loc.location_id}>
+                  {loc.location_name}
+                  {loc.building ? ` — ${loc.building}` : ""}
+                  {loc.room ? ` — Room ${loc.room}` : ""}
+                </option>
+              ))}
+            </select>
+
+            {!form.location_id && (
+              <p className="text-xs text-red-500">Location is required</p>
+            )}
           </div>
 
           {/* HOURS */}
           <div className="space-y-4">
-            <Label>Operating Days & Hours</Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              All times are in US Central Time (CT).
+            <Label>Operating Hours</Label>
+            <p className="text-xs text-muted-foreground">
+              Times are US Central Time.
             </p>
 
             {renderHoursBlock(
@@ -268,26 +260,23 @@ export default function OrganizationModal({
             />
           </div>
 
-          {/* ADMIN DELEGATE TRANSFER */}
-          {showAdminTransfer && (
+          {/* ADMIN TRANSFER */}
+          {isEdit && canTransferAdmin && (
             <div className="space-y-3 border border-orange-300 p-4 rounded-md bg-orange-50">
               <span className="text-orange-600 font-semibold">
                 Admin Delegate Transfer
               </span>
 
               <div className="space-y-2">
-                <Label>Transfer admin_delegate role to:</Label>
+                <Label>Select Global Admin</Label>
                 <select
                   className="border rounded-md w-full p-2"
                   value={form.new_admin_id || ""}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      new_admin_id: Number(e.target.value),
-                    })
+                    setForm({ ...form, new_admin_id: Number(e.target.value) })
                   }
                 >
-                  <option value="">Select Global Admin</option>
+                  <option value="">Select Admin</option>
                   {admins.map((adm) => (
                     <option key={adm.user_id} value={adm.user_id}>
                       {adm.first_name} {adm.last_name} — {adm.email}
@@ -295,15 +284,10 @@ export default function OrganizationModal({
                   ))}
                 </select>
               </div>
-
-              <p className="text-sm text-orange-700 bg-orange-100 border border-orange-200 rounded p-2">
-                Optional: If you plan to step down as admin_delegate, choose another
-                global admin to take over.
-              </p>
             </div>
           )}
 
-          {/* SUBMIT BUTTON */}
+          {/* SAVE BUTTON */}
           <Button onClick={handleSave} className="w-full">
             {isEdit ? "Save Changes" : "Create Organization"}
           </Button>
