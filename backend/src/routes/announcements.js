@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db'); // This must be a promise pool!
 
-// Get all announcements
+// Get all announcements (optionally could join org info client-side)
 router.get('/', async (req, res) => {
   try {
     const [results] = await db.query(
-      `SELECT a.announcement_id, a.title, a.content, a.priority, a.created_by, a.created_at 
-      FROM announcements a
-      WHERE a.created_at > (NOW() - INTERVAL 24 HOUR)`
+      `SELECT a.announcement_id, a.title, a.content, a.priority, a.created_by, a.created_at, a.org_id
+       FROM announcements a
+       WHERE a.created_at > (NOW() - INTERVAL 24 HOUR)`
     );
     res.json(results);
   } catch (err) {
@@ -33,17 +33,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create a new announcement (admin only)
+// Create a new announcement (admin/org roles only)
 router.post('/', async (req, res) => {
-  const { title, content, priority, created_by } = req.body;
-  if (!title || !content || !priority || !created_by) {
-    return res.status(400).json({ message: 'Missing required fields' });
+  const { title, content, priority, created_by, org_id } = req.body;
+  if (!title || !content || !priority || !created_by || !org_id) {
+    return res.status(400).json({ message: 'Missing required fields (title, content, priority, created_by, org_id)' });
   }
   try {
-    // Insert the announcement
+    // Insert the announcement including org_id
     await db.query(
-      'INSERT INTO announcements (title, content, priority, created_by) VALUES (?, ?, ?, ?)',
-      [title, content, priority, created_by]
+      'INSERT INTO announcements (title, content, priority, created_by, org_id) VALUES (?, ?, ?, ?, ?)',
+      [title, content, priority, created_by, org_id]
     );
     // Fetch the inserted announcement for response
     const [inserted] = await db.query(
@@ -75,15 +75,35 @@ router.post('/', async (req, res) => {
   }
 });
 
-
-// Update announcement
+// Update announcement completely
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { title, content, priority } = req.body;
+  const { title, content, priority, org_id } = req.body;
+  if (!title || !content || !priority || !org_id) {
+    return res.status(400).json({ message: 'Missing required fields (title, content, priority, org_id)' });
+  }
   try {
     await db.query(
-      'UPDATE announcements SET title=?, content=?, priority=? WHERE announcement_id=?',
-      [title, content, priority, id]
+      'UPDATE announcements SET title=?, content=?, priority=?, org_id=? WHERE announcement_id=?',
+      [title, content, priority, org_id, id]
+    );
+    res.json({ message: 'Announcement updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Partial update announcement (PATCH)
+router.patch('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, content, priority, org_id } = req.body;
+  if (!title || !content || !priority || !org_id) {
+    return res.status(400).json({ message: 'Missing required fields (title, content, priority, org_id)' });
+  }
+  try {
+    await db.query(
+      'UPDATE announcements SET title=?, content=?, priority=?, org_id=? WHERE announcement_id=?',
+      [title, content, priority, org_id, id]
     );
     res.json({ message: 'Announcement updated successfully' });
   } catch (err) {
@@ -100,19 +120,6 @@ router.delete('/:id', async (req, res) => {
       [id]
     );
     res.json({ message: 'Announcement deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-router.patch('/:id', async (req, res) => {
-  const { id } = req.params;
-  const { title, content, priority } = req.body;
-  try {
-    await db.query(
-      'UPDATE announcements SET title=?, content=?, priority=? WHERE announcement_id=?',
-      [title, content, priority, id]
-    );
-    res.json({ message: 'Announcement updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

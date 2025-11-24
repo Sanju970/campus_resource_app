@@ -134,11 +134,12 @@ CREATE TABLE announcements (
     content TEXT NOT NULL,
     priority ENUM('low','medium','high','urgent') DEFAULT 'medium',
     created_by INT NOT NULL,
+    org_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (title, created_by),
-    FOREIGN KEY (created_by) REFERENCES users(user_id)
+    FOREIGN KEY (created_by) REFERENCES users(user_id),
+    FOREIGN KEY (org_id) REFERENCES organizations(org_id)
 );
-
 -- ============================================================
 -- 7. FAVORITES
 -- ============================================================
@@ -276,8 +277,8 @@ VALUES
  300, 6, 'Concert', NULL, 0, 'approved', 1, 6, 0);
 
 -- SAMPLE ANNOUNCEMENTS
-INSERT INTO announcements (title, content, priority, created_by)
+INSERT INTO announcements (title, content, priority, created_by, org_id)
 VALUES
-('Faculty Meeting Scheduled', 'Mandatory faculty meeting Friday at 3 PM.', 'high', 2),
-('Research Grant Applications', 'Apply for new government grants.', 'medium', 2),
-('Faculty Development Workshop', 'Training on modern teaching techniques.', 'low', 2);
+('Faculty Meeting Scheduled', 'Mandatory faculty meeting Friday at 3 PM.', 'high', 2, 1),
+('Research Grant Applications', 'Apply for new government grants.', 'medium', 2, 1),
+('Faculty Development Workshop', 'Training on modern teaching techniques.', 'low', 2, 1);
