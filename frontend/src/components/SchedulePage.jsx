@@ -8,7 +8,6 @@ import {
   Clock,
   MapPin,
   User,
-  Plus,
   List,
   CalendarDays,
   ChevronLeft,
@@ -22,11 +21,10 @@ export default function SchedulePage() {
   const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api';
 
   const [viewMode, setViewMode] = useState('calendar');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const [currentWeekStart, setCurrentWeekStart] = useState(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+    startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday
   );
 
   const handleNextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
@@ -36,22 +34,10 @@ export default function SchedulePage() {
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
 
-  // Monday–Saturday
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  // Monday–Sunday
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const [schedule, setSchedule] = useState([]);
-
-  const [newEvent, setNewEvent] = useState({
-    title: '',
-    course: '',
-    type: 'class',
-    startTime: '09:00',
-    endTime: '10:00',
-    day: 'Monday',
-    location: '',
-    instructor: '',
-    description: ''
-  });
 
   const getEventTypeLabel = (type) => {
     switch (type) {
@@ -87,16 +73,15 @@ export default function SchedulePage() {
     }
   };
 
- 
   const generateHourlySlots = () => {
     const slots = [];
     for (let hour = 0; hour < 24; hour++) {
-      const displayHour = ((hour + 11) % 12) + 1; 
+      const displayHour = ((hour + 11) % 12) + 1;
       const suffix = hour < 12 ? 'AM' : 'PM';
 
       slots.push({
-        time: `${hour.toString().padStart(2, '0')}:00`, 
-        label: `${displayHour} ${suffix}`               
+        time: `${hour.toString().padStart(2, '0')}:00`,
+        label: `${displayHour} ${suffix}`
       });
     }
     return slots;
@@ -115,22 +100,21 @@ export default function SchedulePage() {
     });
   };
 
-
   const getEventStyle = (event) => {
     const [startHourStr, startMinuteStr] = event.startTime.split(':');
-    const [endHourStr, endMinuteStr] = event.endTime.split(':');
+       const [endHourStr, endMinuteStr] = event.endTime.split(':');
 
     const startHour = parseInt(startHourStr, 10);
     const startMinute = parseInt(startMinuteStr, 10);
     const endHour = parseInt(endHourStr, 10);
     const endMinute = parseInt(endMinuteStr, 10);
 
-    const startOffsetHours = startHour + startMinute / 60; // 0–23.99
+    const startOffsetHours = startHour + startMinute / 60;
     const endOffsetHours = endHour + endMinute / 60;
     const durationHours = endOffsetHours - startOffsetHours;
 
     return {
-      top: `${startOffsetHours * 4}rem`, 
+      top: `${startOffsetHours * 4}rem`,
       height: `${durationHours * 4}rem`
     };
   };
@@ -199,7 +183,6 @@ export default function SchedulePage() {
     fetchSchedule();
   }, [user, API_BASE]);
 
-
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -210,8 +193,12 @@ export default function SchedulePage() {
 
   return (
     <div className="relative min-h-screen bg-background">
-      <div className="fixed top-16 inset-x-0 z-20">
-        <div className="max-w-[1400px] mx-auto px-6">
+      {/* Top header bar */}
+      <div
+        className="fixed z-20"
+        style={{ top: '4rem', left: '50%', transform: 'translateX(-50%)', width: '1500px' }}
+      >
+        <div className="px-4">
           <div className="flex items-center justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl font-semibold">My Schedule</h1>
@@ -236,7 +223,6 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Calendar/List toggle */}
               <div className="flex items-center border rounded-lg p-1">
                 <Button
                   variant={viewMode === 'calendar' ? 'default' : 'ghost'}
@@ -260,10 +246,14 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <div className="fixed bottom-6 inset-x-0 z-20">
-        <div className="max-w-[1400px] mx-auto px-6">
+      {/* Bottom stats bar */}
+      <div
+        className="fixed z-20"
+        style={{ bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', width: '1500px' }}
+      >
+        <div className="px-4">
           <div className="flex items-center justify-center pt-4 border-t bg-background/80 backdrop-blur-sm rounded-t-lg">
-        <div className="text-center space-y-1">
+            <div className="text-center space-y-1">
               <div className="text-3xl">{schedule.length}</div>
               <div className="text-sm text-muted-foreground">Total Events</div>
             </div>
@@ -301,195 +291,207 @@ function ScheduleLayout({
     if (viewMode !== 'calendar') return;
     if (!scrollRef.current) return;
 
-    const SLOT_HEIGHT_PX = 64; 
-    scrollRef.current.scrollTop = 8 * SLOT_HEIGHT_PX; 
+    const SLOT_HEIGHT_PX = 64;
+    scrollRef.current.scrollTop = 8 * SLOT_HEIGHT_PX;
   }, [viewMode, weekDays]);
 
   return (
     <div
-      className="fixed inset-x-0 z-10"
-      style={{ top: '110px', bottom: '120px' }} 
+      className="fixed z-10"
+      style={{
+        top: '110px',
+        bottom: '120px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '1500px'
+      }}
     >
-      <div className="h-full">
-        <div className="max-w-[1400px] mx-auto px-6 h-full">
-          {/* Calendar view */}
-          {viewMode === 'calendar' && (
-            <Card className="h-full flex flex-col">
-              <CardContent className="p-0 h-full flex flex-col">
-                <div className="overflow-x-auto h-full">
-                  <div className="min-w-[80px] flex flex-col h-full">
-                 
-                    <div
-                      className="flex border-b bg-muted/80 backdrop-blur-sm"
-                      style={{ paddingRight: '16px' }} 
-                    >
-                      <div className="w-24 p-3 border-r">
-                        <span className="text-sm text-muted-foreground">Time</span>
-                      </div>
-                      
-                      <div className="flex-1 grid grid-cols-6">
-                        {weekDays.slice(0, 6).map((date) => (
-                          <div
-                            key={date.toDateString()}
-                            className="p-3 border-r last:border-r-0 text-center"
-                          >
-                            <div>{format(date, 'EEEE')}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {format(date, 'dd MMM')}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+      <div className="h-full px-4">
+        {/* Calendar view */}
+        {viewMode === 'calendar' && (
+          <Card className="h-full flex flex-col">
+            <CardContent className="p-0 h-full flex flex-col">
+              <div className="overflow-x-auto h-full">
+                <div className="min-w-[80px] flex flex-col h-full">
+                  {/* Day headers */}
+                  <div
+                    className="flex border-b bg-muted/80 backdrop-blur-sm"
+                    style={{ paddingRight: '16px' }}
+                  >
+                    {/* Time column */}
+                    <div className="w-24 p-3 border-r">
+                      <span className="text-sm text-muted-foreground">Time</span>
                     </div>
 
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto">
-                      <div className="relative">
-                        <div className="flex">
-                          <div className="w-24 border-r">
-                            {hourlySlots.map((slot) => (
-                              <div
-                                key={slot.time}
-                                className="h-16 border-b flex items-start justify-end pr-2 pt-1 text-xs text-muted-foreground"
-                              >
-                                {slot.label}
-                              </div>
-                            ))}
+                    {/* Days header: Mon–Sun in one row */}
+                    <div className="flex-1 flex">
+                      {weekDays.map((date) => (
+                        <div
+                          key={date.toDateString()}
+                          className="flex-1 p-3 border-r last:border-r-0 text-center"
+                        >
+                          <div>{format(date, 'EEEE')}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {format(date, 'dd MMM')}
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-                          <div className="flex-1 grid grid-cols-6">
-                            {days.map((dayName) => (
-                              <div
-                                key={dayName}
-                                className="border-r last:border-r-0 relative"
-                              >
-                                {hourlySlots.map((slot) => (
-                                  <div key={slot.time} className="h-16 border-b" />
-                                ))}
+                  {/* Time slots + events */}
+                  <div ref={scrollRef} className="flex-1 overflow-y-auto">
+                    <div className="relative">
+                      <div className="flex">
+                        {/* Time labels */}
+                        <div className="w-24 border-r">
+                          {hourlySlots.map((slot) => (
+                            <div
+                              key={slot.time}
+                              className="h-16 border-b flex items-start justify-end pr-2 pt-1 text-xs text-muted-foreground"
+                            >
+                              {slot.label}
+                            </div>
+                          ))}
+                        </div>
 
-                                <div className="absolute inset-0 pointer-events-none">
-                                  {getEventsByDay(dayName).map((event) => {
-                                    const style = getEventStyle(event);
-                                    return (
-                                      <div
-                                        key={event.id}
-                                        className={`absolute left-1 right-1 ${getEventTypeColor(
-                                          event.type
-                                        )} text-white rounded-md p-2 overflow-hidden pointer-events-auto hover:shadow-lg transition-shadow`}
-                                        style={style}
-                                      >
-                                        <div className="text-xs space-y-0.5">
-                                          <div className="font-medium line-clamp-1">
-                                            {event.title}
-                                          </div>
-                                          <div className="opacity-90">
-                                            {event.startTime} - {event.endTime}
-                                          </div>
-                                          {event.location && (
-                                            <div className="opacity-80 text-xs line-clamp-1">
-                                              {event.location}
-                                            </div>
-                                          )}
+                        {/* Columns for each day: Mon–Sun horizontally */}
+                        <div className="flex-1 flex">
+                          {days.map((dayName) => (
+                            <div
+                              key={dayName}
+                              className="flex-1 border-r last:border-r-0 relative"
+                            >
+                              {/* Background hour slots */}
+                              {hourlySlots.map((slot) => (
+                                <div key={slot.time} className="h-16 border-b" />
+                              ))}
+
+                              {/* Events layer */}
+                              <div className="absolute inset-0 pointer-events-none">
+                                {getEventsByDay(dayName).map((event) => {
+                                  const style = getEventStyle(event);
+                                  return (
+                                    <div
+                                      key={event.id}
+                                      className={`absolute left-1 right-1 ${getEventTypeColor(
+                                        event.type
+                                      )} text-white rounded-md p-2 overflow-hidden pointer-events-auto hover:shadow-lg transition-shadow`}
+                                      style={style}
+                                    >
+                                      <div className="text-xs space-y-0.5">
+                                        <div className="font-medium line-clamp-1">
+                                          {event.title}
                                         </div>
+                                        <div className="opacity-90">
+                                          {event.startTime} - {event.endTime}
+                                        </div>
+                                        {event.location && (
+                                          <div className="opacity-80 text-xs line-clamp-1">
+                                            {event.location}
+                                          </div>
+                                        )}
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-          {viewMode === 'list' && (
-            <Card className="h-full overflow-hidden">
-              <CardContent className="p-4 space-y-4 h-full overflow-y-auto">
-                {days.map((dayName) => {
-                  const events = getEventsByDay(dayName);
-                  return (
-                    <Card key={dayName}>
-                      <CardHeader>
-                        <CardTitle>{dayName}</CardTitle>
-                        <CardDescription>
-                          {events.length} {events.length === 1 ? 'event' : 'events'}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {events.length > 0 ? (
-                          events.map((event) => (
+        {/* List view */}
+        {viewMode === 'list' && (
+          <Card className="h-full overflow-hidden">
+            <CardContent className="p-4 space-y-4 h-full overflow-y-auto">
+              {days.map((dayName) => {
+                const events = getEventsByDay(dayName);
+                return (
+                  <Card key={dayName}>
+                    <CardHeader>
+                      <CardTitle>{dayName}</CardTitle>
+                      <CardDescription>
+                        {events.length} {events.length === 1 ? 'event' : 'events'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {events.length > 0 ? (
+                        events.map((event) => (
+                          <div
+                            key={event.id}
+                            className="flex items-start gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                          >
                             <div
-                              key={event.id}
-                              className="flex items-start gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                            >
-                              <div
-                                className={`w-1 h-full ${getEventTypeColor(
-                                  event.type
-                                )} rounded-full`}
-                              />
-                              <div className="flex-1 space-y-2">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <h4 className="text-base">{event.title}</h4>
-                                    {event.course && (
-                                      <p className="text-sm text-muted-foreground">
-                                        {event.course}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Badge variant="secondary">
-                                    {getEventTypeLabel(event.type)}
-                                  </Badge>
+                              className={`w-1 h-full ${getEventTypeColor(
+                                event.type
+                              )} rounded-full`}
+                            />
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className="text-base">{event.title}</h4>
+                                  {event.course && (
+                                    <p className="text-sm text-muted-foreground">
+                                      {event.course}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant="secondary">
+                                  {getEventTypeLabel(event.type)}
+                                </Badge>
+                              </div>
+
+                              <div className="grid gap-2 text-sm md:grid-cols-2">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span>
+                                    {event.startTime} - {event.endTime}
+                                  </span>
                                 </div>
 
-                                <div className="grid gap-2 text-sm md:grid-cols-2">
+                                {event.location && (
                                   <div className="flex items-center gap-2">
-                                    <Clock className="h-4 w-4 text-muted-foreground" />
-                                    <span>
-                                      {event.startTime} - {event.endTime}
-                                    </span>
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <span>{event.location}</span>
                                   </div>
+                                )}
 
-                                  {event.location && (
-                                    <div className="flex items-center gap-2">
-                                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                                      <span>{event.location}</span>
-                                    </div>
-                                  )}
-
-                                  {event.instructor && (
-                                    <div className="flex items-center gap-2">
-                                      <User className="h-4 w-4 text-muted-foreground" />
-                                      <span>{event.instructor}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {event.description && (
-                                  <p className="text-sm text-muted-foreground">
-                                    {event.description}
-                                  </p>
+                                {event.instructor && (
+                                  <div className="flex items-center gap-2">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    <span>{event.instructor}</span>
+                                  </div>
                                 )}
                               </div>
+
+                              {event.description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {event.description}
+                                </p>
+                              )}
                             </div>
-                          ))
-                        ) : (
-                          <div className="text-center py-8 text-muted-foreground">
-                            No events scheduled
                           </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No events scheduled
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
