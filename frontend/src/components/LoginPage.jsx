@@ -368,7 +368,7 @@ export default function LoginPage() {
         </div>
 
         <Dialog open={showContact} onOpenChange={setShowContact}>
-          <DialogContent className="max-w-md rounded-xl p-0 overflow-hidden">
+          <DialogContent className="max-w-md max-h-[90vh] rounded-xl p-0 overflow-y-auto">
 
             <div className="bg-gradient-to-br from-blue-500 to-purple-600 text-white p-6 text-center">
               <div className="mx-auto h-16 w-16 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mb-3">
