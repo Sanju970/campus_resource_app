@@ -40,7 +40,13 @@ const CATEGORY_FACULTY_UID = {
   5: 'fac0005',
   6: 'fac0006',
 };
-
+/* ================================
+   SIMPLE HELPERS
+================================== */
+function isPositiveInt(value) {
+  const num = Number(value);
+  return Number.isInteger(num) && num > 0;
+}
 /* ================================
    GET /api/events
    Return ALL events + registered_count
@@ -69,6 +75,10 @@ router.get('/', async (req, res) => {
 ================================== */
 router.get('/:event_id/registrations', async (req, res) => {
   const eventId = req.params.event_id;
+
+  if (!isPositiveInt(eventId)) {
+    return res.status(400).json({ message: "Invalid event ID." });
+  }
 
   const query = `
     SELECT 
@@ -100,6 +110,10 @@ router.get('/:event_id/registrations', async (req, res) => {
 ================================== */
 router.get('/:event_id/members', async (req, res) => {
   const eventId = req.params.event_id;
+    if (!isPositiveInt(eventId)) {
+    return res.status(400).json({ message: 'Invalid event id.' });
+  }
+
 
   try {
     const [rows] = await pool.query(
@@ -135,6 +149,9 @@ router.get('/:event_id/members', async (req, res) => {
 router.get('/registrations/:user_id', async (req, res) => {
   const userId = req.params.user_id;
   const query = 'SELECT event_id FROM event_registrations WHERE user_id = ?';
+  if (!isPositiveInt(userId)) {
+    return res.status(400).json({ message: 'Invalid user id.' });
+  }
 
   try {
     const [results] = await pool.query(query, [userId]);
@@ -153,6 +170,15 @@ router.post('/:event_id/rsvp', async (req, res) => {
   try {
     const eventId = req.params.event_id;
     const { user_id } = req.body;
+
+    if (!isPositiveInt(eventId)) {
+      return res.status(400).json({ message: 'Invalid event id.' });
+    }
+
+    if (!user_id || !isPositiveInt(user_id)) {
+      return res.status(400).json({ message: 'Valid user_id is required' });
+    }
+
 
     if (!user_id) {
       return res.status(400).json({ message: 'user_id is required' });
@@ -190,6 +216,15 @@ router.delete('/:event_id/rsvp', async (req, res) => {
   try {
     const eventId = req.params.event_id;
     const { user_id } = req.body;
+
+    if (!isPositiveInt(eventId)) {
+      return res.status(400).json({ message: 'Invalid event id.' });
+    }
+
+    if (!user_id || !isPositiveInt(user_id)) {
+      return res.status(400).json({ message: 'Valid user_id is required' });
+    }
+
 
     if (!user_id) {
       return res.status(400).json({ message: 'user_id is required' });
@@ -256,6 +291,74 @@ router.post('/', async (req, res) => {
     !orgId
   ) {
     return res.status(400).json({ message: 'Missing required fields' });
+  }
+    // Extra input validation
+  const cleanTitle = title.trim();
+  const cleanDescription = description.trim();
+  const cleanLocation = location.trim();
+
+  if (cleanTitle.length < 3) {
+    return res.status(400).json({
+      message: 'Title must be at least 3 characters long.',
+    });
+  }
+
+  if (cleanDescription.length < 10) {
+    return res.status(400).json({
+      message: 'Description must be at least 10 characters long.',
+    });
+  }
+
+  if (cleanLocation.length < 3) {
+    return res.status(400).json({
+      message: 'Location must be at least 3 characters long.',
+    });
+  }
+
+  const capacityNum = Number(capacity);
+  if (Number.isNaN(capacityNum)) {
+    return res.status(400).json({
+      message: 'Capacity must be a number.',
+    });
+  }
+  if (capacityNum < 1 || capacityNum > 1000) {
+    return res.status(400).json({
+      message: 'Capacity must be between 1 and 1000.',
+    });
+  }
+
+  if (!isPositiveInt(catId)) {
+    return res.status(400).json({
+      message: 'Invalid category id.',
+    });
+  }
+
+  if (!isPositiveInt(orgId)) {
+    return res.status(400).json({
+      message: 'Invalid organization id.',
+    });
+  }
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return res.status(400).json({
+      message: 'Invalid start or end date/time.',
+    });
+  }
+
+  if (end <= start) {
+    return res.status(400).json({
+      message: 'End time must be after the start time.',
+    });
+  }
+
+  const now = new Date();
+  if (start <= now) {
+    return res.status(400).json({
+      message: 'Start time must be in the future.',
+    });
   }
 
   const categoryName = CATEGORY_NAME_BY_ID[catId] || null;
@@ -414,6 +517,70 @@ router.put('/:event_id', async (req, res) => {
     instructor_email,
   } = req.body;
 
+    if (!isPositiveInt(eventId)) {
+    return res.status(400).json({ message: 'Invalid event id.' });
+  }
+
+  if (!title || !description || !start_datetime || !end_datetime || !location || !capacity || !category_id) {
+    return res.status(400).json({
+      message: 'Title, description, start time, end time, location, capacity, and category are required.',
+    });
+  }
+
+  const cleanTitle = title.trim();
+  const cleanDescription = description.trim();
+  const cleanLocation = location.trim();
+
+  if (cleanTitle.length < 3) {
+    return res.status(400).json({
+      message: 'Title must be at least 3 characters long.',
+    });
+  }
+
+  if (cleanDescription.length < 10) {
+    return res.status(400).json({
+      message: 'Description must be at least 10 characters long.',
+    });
+  }
+
+  if (cleanLocation.length < 3) {
+    return res.status(400).json({
+      message: 'Location must be at least 3 characters long.',
+    });
+  }
+
+  const capacityNum = Number(capacity);
+  if (Number.isNaN(capacityNum)) {
+    return res.status(400).json({
+      message: 'Capacity must be a number.',
+    });
+  }
+  if (capacityNum < 1 || capacityNum > 1000) {
+    return res.status(400).json({
+      message: 'Capacity must be between 1 and 1000.',
+    });
+  }
+
+  const catNum = Number(category_id);
+  if (Number.isNaN(catNum)) {
+    return res.status(400).json({
+      message: 'Category ID must be a number.',
+    });
+  }
+
+  const start = new Date(start_datetime);
+  const end = new Date(end_datetime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return res.status(400).json({
+      message: 'Invalid start or end date/time.',
+    });
+  }
+  if (end <= start) {
+    return res.status(400).json({
+      message: 'End time must be after the start time.',
+    });
+  }
+
   try {
     await pool.query(
       `
@@ -482,6 +649,10 @@ router.put('/:event_id', async (req, res) => {
 ================================== */
 router.delete('/:event_id', async (req, res) => {
   const eventId = req.params.event_id;
+  if (!isPositiveInt(eventId)) {
+    return res.status(400).json({ message: 'Invalid event id.' });
+  }
+
 
   try {
     // Notify registered users before delete
