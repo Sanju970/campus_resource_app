@@ -55,6 +55,13 @@ const ORG_ROLES = [
   "admin_delegate",
 ];
 const BASIC_ORG_ROLES = ["member", "coordinator", "event_manager"];
+/* ================================
+   SIMPLE HELPERS
+================================== */
+function isPositiveInt(value) {
+  const num = Number(value);
+  return Number.isInteger(num) && num > 0;
+}
 
 /* ============================================================
    GET all organizations
@@ -67,6 +74,10 @@ const BASIC_ORG_ROLES = ["member", "coordinator", "event_manager"];
 ============================================================ */
 router.get("/", async (req, res) => {
   const userId = req.query.user_id || null;
+
+  if (userId !== null && !isPositiveInt(userId)) {
+    return res.status(400).json({ message: "Invalid user id." });
+  }
 
   try {
     const [rows] = await db.query(
@@ -173,6 +184,24 @@ router.post("/", async (req, res) => {
         message: "Title, category_id, and created_by are required",
       });
     }
+        const cleanTitle = title.trim();
+    if (cleanTitle.length < 3) {
+      return res.status(400).json({
+        message: "Title must be at least 3 characters long",
+      });
+    }
+
+    if (!isPositiveInt(created_by)) {
+      return res.status(400).json({
+        message: "created_by must be a valid user id",
+      });
+    }
+
+    if (!isPositiveInt(category_id)) {
+      return res.status(400).json({
+        message: "category_id must be a valid number",
+      });
+    }
 
     const globalRole = await getUserGlobalRole(created_by);
     if (!isGlobalAdmin(globalRole)) {
@@ -242,6 +271,34 @@ router.put("/:id", async (req, res) => {
     if (!updated_by) {
       return res.status(400).json({ message: "updated_by is required" });
     }
+        if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
+    if (!title || !category_id) {
+      return res.status(400).json({
+        message: "Title and category_id are required",
+      });
+    }
+
+    const cleanTitle = title.trim();
+    if (cleanTitle.length < 3) {
+      return res.status(400).json({
+        message: "Title must be at least 3 characters long",
+      });
+    }
+
+    if (!isPositiveInt(updated_by)) {
+      return res.status(400).json({
+        message: "updated_by must be a valid user id",
+      });
+    }
+
+    if (!isPositiveInt(category_id)) {
+      return res.status(400).json({
+        message: "category_id must be a valid number",
+      });
+    }
 
     const { globalRole, orgRole } = await getAuthContext(orgId, updated_by);
     const isGlobal = isGlobalAdmin(globalRole);
@@ -299,6 +356,14 @@ router.delete("/:id", async (req, res) => {
     if (!user_id) {
       return res.status(400).json({ message: "user_id is required" });
     }
+    if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
+    if (!isPositiveInt(user_id)) {
+      return res.status(400).json({ message: "user_id must be a valid user id" });
+    }
+
 
     const globalRole = await getUserGlobalRole(user_id);
     if (!isGlobalAdmin(globalRole)) {
@@ -330,6 +395,14 @@ router.post("/:id/join", async (req, res) => {
 
     if (!user_id)
       return res.status(400).json({ message: "user_id is required" });
+
+    if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
+    if (!isPositiveInt(user_id)) {
+      return res.status(400).json({ message: "user_id must be a valid user id" });
+    }
 
     const [exists] = await db.query(
       `SELECT 1 FROM organization_members WHERE org_id = ? AND user_id = ?`,
@@ -372,6 +445,13 @@ router.post("/:id/leave", async (req, res) => {
 
     if (!user_id) {
       return res.status(400).json({ message: "user_id is required" });
+    }
+    if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
+    if (!isPositiveInt(user_id)) {
+      return res.status(400).json({ message: "user_id must be a valid user id" });
     }
 
     // Get the user's current org role
@@ -459,6 +539,10 @@ router.post("/:id/leave", async (req, res) => {
 router.get("/:id/members", async (req, res) => {
   try {
     const orgId = Number(req.params.id);
+    if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
 
     const [rows] = await db.query(
       `
@@ -501,6 +585,13 @@ router.post("/:id/members/add", async (req, res) => {
 
     if (!acting_user_id || !new_user_id) {
       return res.status(400).json({ message: "Missing required fields" });
+    }
+        if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
+    if (!isPositiveInt(acting_user_id) || !isPositiveInt(new_user_id)) {
+      return res.status(400).json({ message: "Invalid user id(s)" });
     }
 
     const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
@@ -560,6 +651,14 @@ router.post("/:id/members/remove", async (req, res) => {
     if (!acting_user_id || !remove_user_id) {
       return res.status(400).json({ message: "Missing required fields" });
     }
+        if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
+
+    if (!isPositiveInt(acting_user_id) || !isPositiveInt(remove_user_id)) {
+      return res.status(400).json({ message: "Invalid user id(s)" });
+    }
+
 
     // Acting user's privileges
     const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
@@ -702,6 +801,14 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
     if (!ORG_ROLES.includes(new_role)) {
       return res.status(400).json({ message: "Invalid role" });
     }
+    if (!isPositiveInt(orgId) || !isPositiveInt(memberId)) {
+      return res.status(400).json({ message: "Invalid organization or member id" });
+    }
+
+    if (!isPositiveInt(acting_user_id)) {
+      return res.status(400).json({ message: "Invalid acting_user_id" });
+    }
+
 
     // Get acting user's privileges
     const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
@@ -808,7 +915,13 @@ router.post("/:id/transfer-admin", async (req, res) => {
     if (!acting_user_id || !new_admin_id) {
       return res.status(400).json({ message: "Missing required fields" });
     }
+    if (!isPositiveInt(orgId)) {
+      return res.status(400).json({ message: "Invalid organization id" });
+    }
 
+    if (!isPositiveInt(acting_user_id) || !isPositiveInt(new_admin_id)) {
+      return res.status(400).json({ message: "Invalid user id(s)" });
+    }
     const { globalRole, orgRole } = await getAuthContext(orgId, acting_user_id);
     const isGlobal = isGlobalAdmin(globalRole);
 
@@ -881,6 +994,10 @@ router.get("/global-admins", async (req, res) => {
 router.get("/dashboard", async (req, res) => {
   try {
     const userId = req.query.user_id;
+    if (!userId || !isPositiveInt(userId)) {
+      return res.status(400).json({ message: "Valid user_id is required" });
+    }
+
 
     const [[userRoleRow]] = await db.query(
       `
@@ -969,6 +1086,11 @@ router.get("/dashboard", async (req, res) => {
 ============================================================ */
 router.get("/mutual-orgs/:viewerId/:profileId", async (req, res) => {
   const { viewerId, profileId } = req.params;
+  
+  if (!isPositiveInt(viewerId) || !isPositiveInt(profileId)) {
+    return res.status(400).json({ message: "Invalid user id(s)" });
+  }
+
 
   try {
     const [rows] = await db.query(
