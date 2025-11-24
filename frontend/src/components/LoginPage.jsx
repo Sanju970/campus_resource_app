@@ -5,16 +5,25 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Eye, EyeOff, GraduationCap, Loader2 } from "lucide-react";
+import { Eye, EyeOff, GraduationCap, Loader2, Mail, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
 import axios from "axios";
+
+// ShadCN Dialog for Support Popup
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from "./ui/dialog";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const [loading, setLoading] = useState(false);
+  const [showContact, setShowContact] = useState(false); // ⭐ NEW STATE
 
   /* ---------------------------- LOGIN STATE ---------------------------- */
   const [identifier, setIdentifier] = useState("");
@@ -347,6 +356,80 @@ export default function LoginPage() {
             </TabsContent>
           </Tabs>
         </Card>
+
+        {/* ⭐ CONTACT SUPPORT BUTTON */}
+        <div className="text-center mt-4">
+          <button
+            className="text-blue-600 hover:underline text-sm"
+            onClick={() => setShowContact(true)}
+          >
+            Need Help? Contact Support
+          </button>
+        </div>
+
+        <Dialog open={showContact} onOpenChange={setShowContact}>
+          <DialogContent className="max-w-md rounded-xl p-0 overflow-hidden">
+
+            <div className="bg-gradient-to-br from-blue-500 to-purple-600 text-white p-6 text-center">
+              <div className="mx-auto h-16 w-16 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mb-3">
+                <Info className="h-8 w-8 text-white" />
+              </div>
+
+              <h2 className="text-2xl font-bold">Campus Portal</h2>
+              <p className="text-sm text-white/80 mt-1">
+                Your resource hub for events, organizations, and campus connections.
+              </p>
+
+              <p className="text-xs text-white/70 mt-2">
+                Version 1.0.0 • November 2025
+              </p>
+            </div>
+
+            {/* Main Body */}
+            <div className="p-6 space-y-6">
+
+              {/* Contact the Team Title */}
+              <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <span className="h-2 w-2 bg-purple-500 rounded-full"></span>
+                Contact the Team
+              </p>
+
+              {/* Development Team Card */}
+              <div className="rounded-xl border p-4 shadow-sm hover:shadow-md transition bg-white">
+                <p className="font-medium text-gray-900">Development Team</p>
+                <p className="text-xs text-gray-500 mb-2">Technical Support</p>
+
+                <div className="flex items-center gap-2 bg-gray-100 border rounded-md p-2">
+                  <Mail className="h-4 w-4 text-gray-700" />
+                  <span className="text-sm">campus.dev@university.edu</span>
+                </div>
+              </div>
+
+              {/* Support Team Card */}
+              <div className="rounded-xl border p-4 shadow-sm hover:shadow-md transition bg-white">
+                <p className="font-medium text-gray-900">Support Team</p>
+                <p className="text-xs text-gray-500 mb-2">General Inquiries</p>
+
+                <div className="flex items-center gap-2 bg-gray-100 border rounded-md p-2">
+                  <Mail className="h-4 w-4 text-gray-700" />
+                  <span className="text-sm">campus.support@university.edu</span>
+                </div>
+              </div>
+
+              {/* Issues section */}
+              <div className="rounded-xl border p-4 bg-blue-50">
+                <p className="text-sm font-semibold text-blue-700 flex items-center gap-1">
+                  <span className="text-lg">❗</span> Having Issues?
+                </p>
+                <p className="text-xs text-blue-700/70 mt-1">
+                  Report bugs or request help from our support team.
+                </p>
+              </div>
+
+            </div>
+          </DialogContent>
+
+        </Dialog>
       </div>
     </div>
   );
