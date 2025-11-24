@@ -146,6 +146,19 @@ router.post("/login", async (req, res) => {
         message: "Email/User ID and password are required.",
       });
     }
+    if (identifier.includes("@")) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(identifier.trim().toLowerCase())) {
+        return res.status(400).json({
+          message: "Invalid email format.",
+        });
+      }
+    }
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long.",
+      });
+    }
 
     const cleanId = identifier.trim().toLowerCase();
     
