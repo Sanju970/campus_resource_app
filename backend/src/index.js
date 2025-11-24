@@ -1,4 +1,3 @@
-// backend/src/index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -23,16 +22,24 @@ const locationRoutes = require("./routes/location");
 
 // --- Initialize Express App ---
 const app = express();
+
+// Read frontend origin from env (fallback to localhost for local dev)
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+
+// Setup CORS using the frontend URL
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: FRONTEND_URL,
     credentials: true,
   })
 );
 
-// Required for Axios + withCredentials
+// Required for Axios + withCredentials — reflect the same origin
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "http://localhost:3000");
+  // echo the configured frontend origin (only if set)
+  if (FRONTEND_URL) {
+    res.header("Access-Control-Allow-Origin", FRONTEND_URL);
+  }
   res.header("Access-Control-Allow-Credentials", "true");
   res.header(
     "Access-Control-Allow-Headers",
@@ -68,7 +75,6 @@ app.use("/api/faculty", facultyRoutes);
 app.use("/api/schedule", scheduleRoutes);
 app.use("/api/locations", locationRoutes);
 
-
 // --- Root Endpoint ---
 app.get('/', (req, res) => {
   res.send('🎓 Campus Portal Backend is running successfully!');
@@ -77,5 +83,5 @@ app.get('/', (req, res) => {
 // --- Start Server ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
