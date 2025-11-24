@@ -1,7 +1,7 @@
 // src/components/ResetPasswordPage.jsx
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
+import api from "../api/api";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -46,8 +46,8 @@ export default function ResetPasswordPage() {
     try {
       setIsLoading(true);
 
-      const res = await axios.post(
-        `http://localhost:5000/api/auth/reset-password/${token}`,
+      const res = await api.post(
+        `/auth/reset-password/${token}`,
         { newPassword }
       );
 

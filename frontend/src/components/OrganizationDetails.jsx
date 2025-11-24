@@ -1,7 +1,7 @@
 // ======================= OrganizationDetails.jsx =========================
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
@@ -115,8 +115,8 @@ export default function OrganizationDetails() {
   useEffect(() => {
     if (!user) return;
 
-    axios
-      .get("http://localhost:5000/api/organizations", {
+    api
+      .get("/organizations", {
         params: { user_id: user.user_id },
       })
       .then((res) => {
@@ -129,8 +129,8 @@ export default function OrganizationDetails() {
   /* ---------- load members ---------- */
 
   const loadMembers = () => {
-    axios
-      .get(`http://localhost:5000/api/organizations/${orgId}/members`)
+    api
+      .get(`/organizations/${orgId}/members`)
       .then((res) => setMembers(res.data || []))
       .catch(() => {});
   };
@@ -143,8 +143,8 @@ export default function OrganizationDetails() {
   /* ---------- load all users ---------- */
 
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/all")
+    api
+      .get("/all")
       .then((res) => setAllUsers(res.data || []))
       .catch(() => {});
   }, []);
@@ -152,13 +152,13 @@ export default function OrganizationDetails() {
   /* ---------- categories + admins ---------- */
 
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/org-categories")
+    api
+      .get("/org-categories")
       .then((res) => setCategories(res.data || []))
       .catch(() => {});
 
-    axios
-      .get("http://localhost:5000/api/organizations/global-admins")
+    api
+      .get("/organizations/global-admins")
       .then((res) => setAdmins(res.data || []))
       .catch(() => {});
   }, []);
@@ -167,14 +167,14 @@ export default function OrganizationDetails() {
 
   const loadLocations = async (currentLocationId) => {
     try {
-      const available = await axios.get(
-        "http://localhost:5000/api/locations/available"
+      const available = await api.get(
+        "/locations/available"
       );
 
       let list = available.data;
 
       if (currentLocationId) {
-        const all = await axios.get("http://localhost:5000/api/locations");
+        const all = await api.get("/locations");
         const found = all.data.find(
           (l) => l.location_id === currentLocationId
         );
@@ -355,15 +355,15 @@ export default function OrganizationDetails() {
     const hoursFormatted = blocks.join("; ");
 
     try {
-      await axios.put(`http://localhost:5000/api/organizations/${org.id}`, {
+      await api.put(`/organizations/${org.id}`, {
         ...form,
         hours: hoursFormatted,
         updated_by: user.user_id,
       });
 
       if (form.new_admin_id) {
-        await axios.post(
-          `http://localhost:5000/api/organizations/${org.id}/transfer-admin`,
+        await api.post(
+          `/organizations/${org.id}/transfer-admin`,
           {
             acting_user_id: user.user_id,
             new_admin_id: form.new_admin_id,
@@ -395,8 +395,8 @@ export default function OrganizationDetails() {
     if (!addUserId) return toast.error("Select a user");
 
     try {
-      await axios.post(
-        `http://localhost:5000/api/organizations/${orgId}/members/add`,
+      await api.post(
+        `/organizations/${orgId}/members/add`,
         { acting_user_id: actingUserId, new_user_id: addUserId }
       );
       toast.success("Member added");
@@ -417,8 +417,8 @@ export default function OrganizationDetails() {
       return;
 
     try {
-      await axios.post(
-        `http://localhost:5000/api/organizations/${orgId}/members/remove`,
+      await api.post(
+        `/organizations/${orgId}/members/remove`,
         {
           acting_user_id: actingUserId,
           remove_user_id: member.user_id,
@@ -435,8 +435,8 @@ export default function OrganizationDetails() {
     if (!newRole || newRole === member.org_role) return;
 
     try {
-      await axios.put(
-        `http://localhost:5000/api/organizations/${orgId}/members/${member.user_id}/role`,
+      await api.put(
+        `/organizations/${orgId}/members/${member.user_id}/role`,
         {
           acting_user_id: actingUserId,
           new_role: newRole,

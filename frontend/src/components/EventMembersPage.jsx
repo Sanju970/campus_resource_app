@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
+import api from "../api/api";
 
 export default function EventMembersPage() {
   const { eventId } = useParams();
@@ -15,21 +16,13 @@ export default function EventMembersPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch event info
-        const eventRes = await fetch(
-          `http://localhost:5000/api/events/${eventId}`
-        );
-        if (eventRes.ok) setEventInfo(await eventRes.json());
+        const eventRes = await api.get(`/events/${eventId}`);
+        setEventInfo(eventRes.data);
 
-        // Fetch members
-        const membersRes = await fetch(
-          `http://localhost:5000/api/events/${eventId}/registrations`
-        );
-        if (!membersRes.ok) throw new Error("Failed to fetch event members");
-
-        setMembers(await membersRes.json());
+        const membersRes = await api.get(`/events/${eventId}/registrations`);
+        setMembers(membersRes.data);
       } catch (err) {
-        toast.error(err.message || "Could not load event members");
+        toast.error(err.response?.data?.message || "Could not load event members");
       } finally {
         setLoading(false);
       }

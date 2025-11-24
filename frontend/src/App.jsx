@@ -22,10 +22,7 @@ import OrganizationDetails from './components/OrganizationDetails';
 import UserPublicProfile from "./components/UserPublicProfile";
 import AllUsersPage from "./components/AllUsersPage";
 import LocationsPage from "./components/LocationsPage";
-
-// ⭐ NEW IMPORT
 import EventMembersPage from "./components/EventMembersPage";
-// ⭐ NEW IMPORT
 import AboutPage from './components/AboutPage'; 
 
 function AppContent() {
@@ -75,10 +72,7 @@ function AppContent() {
               <Routes>
                 <Route path="/" element={<HomePage onNavigate={setCurrentPage} />} />
                 <Route path="/events" element={<EventsPage />} />
-
-                {/* ⭐ NEW ROUTE: EVENT MEMBERS PAGE */}
                 <Route path="/events/:eventId/members" element={<EventMembersPage />} />
-
                 <Route path="/announcements" element={<AnnouncementsPage />} />
                 <Route path="/materials" element={<MaterialsPage />} />
                 <Route path="/organizations" element={<OrganizationsPage />} />

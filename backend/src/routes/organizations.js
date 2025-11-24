@@ -687,7 +687,6 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
 
     const currentRole = target.role;
 
-    // ⭐ get target's GLOBAL ROLE (student=1, faculty=2, admin=3)
     const [[g]] = await db.query(
       `SELECT role_id FROM users WHERE user_id=?`,
       [memberId]

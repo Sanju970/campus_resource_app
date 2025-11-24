@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from "../api/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -83,7 +83,7 @@ function ChangePasswordSection() {
 
     try {
       setLoading(true);
-      const res = await axios.post('http://localhost:5000/api/auth/change-password', {
+      const res = await api.post('/auth/change-password', {
         user_uid: user.user_uid,
         oldPassword,
         newPassword,
@@ -190,9 +190,7 @@ function EditProfileSection() {
     try {
       setLoading(true);
 
-      const res = await axios.post(
-        "http://localhost:5000/api/user/update-profile",
-        {
+      const res = await api.post("/user/update-profile", {
           user_id: user.user_id,
           first_name: first,
           last_name: last,
@@ -281,8 +279,8 @@ export default function ProfilePage() {
     const handleToggle = async () => {
       try {
         setLoading(true);
-        const res = await axios.post(
-          "http://localhost:5000/api/user/update-notifications",
+        const res = await api.post(
+          "/user/update-notifications",
           {
             user_id: user.user_id,
             enabled: !enabled,

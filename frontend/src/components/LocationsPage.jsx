@@ -1,7 +1,7 @@
 // ======================= LocationsPage.jsx =========================
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
@@ -22,8 +22,8 @@ export default function LocationsPage() {
     user?.role === "admin" || user?.role === 3 || user?.role === "3";
 
   const loadLocations = () => {
-    axios
-      .get("http://localhost:5000/api/locations")
+    api
+      .get("/locations")
       .then((res) => setLocations(res.data))
       .catch(() => toast.error("Failed to load locations"));
   };
@@ -39,7 +39,7 @@ export default function LocationsPage() {
     }
 
     try {
-      await axios.post("http://localhost:5000/api/locations", {
+      await api.post("/locations", {
         ...form,
         user_id: user.user_id,
       });
@@ -56,12 +56,9 @@ export default function LocationsPage() {
     if (!window.confirm(`Delete location "${loc.location_name}"?`)) return;
 
     try {
-      await axios.delete(
-        `http://localhost:5000/api/locations/${loc.location_id}`,
-        {
+      await api.delete(`/locations/${loc.location_id}`,{
           data: { user_id: user.user_id },
-        }
-      );
+      });
 
       toast.success("Location deleted");
       loadLocations();

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api/api";
 import {
   Card,
   CardContent,
@@ -205,7 +205,7 @@ export default function EventsPage() {
   const fetchEvents = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/events?user_id=${user.user_id}`
+        `/events?user_id=${user.user_id}`
       );
       if (!res.ok) throw new Error("Network error");
       const data = await res.json();
@@ -219,7 +219,7 @@ export default function EventsPage() {
   const fetchRegisteredEvents = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/events/registrations/${user.user_id}`
+        `/events/registrations/${user.user_id}`
       );
       if (!res.ok) throw new Error("Network error");
       const data = await res.json();
@@ -231,8 +231,8 @@ export default function EventsPage() {
 
   const fetchFavoriteEvents = async () => {
     try {
-      const res = await axios.get(
-        `http://localhost:5000/api/favorites/user/${user.user_id}`
+      const res = await api.get(
+        `/favorites/user/${user.user_id}`
       );
 
       const favEventIds = res.data
@@ -248,7 +248,7 @@ export default function EventsPage() {
   // Fetch organizations for dropdown
   const fetchOrganizations = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/organizations", {
+      const res = await api.get("/organizations", {
         params: { user_id: user.user_id },
       });
 
@@ -262,7 +262,7 @@ export default function EventsPage() {
   // 🔹 Fetch campus locations for dropdown (same as orgs page style)
   const fetchLocations = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/locations");
+      const res = await api.get("/locations");
       setLocations(res.data || []);
     } catch (err) {
       console.error("Error fetching locations:", err);
@@ -426,7 +426,7 @@ export default function EventsPage() {
       let res;
 
       if (registeredEvents.includes(eventId)) {
-        res = await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
+        res = await fetch(`/events/${eventId}/rsvp`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: user.user_id }),
@@ -451,7 +451,7 @@ export default function EventsPage() {
 
         toast.success("RSVP cancelled successfully");
       } else {
-        res = await fetch(`http://localhost:5000/api/events/${eventId}/rsvp`, {
+        res = await fetch(`/events/${eventId}/rsvp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: user.user_id }),
@@ -488,7 +488,7 @@ export default function EventsPage() {
 
     if (!isFavorite) {
       try {
-        await axios.post("http://localhost:5000/api/favorites", {
+        await api.post("/favorites", {
           user_id: user.user_id,
           item_type: "event",
           item_id: eventId,
@@ -509,7 +509,7 @@ export default function EventsPage() {
       }
     } else {
       try {
-        await axios.delete("http://localhost:5000/api/favorites", {
+        await api.delete("/favorites", {
           data: {
             user_id: user.user_id,
             item_type: "event",
@@ -625,7 +625,7 @@ export default function EventsPage() {
     };
 
     try {
-      const res = await fetch("http://localhost:5000/api/events", {
+      const res = await fetch("/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(event),
@@ -709,7 +709,7 @@ export default function EventsPage() {
 
     try {
       const res = await fetch(
-        `http://localhost:5000/api/events/${editingEvent.event_id}`,
+        `/events/${editingEvent.event_id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -761,7 +761,7 @@ export default function EventsPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/events/${eventId}`,
+        `/events/${eventId}`,
         {
           method: "DELETE",
         }

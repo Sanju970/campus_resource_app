@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from "../api/api";
 import {
   Card,
   CardContent,
@@ -106,8 +106,8 @@ export default function FavoritesPage() {
     const fetchFavoritesAndEvents = async () => {
       try {
         // 1) Get favorites for this user from backend
-        const favoritesRes = await axios.get(
-          `http://localhost:5000/api/favorites/user/${user.user_id}`
+        const favoritesRes = await api.get(
+          `/favorites/user/${user.user_id}`
         );
 
         // Extract favorite event ids (convert as needed)
@@ -118,9 +118,10 @@ export default function FavoritesPage() {
         setFavoriteEventIds(favEventIds);
 
         // 2) Get all events
-        const eventsRes = await axios.get(
-          `http://localhost:5000/api/events?user_id=${user.user_id}`
-        );
+        const eventsRes = await api.get(`/events`, {
+          params: { user_id: user.user_id }
+        });
+
 
         setEvents(eventsRes.data);
       } catch (err) {
@@ -135,7 +136,7 @@ export default function FavoritesPage() {
   // Remove favorite event
   const removeFavoriteEvent = async (eventId) => {
     try {
-      await axios.delete('http://localhost:5000/api/favorites', {
+      await api.delete('/favorites', {
         data: {
           user_id: user.user_id,
           item_type: 'event',

@@ -1,9 +1,9 @@
 // frontend/src/components/AllUsersPage.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import { Badge } from "../components/ui/badge";
+import api from "../api/api";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Badge } from "./ui/badge";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";  
 
@@ -12,7 +12,7 @@ export default function AllUsersPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/all")
+    api.get("/all")
       .then(res => setUsers(res.data))
       .catch(err => console.error(err));
   }, []);
@@ -20,7 +20,6 @@ export default function AllUsersPage() {
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
 
-      {/* 🔙 Back Button */}
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-sm text-gray-600 hover:text-black"

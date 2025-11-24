@@ -1,52 +1,32 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { toast } from "sonner";
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const API_URL = "http://localhost:5000/api/auth";
+  const API_URL = "/auth";
 
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
 
-  /* --------------------------------------------------
-     LOAD USER FROM LOCAL STORAGE (ONLY ONCE)
-  -------------------------------------------------- */
+  /* LOAD FROM LOCALSTORAGE */
   useEffect(() => {
-    // Prevent double-run in React Strict Mode
-    let ignore = false;
-
     const storedUser = localStorage.getItem("user");
     const storedToken = localStorage.getItem("token");
-
-    if (!ignore) {
-      if (storedUser) setUser(JSON.parse(storedUser));
-      if (storedToken) setToken(storedToken);
-    }
-
-    return () => {
-      ignore = true;
-    };
+    if (storedUser) setUser(JSON.parse(storedUser));
+    if (storedToken) setToken(storedToken);
   }, []);
 
-  /* --------------------------------------------------
-     LOGIN
-  -------------------------------------------------- */
+  /* LOGIN */
   const login = async (identifier, password) => {
     try {
-      const res = await axios.post(`${API_URL}/login`, {
-        identifier,
-        password,
-      });
+      const res = await api.post(`${API_URL}/login`, { identifier, password });
 
       const { token, user } = res.data;
-
       const fullUser = {
         ...user,
-        user_id: user.user_id,
-        created_at: user.created_at,
         name: `${user.first_name} ${user.last_name}`,
       };
 
@@ -57,9 +37,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("token", token);
 
       return fullUser;
-
     } catch (err) {
-      // 🔥 Return the backend message properly so the UI sees it
       throw {
         response: {
           data: {
@@ -70,31 +48,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-
-  /* --------------------------------------------------
-     SIGNUP (CLEAN VERSION)
-  -------------------------------------------------- */
+  /* SIGNUP */
   const signup = async (first_name, last_name, user_uid, password) => {
-    try {
-      const res = await axios.post(`${API_URL}/register`, {
-        first_name,
-        last_name,
-        user_uid,
-        password,
-      });
+    const res = await api.post(`${API_URL}/register`, {
+      first_name,
+      last_name,
+      user_uid,
+      password,
+    });
 
-      toast.success(res.data?.message || "Account created successfully!");
-      return res.data.user;
-    } catch (err) {
-      throw new Error(
-        err.response?.data?.message || "Signup failed, please try again."
-      );
-    }
+    toast.success(res.data?.message || "Account created successfully!");
+    return res.data.user;
   };
 
-  /* --------------------------------------------------
-     LOGOUT
-  -------------------------------------------------- */
+  /* LOGOUT */
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -103,14 +70,12 @@ export const AuthProvider = ({ children }) => {
     toast.success("Logged out successfully.");
   };
 
-  /* --------------------------------------------------
-     ATTACH TOKEN TO AXIOS HEADERS
-  -------------------------------------------------- */
+  /* ATTACH TOKEN */
   useEffect(() => {
     if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     } else {
-      delete axios.defaults.headers.common["Authorization"];
+      delete api.defaults.headers.common["Authorization"];
     }
   }, [token]);
 

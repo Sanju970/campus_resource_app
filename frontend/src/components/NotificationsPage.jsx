@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Check, Info, AlertTriangle, CheckCircle, XCircle, Calendar, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import api from "../api/api";
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -10,14 +11,13 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     // Fetch notifications for this user
-    fetch(`http://localhost:5000/api/notifications/user/${user.user_id}`)
-      .then(res => res.json())
-      .then(data => setNotifications(data))
+    api.get(`/notifications/user/${user.user_id}`)
+      .then(res => setNotifications(res.data))
       .catch(console.error);
   }, [user.user_id]);
 
   const markAsRead = async (notificationId) => {
-    await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, { method: 'PUT' });
+    await api.put(`/notifications/${notificationId}/read`);
     setNotifications(notifications.map(notif =>
       notif.notification_id === notificationId
         ? { ...notif, is_read: 1 }
@@ -29,7 +29,7 @@ export default function NotificationsPage() {
     const unreadNotifications = notifications.filter(n => !n.is_read);
     // Mark all on backend in parallel
     await Promise.all(unreadNotifications.map(n =>
-      fetch(`http://localhost:5000/api/notifications/${n.notification_id}/read`, { method: 'PUT' })
+      api.put(`/notifications/${n.notification_id}/read`)
     ));
     // Update state once after all are marked read
     setNotifications(notifications.map(n => ({ ...n, is_read: 1 })));
@@ -37,8 +37,7 @@ export default function NotificationsPage() {
 
   const deleteNotification = async (notificationId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/notifications/${notificationId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete notification');
+      await api.delete(`/notifications/${notificationId}`);
       setNotifications(notifications.filter(notif => notif.notification_id !== notificationId));
     } catch (error) {
       console.error(error);

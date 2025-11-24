@@ -3,7 +3,7 @@ import { addDays, subDays, startOfWeek, format, isSameWeek } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-
+import api from "../api/api";
 import {
   Clock,
   MapPin,
@@ -18,7 +18,6 @@ import { toast } from 'sonner';
 
 export default function SchedulePage() {
   const { user } = useAuth();
-  const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api';
 
   const [viewMode, setViewMode] = useState('calendar');
   const [isLoading, setIsLoading] = useState(false);
@@ -121,35 +120,10 @@ export default function SchedulePage() {
 
   useEffect(() => {
     const fetchSchedule = async () => {
-      const ctxToken = user?.token || user?.jwt || user?.accessToken;
-      const lsToken = localStorage.getItem('token');
-      const token = ctxToken || lsToken;
-
-      if (!token) {
-        console.warn('No token found for schedule');
-        return;
-      }
-
       try {
         setIsLoading(true);
-        const res = await fetch(`${API_BASE}/schedule/my`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          }
-        });
-
-        if (!res.ok) {
-          console.error('Schedule API error:', res.status, res.statusText);
-          if (res.status === 401) {
-            toast.error('Session expired. Please log in again.');
-          } else {
-            toast.error('Failed to load schedule from server.');
-          }
-          return;
-        }
-
-        const data = await res.json();
+        const res = await api.get("/schedule/my");
+        const data = res.data;
         const events = Array.isArray(data.events) ? data.events : [];
 
         const mapped = events.map((e) => {
@@ -181,7 +155,7 @@ export default function SchedulePage() {
     };
 
     fetchSchedule();
-  }, [user, API_BASE]);
+  }, [user]);
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;

@@ -15,6 +15,7 @@ import {
   Search, Plus, Info, AlertTriangle, CheckCircle, Heart, Pencil, Trash,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import api from "../api/api";
 
 const ORG_CREATOR_ROLES = [
   'coordinator',
@@ -58,10 +59,8 @@ export default function AnnouncementsEventsPage() {
   // Fetch announcements
   const fetchAnnouncements = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/announcements');
-      if (!res.ok) throw new Error('Network response was not ok');
-      const data = await res.json();
-      setAnnouncements(data);
+      const res = await api.get('/announcements');
+      setAnnouncements(res.data);
     } catch (err) {
       toast.error('Failed to fetch announcements');
     }
@@ -75,8 +74,8 @@ export default function AnnouncementsEventsPage() {
       if (!notFetched.length) return;
 
       const promises = notFetched.map(id =>
-        fetch(`http://localhost:5000/api/user/${id}`)
-          .then(res => (res.ok ? res.json() : null))
+        api.get(`/user/${id}`)
+          .then(res => res.data)
           .catch(() => null),
       );
 
@@ -95,9 +94,8 @@ export default function AnnouncementsEventsPage() {
   const fetchOrganizations = async () => {
     if (!user?.user_id) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/organizations?user_id=${user.user_id}`);
-      if (!res.ok) throw new Error('Failed to load organizations');
-      const data = await res.json();
+      const res = await api.get(`/organizations`, { params: { user_id: user.user_id } })
+      const data = res.data;
 
       const map = {};
       data.forEach(org => {
@@ -119,9 +117,8 @@ export default function AnnouncementsEventsPage() {
   const fetchFavorites = async () => {
     try {
       if (!user?.user_id) return;
-      const res = await fetch(`http://localhost:5000/api/favorites/user/${user.user_id}`);
-      if (!res.ok) throw new Error('Failed to fetch favorites');
-      const data = await res.json();
+      const res = await api.get(`/favorites/user/${user.user_id}`);
+      const data = res.data;
       const announcementFavs = data.filter(fav => fav.item_type === 'announcement');
       setFavoriteAnnouncements(announcementFavs.map(fav => fav.item_id));
       const favObjMap = {};
@@ -169,15 +166,10 @@ export default function AnnouncementsEventsPage() {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/announcements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await api.post('/announcements', {
           title, content, priority, created_by: user.user_id, org_id,
-        }),
       });
-      if (!res.ok) throw new Error('Failed to create announcement');
-      const savedAnnouncement = await res.json();
+      const savedAnnouncement = res.data;
       setAnnouncements(prev => [savedAnnouncement, ...prev]);
       setIsCreateDialogOpen(false);
       resetAnnouncementForm();
@@ -208,12 +200,7 @@ export default function AnnouncementsEventsPage() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:5000/api/announcements/${editingAnnouncement.announcement_id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, priority, org_id }),
-      });
-      if (!res.ok) throw new Error('API error');
+      const res = await api.patch(`/announcements/${editingAnnouncement.announcement_id}`, { title, content, priority, org_id });
       setAnnouncements(prev =>
         prev.map(a => a.announcement_id === editingAnnouncement.announcement_id
           ? { ...a, title, content, priority, org_id } : a));
@@ -233,18 +220,14 @@ export default function AnnouncementsEventsPage() {
         toast.error('User not found');
         return;
       }
-      const res = await fetch(`http://localhost:5000/api/favorites`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await api.post('/favorites', {
           user_id: user.user_id,
           item_type: 'announcement',
           item_id: announcementId,
-        }),
       });
       if (res.status === 409) {
         toast.info('Already favorited');
-      } else if (!res.ok) {
+      } else if (res.status !== 200 && res.status !== 201) {
         throw new Error('API error');
       } else {
         toast.success('Added to favorites');
@@ -262,8 +245,7 @@ export default function AnnouncementsEventsPage() {
         toast.error('Not in favorites');
         return;
       }
-      const delRes = await fetch(`http://localhost:5000/api/favorites/${favObj.favorite_id}`, { method: 'DELETE' });
-      if (!delRes.ok) throw new Error('API error');
+      await api.delete(`/favorites/${favObj.favorite_id}`);
       toast.success('Removed from favorites');
       await fetchFavorites();
     } catch {
@@ -274,10 +256,7 @@ export default function AnnouncementsEventsPage() {
   // Delete announcement
   const handleDeleteAnnouncement = async (announcementId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/announcements/${announcementId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('API error');
+      await api.delete(`/announcements/${announcementId}`);
       setAnnouncements(prev => prev.filter(a => a.announcement_id !== announcementId));
       toast.success('Announcement deleted');
     } catch {

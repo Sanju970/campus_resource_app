@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { Card, CardContent } from "./ui/card";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";   // 🔥 Needed for logged-in user
+import { useAuth } from "../contexts/AuthContext";
 
 export default function UserPublicProfile() {
   const { userId } = useParams();
@@ -14,8 +14,7 @@ export default function UserPublicProfile() {
 
   // Fetch profile info
   useEffect(() => {
-    axios
-      .get(`http://localhost:5000/api/user/${userId}`)
+    api.get(`/user/${userId}`)
       .then((res) => setProfile(res.data))
       .catch(() => {});
   }, [userId]);
@@ -24,9 +23,9 @@ export default function UserPublicProfile() {
   useEffect(() => {
     if (!user?.user_id) return;
 
-    axios
+    api
       .get(
-        `http://localhost:5000/api/organizations/mutual-orgs/${user.user_id}/${userId}`
+        `/organizations/mutual-orgs/${user.user_id}/${userId}`
       )
       .then((res) => setMutualOrgs(res.data))
       .catch(() => {});

@@ -357,7 +357,6 @@ export default function LoginPage() {
           </Tabs>
         </Card>
 
-        {/* ⭐ CONTACT SUPPORT BUTTON */}
         <div className="text-center mt-4">
           <button
             className="text-blue-600 hover:underline text-sm"

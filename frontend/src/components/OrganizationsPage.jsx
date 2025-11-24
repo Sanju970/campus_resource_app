@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -55,8 +55,8 @@ export default function OrganizationsPage() {
     if (!user) return;
     setLoading(true);
 
-    axios
-      .get("http://localhost:5000/api/organizations", {
+    api
+      .get("/organizations", {
         params: { user_id: user.user_id },
       })
       .then((res) => setOrganizations(res.data))
@@ -68,8 +68,8 @@ export default function OrganizationsPage() {
      LOAD CATEGORIES
   ============================ */
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/org-categories")
+    api
+      .get("/org-categories")
       .then((res) => setCategories(res.data))
       .catch(() => {});
   }, []);
@@ -78,8 +78,8 @@ export default function OrganizationsPage() {
      LOAD GLOBAL ADMINS
   ============================ */
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/organizations/global-admins")
+    api
+      .get("/organizations/global-admins")
       .then((res) => setAdmins(res.data))
       .catch(() => {});
   }, []);
@@ -98,8 +98,8 @@ export default function OrganizationsPage() {
   useEffect(() => {
     if (!modalOpen) return;
 
-    axios
-      .get("http://localhost:5000/api/locations/available")
+    api
+      .get("/locations/available")
       .then((res) => setLocations(res.data))
       .catch(() => toast.error("Failed to load locations"));
   }, [modalOpen]);
@@ -192,7 +192,7 @@ export default function OrganizationsPage() {
     });
 
     // ensure current location appears in dropdown
-    axios.get("http://localhost:5000/api/locations").then((res) => {
+    api.get("/locations").then((res) => {
       const all = res.data;
       const current = all.find(
         (l) => l.location_id === org.location_id
@@ -245,8 +245,8 @@ export default function OrganizationsPage() {
 
     try {
       if (editingOrg) {
-        await axios.put(
-          `http://localhost:5000/api/organizations/${editingOrg.id}`,
+        await api.put(
+          `/organizations/${editingOrg.id}`,
           {
             title: form.title,
             description: form.description,
@@ -260,8 +260,8 @@ export default function OrganizationsPage() {
         );
 
         if (form.new_admin_id) {
-          await axios.post(
-            `http://localhost:5000/api/organizations/${editingOrg.id}/transfer-admin`,
+          await api.post(
+            `/organizations/${editingOrg.id}/transfer-admin`,
             {
               acting_user_id: user.user_id,
               new_admin_id: form.new_admin_id,
@@ -273,7 +273,7 @@ export default function OrganizationsPage() {
         loadOrganizations();
         toast.success("Organization updated");
       } else {
-        await axios.post("http://localhost:5000/api/organizations", {
+        await api.post("/organizations", {
           title: form.title,
           description: form.description,
           location_id: form.location_id,
@@ -297,14 +297,14 @@ export default function OrganizationsPage() {
   const handleJoin = async (org, isLeaving) => {
     try {
       if (isLeaving) {
-        await axios.post(
-          `http://localhost:5000/api/organizations/${org.id}/leave`,
+        await api.post(
+          `/organizations/${org.id}/leave`,
           { user_id: user.user_id }
         );
         toast.info("Left organization");
       } else {
-        await axios.post(
-          `http://localhost:5000/api/organizations/${org.id}/join`,
+        await api.post(
+          `/organizations/${org.id}/join`,
           { user_id: user.user_id }
         );
         toast.success("Joined organization!");
@@ -325,7 +325,7 @@ export default function OrganizationsPage() {
     if (!window.confirm(`Delete "${org.title}" permanently?`)) return;
 
     try {
-      await axios.delete(`http://localhost:5000/api/organizations/${org.id}`, {
+      await api.delete(`/organizations/${org.id}`, {
         data: { user_id: user.user_id },
       });
 

@@ -1,6 +1,6 @@
 // src/components/ForgotPasswordPage.jsx
 import { useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     try {
       setIsLoading(true);
 
-      await axios.post("http://localhost:5000/api/auth/forgot-password", {
+      await api.post("/auth/forgot-password", {
         identifier,
       });
 

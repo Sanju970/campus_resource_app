@@ -1,6 +1,6 @@
 // AdminPage.jsx
 import { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -39,7 +39,6 @@ const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
 );
 
 export default function AdminPage() {
-  const API = "http://localhost:5000/api";
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +55,7 @@ export default function AdminPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(
-        showInactive ? `${API}/admin/users?all=true` : `${API}/admin/users`
-      );
+      const res = await api.get(showInactive ? `/admin/users?all=true` : `/admin/users`);
       setUsers(res.data);
     } catch {
       toast.error("Failed to load users.");
@@ -107,7 +104,7 @@ export default function AdminPage() {
     const role_id = getRoleFromUid(cleanUid);
 
     try {
-      const res = await axios.post(`${API}/admin/create`, {
+      const res = await api.post(`/admin/create`, {
         first_name,
         last_name,
         email,
@@ -134,10 +131,7 @@ export default function AdminPage() {
     if (!editUser) return;
 
     try {
-      await axios.patch(
-        `${API}/admin/users/${editUser.user_id}/update`,
-        editUser
-      );
+      await api.patch(`/admin/users/${editUser.user_id}/update`, editUser);
       toast.success("User updated");
       setEditOpen(false);
       setEditUser(null);
@@ -167,9 +161,7 @@ export default function AdminPage() {
       return toast.error("You cannot deactivate your own account.");
 
     try {
-      await axios.patch(`${API}/admin/users/${id}/deactivate`, {
-        admin_user_id: current?.user_id,
-      });
+      await api.patch(`/admin/users/${id}/deactivate`, { admin_user_id: current?.user_id });
 
       toast.success("User deactivated");
       fetchUsers();
@@ -183,7 +175,7 @@ export default function AdminPage() {
 ------------------------------------------------------ */
   const handleActivateUser = async (id) => {
     try {
-      await axios.patch(`${API}/admin/users/${id}/activate`);
+      await api.patch(`/admin/users/${id}/activate`);
       toast.success("User reactivated");
       fetchUsers();
     } catch {
@@ -203,9 +195,7 @@ export default function AdminPage() {
     if (!window.confirm("This will permanently delete user. Continue?")) return;
 
     try {
-      await axios.delete(`${API}/admin/users/${id}`, {
-        data: { admin_user_id: current?.user_id },
-      });
+      await api.delete(`/admin/users/${id}`, { data: { admin_user_id: current?.user_id } });
 
       toast.success("User permanently deleted");
       if (editUser?.user_id === id) handleCloseEdit();
