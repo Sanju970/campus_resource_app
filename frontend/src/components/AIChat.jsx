@@ -10,10 +10,7 @@ import {
   SheetTrigger,
 } from "./ui/sheet";
 import { Bot, Send, Sparkles } from "lucide-react";
-
-// Allow overriding backend base URL via env, fallback to localhost:5000
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+import api from "../api/api"; // <-- use shared axios instance
 
 export default function AIChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,48 +27,34 @@ export default function AIChat() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef(null);
 
-  // Auto-scroll when messages change
+  // Auto-scroll when messages or open state change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isOpen]);
 
+  // Allow HomePage "Try AI Assistant" button to open the chat
   useEffect(() => {
     const handler = () => setIsOpen(true);
-    window.addEventListener('open-ai-assistant', handler);
-    return () => window.removeEventListener('open-ai-assistant', handler);
+    window.addEventListener("open-ai-assistant", handler);
+    return () => window.removeEventListener("open-ai-assistant", handler);
   }, []);
-
 
   const sendToBackend = async (userText) => {
     setIsLoading(true);
     try {
-      // NEW — get logged-in user's token
-      const token = localStorage.getItem("token");
-
-      const res = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}), // <-- NEW
-        },
-        body: JSON.stringify({
-          message: userText,
-          history: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+      // Use shared axios instance; baseURL + auth handled in api.js
+      const res = await api.post("/assistant/chat", {
+        message: userText,
+        history: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP error ${res.status}`);
-      }
-
-      const data = await res.json();
       const replyText =
-        data.reply ||
+        res.data?.reply ||
         "Sorry, I couldn’t generate a response right now. Please try again.";
 
       const aiMessage = {
@@ -127,6 +110,7 @@ export default function AIChat() {
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
+        {/* Header */}
         <SheetHeader className="p-6 pb-4 border-b">
           <SheetTitle className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">

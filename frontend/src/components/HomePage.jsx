@@ -20,7 +20,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { Badge } from "./ui/badge";
 import { useNavigate } from "react-router-dom";
-import api from "../api/api";
+import api from "../api/api"; // <-- shared axios instance
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -158,23 +158,21 @@ export default function HomePage() {
 
   const content = getRoleSpecificContent();
 
-  // 1) Fetch notifications (for count + recent activity)
+  // 1) Fetch notifications (for count + recent activity) via api instance
   useEffect(() => {
     if (!user?.user_id) return;
 
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(
-          `http://localhost:5000/api/notifications/user/${user.user_id}`
-        );
-        const data = await res.json();
+        const res = await api.get(`/notifications/user/${user.user_id}`);
+        const data = res.data || [];
 
         // unread count
-        const unread = (data || []).filter((n) => !n.is_read).length;
+        const unread = data.filter((n) => !n.is_read).length;
         setNotificationCount(unread);
 
         // recent activity = latest notifications
-        const sorted = [...(data || [])].sort((a, b) => {
+        const sorted = [...data].sort((a, b) => {
           const aTime = new Date(a.created_at || a.createdAt || 0).getTime();
           const bTime = new Date(b.created_at || b.createdAt || 0).getTime();
           return bTime - aTime;
@@ -296,32 +294,35 @@ export default function HomePage() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {quickLinks.map((link, index) => {
-          const Icon = link.icon;
-          return (
-            <Card
-              key={index}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => navigate(link.path)}
-            >
-              <div className="h-24 flex items-center justify-center px-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-12 w-12 rounded-lg ${link.color} flex items-center justify-center`}
-                  >
-                    <Icon className="h-6 w-6 text-white" />
+      {/* Quick Links */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Quick Access</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {quickLinks.map((link, index) => {
+            const Icon = link.icon;
+            return (
+              <Card
+                key={index}
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(link.path)}
+              >
+                <div className="h-24 flex items-center justify-center px-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`h-12 w-12 rounded-lg ${link.color} flex items-center justify-center`}
+                    >
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <CardTitle className="text-base font-medium m-0 leading-none">
+                      {link.title}
+                    </CardTitle>
                   </div>
-                  <CardTitle className="text-base font-medium m-0 leading-none">
-                    {link.title}
-                  </CardTitle>
                 </div>
-              </div>
-            </Card>
-          );
-        })}
+              </Card>
+            );
+          })}
+        </div>
       </div>
-
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
