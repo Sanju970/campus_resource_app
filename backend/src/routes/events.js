@@ -26,7 +26,12 @@ async function createNotification(userId, message) {
   }
 }
 
-
+// Helper to get email address of a user
+async function getUserEmail(userId) {
+  const [rows] = await pool.query('SELECT email FROM users WHERE user_id = ?', [userId]);
+  if (rows.length === 0) return null;
+  return rows[0].email || null;
+}
 /* ================================
    CATEGORY / FACULTY MAPPING
 ================================== */
@@ -310,24 +315,28 @@ router.post('/:event_id/rsvp', async (req, res) => {
       return res.status(400).json({ message: 'Valid event_id and user_id are required' });
     }
 
-    // Prevent duplicate registrations with INSERT IGNORE
+    // Fetch event title
+    const [eventRows] = await pool.query('SELECT title FROM events WHERE event_id = ?', [eventId]);
+    if (!eventRows.length) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    const eventTitle = eventRows[0].title;
+
+    // Prevent duplicate registrations
     await pool.query(
-      `
-      INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
-      VALUES (?, ?, NOW())
-      `,
+      `INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at) VALUES (?, ?, NOW())`,
       [eventId, user_id]
     );
 
-    // Send notification to user
-    const notifMsg = `You have successfully registered for event #${eventId}.`;
+    // Notification message including event title
+    const notifMsg = `You have successfully registered for the event "${eventTitle}".`;
     await createNotification(user_id, notifMsg);
 
-    // Send email confirmation to user
+    // Send confirmation email with event title
     const email = await getUserEmail(user_id);
     if (email) {
-      const subject = 'Event Registration Confirmed';
-      const html = `<p>You have been registered for Event ID: <strong>${eventId}</strong>.</p>`;
+      const subject = `Registration Confirmed: ${eventTitle}`;
+      const html = `<p>You have been registered for the event: <strong>${eventTitle}</strong>.</p>`;
       try {
         await sendEmail({ to: email, subject, html });
       } catch (err) {
@@ -335,12 +344,10 @@ router.post('/:event_id/rsvp', async (req, res) => {
       }
     }
 
-    // Return updated registered_count
     const [rows] = await pool.query(
       'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
       [eventId]
     );
-
     const registered_count = rows[0]?.registered_count || 0;
 
     res.json({ registered_count });
@@ -349,6 +356,7 @@ router.post('/:event_id/rsvp', async (req, res) => {
     res.status(500).json({ message: 'Failed to register for event', error: err.message });
   }
 });
+
 
 /* ================================
    RSVP: Cancel registration
@@ -363,21 +371,28 @@ router.delete('/:event_id/rsvp', async (req, res) => {
       return res.status(400).json({ message: 'Valid event_id and user_id are required' });
     }
 
+    // Fetch event title
+    const [eventRows] = await pool.query('SELECT title FROM events WHERE event_id = ?', [eventId]);
+    if (!eventRows.length) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    const eventTitle = eventRows[0].title;
+
     // Delete registration
     await pool.query(
       'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?',
       [eventId, user_id]
     );
 
-    // Send cancellation notification
-    const notifMsg = `Your registration for event #${eventId} has been cancelled.`;
+    // Notification message with event title
+    const notifMsg = `Your registration for the event "${eventTitle}" has been cancelled.`;
     await createNotification(user_id, notifMsg);
 
-    // Send cancellation email to user
+    // Send cancellation email with event title
     const email = await getUserEmail(user_id);
     if (email) {
-      const subject = 'Event Registration Cancelled';
-      const html = `<p>Your registration for Event ID: <strong>${eventId}</strong> has been cancelled.</p>`;
+      const subject = `Registration Cancelled: ${eventTitle}`;
+      const html = `<p>Your registration for the event <strong>${eventTitle}</strong> has been cancelled.</p>`;
       try {
         await sendEmail({ to: email, subject, html });
       } catch (err) {
@@ -385,12 +400,10 @@ router.delete('/:event_id/rsvp', async (req, res) => {
       }
     }
 
-    // Return updated registered_count
     const [rows] = await pool.query(
       'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
       [eventId]
     );
-
     const registered_count = rows[0]?.registered_count || 0;
 
     res.json({ registered_count });
