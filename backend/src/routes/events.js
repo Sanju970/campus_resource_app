@@ -306,27 +306,34 @@ router.post('/:event_id/rsvp', async (req, res) => {
     const eventId = req.params.event_id;
     const { user_id } = req.body;
 
-    if (!isPositiveInt(eventId)) {
-      return res.status(400).json({ message: 'Invalid event id.' });
+    if (!eventId || !user_id || !Number.isInteger(Number(user_id)) || Number(user_id) <= 0) {
+      return res.status(400).json({ message: 'Valid event_id and user_id are required' });
     }
 
-    if (!user_id || !isPositiveInt(user_id)) {
-      return res.status(400).json({ message: 'Valid user_id is required' });
-    }
-
-
-    if (!user_id) {
-      return res.status(400).json({ message: 'user_id is required' });
-    }
-
-    // prevent duplicate registrations
+    // Prevent duplicate registrations with INSERT IGNORE
     await pool.query(
       `
-        INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
-        VALUES (?, ?, NOW())
+      INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at)
+      VALUES (?, ?, NOW())
       `,
       [eventId, user_id]
     );
+
+    // Send notification to user
+    const notifMsg = `You have successfully registered for event #${eventId}.`;
+    await createNotification(user_id, notifMsg);
+
+    // Send email confirmation to user
+    const email = await getUserEmail(user_id);
+    if (email) {
+      const subject = 'Event Registration Confirmed';
+      const html = `<p>You have been registered for Event ID: <strong>${eventId}</strong>.</p>`;
+      try {
+        await sendEmail({ to: email, subject, html });
+      } catch (err) {
+        console.error('Error sending registration confirmation email:', err);
+      }
+    }
 
     // Return updated registered_count
     const [rows] = await pool.query(
@@ -352,24 +359,33 @@ router.delete('/:event_id/rsvp', async (req, res) => {
     const eventId = req.params.event_id;
     const { user_id } = req.body;
 
-    if (!isPositiveInt(eventId)) {
-      return res.status(400).json({ message: 'Invalid event id.' });
+    if (!eventId || !user_id || !Number.isInteger(Number(user_id)) || Number(user_id) <= 0) {
+      return res.status(400).json({ message: 'Valid event_id and user_id are required' });
     }
 
-    if (!user_id || !isPositiveInt(user_id)) {
-      return res.status(400).json({ message: 'Valid user_id is required' });
-    }
-
-
-    if (!user_id) {
-      return res.status(400).json({ message: 'user_id is required' });
-    }
-
+    // Delete registration
     await pool.query(
       'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?',
       [eventId, user_id]
     );
 
+    // Send cancellation notification
+    const notifMsg = `Your registration for event #${eventId} has been cancelled.`;
+    await createNotification(user_id, notifMsg);
+
+    // Send cancellation email to user
+    const email = await getUserEmail(user_id);
+    if (email) {
+      const subject = 'Event Registration Cancelled';
+      const html = `<p>Your registration for Event ID: <strong>${eventId}</strong> has been cancelled.</p>`;
+      try {
+        await sendEmail({ to: email, subject, html });
+      } catch (err) {
+        console.error('Error sending cancellation email:', err);
+      }
+    }
+
+    // Return updated registered_count
     const [rows] = await pool.query(
       'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
       [eventId]
