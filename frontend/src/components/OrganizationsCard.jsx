@@ -69,7 +69,15 @@ const formattedLocation =
     <Card
       className="overflow-hidden hover:shadow-lg transition-shadow border"
       style={joined ? { backgroundColor: "#ecfdf3" } : undefined}
-      onClick={() => navigate(`/organizations/${resource.id}`)}
+      onClick={(e) => {
+        // prevent navigation while delete dialog is open
+        if (deleteDialogOpen) {
+          e.stopPropagation();
+          e.preventDefault();
+          return;
+        }
+        navigate(`/organizations/${resource.id}`);
+      }}
     >
       <CardHeader>
         <div className="flex items-start justify-between mb-2">
