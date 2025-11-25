@@ -403,7 +403,7 @@ export default function AnnouncementsEventsPage() {
                 <div className="space-y-2 mt-4">
                   <Label htmlFor="priority">Priority</Label>
                   <div className="flex flex-wrap gap-2">
-                    {['low', 'medium', 'high', 'urgent'].map((p) => (
+                    {['low', 'medium', 'high'].map((p) => (
                       <Button
                         key={p}
                         variant={newAnnouncement.priority === p ? 'default' : 'outline'}
@@ -481,7 +481,7 @@ export default function AnnouncementsEventsPage() {
           const isFavorite = favoriteAnnouncements.includes(announcement.announcement_id);
 
           const isAdminPoster =
-            user?.role === 'admin' && announcement.created_by === user.user_id;
+            user?.role === 'admin' || announcement.created_by === user.user_id;
 
           const isOrgCreator =
             user &&
