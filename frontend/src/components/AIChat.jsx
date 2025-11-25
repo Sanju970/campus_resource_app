@@ -40,10 +40,14 @@ export default function AIChat() {
   const sendToBackend = async (userText) => {
     setIsLoading(true);
     try {
+      // NEW — get logged-in user's token
+      const token = localStorage.getItem("token");
+
       const res = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}), // <-- NEW
         },
         body: JSON.stringify({
           message: userText,
