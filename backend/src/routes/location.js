@@ -1,3 +1,4 @@
+// backend/src/routes/location.js
 const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
@@ -128,16 +129,23 @@ router.post("/", async (req, res) => {
   try {
     const { user_id, location_name, building, room } = req.body;
 
-    if (!location_name?.trim()) {
-      return res.status(400).json({ message: "Location name is required" });
+    if (!location_name?.trim() || location_name.trim().length < 5) {
+      return res.status(400).json({
+        message: "Location name must be at least 5 letters",
+      });
     }
 
-    if (!building?.trim()) {
-      return res.status(400).json({ message: "Building is required" });
+    if (!building?.trim() || building.trim().length < 5) {
+      return res.status(400).json({
+        message: "Building name must be at least 5 letters",
+      });
     }
 
-    if (!room || isNaN(room)) {
-      return res.status(400).json({ message: "Room number must be an integer" });
+    const roomNumber = Number(room);
+    if (!room || isNaN(roomNumber) || roomNumber <= 0) {
+      return res.status(400).json({
+        message: "Room number must be a positive integer",
+      });
     }
 
     if (!(await isGlobalAdmin(user_id))) {
@@ -147,7 +155,7 @@ router.post("/", async (req, res) => {
     await db.query(
       `INSERT INTO campus_locations (location_name, building, room)
        VALUES (?, ?, ?)`,
-      [location_name.trim(), building.trim(), Number(room)]
+      [location_name.trim(), building.trim(), roomNumber]
     );
 
     res.json({ message: "Location added successfully" });
@@ -233,28 +241,31 @@ router.put("/:location_id", async (req, res) => {
   const { user_id, location_name, building, room } = req.body;
 
   try {
-    // --- 1. Validate required fields ---
-    if (!location_name || !building || !room) {
+    if (!location_name?.trim() || location_name.trim().length < 5) {
       return res.status(400).json({
-        message: "Location name, building, and room number are required",
+        message: "Location name must be at least 5 letters",
       });
     }
 
-    // --- 2. Room must be an integer ---
-    if (!Number.isInteger(Number(room))) {
+    if (!building?.trim() || building.trim().length < 5) {
       return res.status(400).json({
-        message: "Room number must be an integer",
+        message: "Building name must be at least 5 letters",
       });
     }
 
-    // --- 3. Only global admin can edit ---
+    const roomNumber = Number(room);
+    if (!room || isNaN(roomNumber) || roomNumber <= 0) {
+      return res.status(400).json({
+        message: "Room number must be a positive integer",
+      });
+    }
+
     if (!(await isGlobalAdmin(user_id))) {
       return res.status(403).json({
         message: "Only global admins can edit locations",
       });
     }
 
-    // --- 4. Check for duplicate name ---
     const [dup] = await db.query(
       `
       SELECT location_id 
@@ -270,13 +281,8 @@ router.put("/:location_id", async (req, res) => {
       });
     }
 
-    // --- 5. Check if location is assigned to an organization ---
     const [orgUse] = await db.query(
-      `
-      SELECT 1 
-      FROM organizations 
-      WHERE location_id = ?
-      `,
+      `SELECT 1 FROM organizations WHERE location_id = ?`,
       [location_id]
     );
 
@@ -286,7 +292,6 @@ router.put("/:location_id", async (req, res) => {
       });
     }
 
-    // --- 6. Check for ongoing or future events ---
     const [futureEvts] = await db.query(
       `
       SELECT event_id, title
@@ -303,14 +308,13 @@ router.put("/:location_id", async (req, res) => {
       });
     }
 
-    // --- 7. Safe to update now ---
     await db.query(
       `
       UPDATE campus_locations
       SET location_name = ?, building = ?, room = ?
       WHERE location_id = ?
       `,
-      [location_name, building, room, location_id]
+      [location_name.trim(), building.trim(), roomNumber, location_id]
     );
 
     return res.json({

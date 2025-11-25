@@ -54,9 +54,7 @@ const ORG_ROLES = [
 ];
 
 const BASIC_ORG_ROLES = ["member", "coordinator", "event_manager"];
-/* ================================
-   SIMPLE HELPERS
-================================== */
+
 function isPositiveInt(value) {
   const num = Number(value);
   return Number.isInteger(num) && num > 0;
@@ -85,6 +83,23 @@ async function isLocationTaken(location_id, orgId = null) {
 
   const [rows] = await db.query(q, params);
   return rows.length > 0;
+}
+
+function isValidTitle(title) {
+  return typeof title === "string" && title.trim().length >= 5;
+}
+
+function isValidDescription(desc) {
+  if (!desc || typeof desc !== "string") return false;
+
+  const trimmed = desc.trim();
+  const wordCount = trimmed.split(/\s+/).length;
+
+  return trimmed.length >= 10 || wordCount >= 3;
+}
+
+function isValidContact(contact) {
+  return /^[0-9]{10}$/.test(contact || "");
 }
 
 /* ============================================================
@@ -188,10 +203,28 @@ router.post("/", async (req, res) => {
         message: "Title, category_id, created_by, and location_id are required",
       });
     }
-        const cleanTitle = title.trim();
-    if (cleanTitle.length < 3) {
+
+    const cleanTitle = title.trim();
+    if (cleanTitle.length < 5) {
       return res.status(400).json({
-        message: "Title must be at least 3 characters long",
+        message: "Title must be at least 5 letters long",
+      });
+    }
+
+    if (description) {
+      const descTrim = description.trim();
+      const wordCount = descTrim.split(/\s+/).length;
+
+      if (descTrim.length < 10 && wordCount < 3) {
+        return res.status(400).json({
+          message: "Description must contain at least 3 words or 10 characters",
+        });
+      }
+    }
+
+    if (contact && !/^[0-9]{10}$/.test(contact)) {
+      return res.status(400).json({
+        message: "Contact must be a valid 10-digit number",
       });
     }
 
@@ -260,7 +293,6 @@ router.post("/", async (req, res) => {
 /* ============================================================
    UPDATE organization
 ============================================================ */
-
 router.put("/:id", async (req, res) => {
   try {
     const orgId = Number(req.params.id);
@@ -276,10 +308,10 @@ router.put("/:id", async (req, res) => {
       updated_by,
     } = req.body;
 
-    if (!updated_by){
+    if (!updated_by) {
       return res.status(400).json({ message: "updated_by is required" });
     }
-        if (!isPositiveInt(orgId)) {
+    if (!isPositiveInt(orgId)) {
       return res.status(400).json({ message: "Invalid organization id" });
     }
 
@@ -290,9 +322,26 @@ router.put("/:id", async (req, res) => {
     }
 
     const cleanTitle = title.trim();
-    if (cleanTitle.length < 3) {
+    if (cleanTitle.length < 5) {
       return res.status(400).json({
-        message: "Title must be at least 3 characters long",
+        message: "Title must be at least 5 letters long",
+      });
+    }
+
+    if (description) {
+      const descTrim = description.trim();
+      const wordCount = descTrim.split(/\s+/).length;
+
+      if (descTrim.length < 10 && wordCount < 3) {
+        return res.status(400).json({
+          message: "Description must contain at least 3 words or 10 characters",
+        });
+      }
+    }
+
+    if (contact && !/^[0-9]{10}$/.test(contact)) {
+      return res.status(400).json({
+        message: "Contact must be a valid 10-digit number",
       });
     }
 

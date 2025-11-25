@@ -141,7 +141,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-3xl font-bold">Campus Portal</h1>
           <p className="text-muted-foreground">
-            AI-Integrated Campus Resources Platform
+            Your Campus Hub with Built-In Gemini 2.5 Flash Assistant
           </p>
         </div>
 
