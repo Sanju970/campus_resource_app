@@ -99,7 +99,7 @@ CREATE TABLE events (
   description TEXT,
   start_datetime DATETIME NOT NULL,
   end_datetime DATETIME NOT NULL,
-  location_id INT NOT NULL,  -- validated location
+  location_id INT,
   capacity INT,
   category_id INT NOT NULL,
   category VARCHAR(100),
@@ -206,15 +206,16 @@ VALUES
  '$2a$10$O3V6.PCv42.rjSKslUt3vO0ktxOTvhaLI.ZYyOpvfoIGgQfKuSUAC', 3);
 
 INSERT INTO campus_locations (location_name, building, room) VALUES
-('Central Building', 'Central Building', NULL),
-('Success Center 201', 'Success Center', '201'),
-('Admin Building 2nd Floor', 'Admin Building', '2nd Floor'),
-('Wellness Center Building', 'Wellness Center', NULL),
-('IT Building 1st Floor', 'IT Building', '1st Floor'),
-('Student Union 210', 'Student Union', '210'),
-('Main Hall, Student Union', 'Student Union', 'Main Hall'),
-('Lab 101', 'Engineering Lab', '101'),
-('Auditorium', 'Main Auditorium', NULL);
+('Central Building Entrance', 'Central Building', 1),
+('Success Center Room 201', 'Success Center', 201),
+('Admin Building Floor 2', 'Admin Building', 200),
+('Wellness Center Ground', 'Wellness Center', 1),
+('IT Building Room 101', 'IT Building', 101),
+('Student Union Room 210', 'Student Union', 210),
+('Student Union Main Hall', 'Student Union', 100),
+('Engineering Lab 101', 'Engineering Lab', 101),
+('Main Auditorium Room 1', 'Main Auditorium', 1);
+
 
 
 -- CATEGORIES

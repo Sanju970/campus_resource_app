@@ -128,8 +128,16 @@ router.post("/", async (req, res) => {
   try {
     const { user_id, location_name, building, room } = req.body;
 
-    if (!location_name) {
+    if (!location_name?.trim()) {
       return res.status(400).json({ message: "Location name is required" });
+    }
+
+    if (!building?.trim()) {
+      return res.status(400).json({ message: "Building is required" });
+    }
+
+    if (!room || isNaN(room)) {
+      return res.status(400).json({ message: "Room number must be an integer" });
     }
 
     if (!(await isGlobalAdmin(user_id))) {
@@ -139,7 +147,7 @@ router.post("/", async (req, res) => {
     await db.query(
       `INSERT INTO campus_locations (location_name, building, room)
        VALUES (?, ?, ?)`,
-      [location_name, building || null, room || null]
+      [location_name.trim(), building.trim(), Number(room)]
     );
 
     res.json({ message: "Location added successfully" });
@@ -164,26 +172,158 @@ router.delete("/:location_id", async (req, res) => {
       return res.status(403).json({ message: "Only global admins can delete locations" });
     }
 
-    const [used] = await db.query(
+    // Check if an organization uses this location
+    const [orgUse] = await db.query(
       `SELECT 1 FROM organizations WHERE location_id = ?`,
       [location_id]
     );
 
-    if (used.length > 0) {
+    if (orgUse.length > 0) {
       return res.status(400).json({
         message: "Cannot delete: Location is assigned to an organization",
       });
     }
 
-    await db.query(`DELETE FROM campus_locations WHERE location_id = ?`, [
-      location_id,
-    ]);
+    // Check if FUTURE or ONGOING events are using this location
+    const [futureEvents] = await db.query(
+      `
+      SELECT event_id, title 
+      FROM events 
+      WHERE location_id = ? 
+      AND end_datetime >= NOW()
+      `,
+      [location_id]
+    );
+
+    if (futureEvents.length > 0) {
+      return res.status(400).json({
+        message: `Cannot delete: Location has scheduled events (e.g., "${futureEvents[0].title}")`,
+      });
+    }
+
+    await db.query(
+      `
+      UPDATE events 
+      SET location_id = NULL
+      WHERE location_id = ?
+      AND end_datetime < NOW()
+      `,
+      [location_id]
+    );
+
+    // NOW delete the location
+    await db.query(
+      `DELETE FROM campus_locations WHERE location_id = ?`,
+      [location_id]
+    );
 
     res.json({ message: "Location deleted successfully" });
   } catch (err) {
     console.error("Delete location error:", err);
-    res.status(500).json({ message: "Failed to delete location" });
+    return res.status(500).json({ message: "Failed to delete location" });
   }
 });
+
+
+/* ============================================================
+   7. UPDATE LOCATION (Global Admin only)
+============================================================ */
+router.put("/:location_id", async (req, res) => {
+  const { location_id } = req.params;
+  const { user_id, location_name, building, room } = req.body;
+
+  try {
+    // --- 1. Validate required fields ---
+    if (!location_name || !building || !room) {
+      return res.status(400).json({
+        message: "Location name, building, and room number are required",
+      });
+    }
+
+    // --- 2. Room must be an integer ---
+    if (!Number.isInteger(Number(room))) {
+      return res.status(400).json({
+        message: "Room number must be an integer",
+      });
+    }
+
+    // --- 3. Only global admin can edit ---
+    if (!(await isGlobalAdmin(user_id))) {
+      return res.status(403).json({
+        message: "Only global admins can edit locations",
+      });
+    }
+
+    // --- 4. Check for duplicate name ---
+    const [dup] = await db.query(
+      `
+      SELECT location_id 
+      FROM campus_locations 
+      WHERE location_name = ? AND location_id != ?
+      `,
+      [location_name, location_id]
+    );
+
+    if (dup.length > 0) {
+      return res.status(400).json({
+        message: "Another location already exists with this name",
+      });
+    }
+
+    // --- 5. Check if location is assigned to an organization ---
+    const [orgUse] = await db.query(
+      `
+      SELECT 1 
+      FROM organizations 
+      WHERE location_id = ?
+      `,
+      [location_id]
+    );
+
+    if (orgUse.length > 0) {
+      return res.status(400).json({
+        message: "Cannot edit: Location is assigned to an organization",
+      });
+    }
+
+    // --- 6. Check for ongoing or future events ---
+    const [futureEvts] = await db.query(
+      `
+      SELECT event_id, title
+      FROM events
+      WHERE location_id = ?
+      AND end_datetime >= NOW()
+      `,
+      [location_id]
+    );
+
+    if (futureEvts.length > 0) {
+      return res.status(400).json({
+        message: `Cannot edit: This location is used by scheduled events (e.g., "${futureEvts[0].title}")`,
+      });
+    }
+
+    // --- 7. Safe to update now ---
+    await db.query(
+      `
+      UPDATE campus_locations
+      SET location_name = ?, building = ?, room = ?
+      WHERE location_id = ?
+      `,
+      [location_name, building, room, location_id]
+    );
+
+    return res.json({
+      message: "Location updated successfully",
+    });
+
+  } catch (err) {
+    console.error("Edit location error:", err);
+    return res.status(500).json({
+      message: "Failed to update location",
+    });
+  }
+});
+
 
 module.exports = router;

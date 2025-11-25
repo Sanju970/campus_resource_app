@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Eye, EyeOff, GraduationCap, Loader2, Mail, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
-import axios from "axios";
+import api from "../api/api";
 
 // ShadCN Dialog for Support Popup
 import {
@@ -100,8 +100,8 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/auth/register",
+      const res = await api.post(
+        "/auth/register",
         {
           first_name: signup.first,
           last_name: signup.last,
