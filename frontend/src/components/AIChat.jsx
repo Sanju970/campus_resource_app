@@ -37,6 +37,13 @@ export default function AIChat() {
     }
   }, [messages, isOpen]);
 
+  useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener('open-ai-assistant', handler);
+    return () => window.removeEventListener('open-ai-assistant', handler);
+  }, []);
+
+
   const sendToBackend = async (userText) => {
     setIsLoading(true);
     try {
