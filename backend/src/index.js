@@ -20,6 +20,9 @@ const facultyRoutes = require("./routes/faculty");
 const scheduleRoutes = require("./routes/scheduleRoutes");
 const locationRoutes = require("./routes/location");
 const assistantRoutes = require("./routes/assistant");
+const dashboardRoutes = require("./routes/dashboard");
+
+
 
 // --- Initialize Express App ---
 const app = express();
@@ -76,6 +79,7 @@ app.use("/api/faculty", facultyRoutes);
 app.use("/api/schedule", scheduleRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/assistant", assistantRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // --- Root Endpoint ---
 app.get('/', (req, res) => {
