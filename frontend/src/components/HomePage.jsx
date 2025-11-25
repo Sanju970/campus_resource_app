@@ -30,6 +30,10 @@ export default function HomePage() {
   const [orgCount, setOrgCount] = useState(0);
   const [rsvpedCount, setRsvpedCount] = useState(0);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [totalFaculty, setTotalFaculty] = useState(0);
+
+
 
   const userName = user?.first_name
     ? `${user.first_name} ${user.last_name}`
@@ -124,14 +128,14 @@ export default function HomePage() {
         subtitle: "Campus administration overview",
         stats: [
           {
-            label: "Current Organizations",
-            value: String(orgCount),
-            icon: Users,
+            label: "Total Students",
+            value: String(totalStudents),
+            icon: GraduationCap,
           },
           {
-            label: "Upcoming Events",
-            value: String(rsvpedCount),
-            icon: Calendar,
+            label: "Total Faculty Members",
+            value: String(totalFaculty),
+            icon: Briefcase,
           },
           {
             label: "Notifications",
@@ -141,6 +145,7 @@ export default function HomePage() {
         ],
       };
     }
+
 
     // Fallback
     return {
@@ -207,7 +212,6 @@ export default function HomePage() {
           params: { user_id: user.user_id },
         });
         const orgs = orgRes.data || [];
-        // "My Organizations" = is_member === 1
         const myOrgsCount = orgs.filter(
           (org) => Number(org.is_member) === 1
         ).length;
@@ -224,10 +228,33 @@ export default function HomePage() {
       } catch (err) {
         console.error("Failed to fetch registered events for stats:", err);
       }
+
+      // 🔹 Admin-only: compute totals from /users
+      if (user?.role == 3 || user?.role_id == 3) {
+        try {
+          const usersRes = await api.get("/all");
+
+          const allUsers = usersRes.data || [];
+
+          const students = allUsers.filter(
+            (u) => Number(u.role_id) === 1
+          ).length;
+
+          const faculty = allUsers.filter(
+            (u) => Number(u.role_id) === 2
+          ).length;
+
+          setTotalStudents(students);
+          setTotalFaculty(faculty);
+        } catch (err) {
+          console.error("Failed to fetch admin user counts:", err);
+        }
+      }
     };
 
     fetchStats();
-  }, [user?.user_id]);
+  }, [user?.user_id, user?.role, user?.role_id]);
+
 
   // Click handler to open the AI chat (AIChat listens for this event)
   const openAssistant = () => {

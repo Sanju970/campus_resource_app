@@ -154,6 +154,61 @@ router.post("/admin/create", async (req, res) => {
   }
 });
 
+/* ============================================================
+   ADMIN: STATS – TOTAL STUDENTS & FACULTY
+============================================================ */
+
+// Total students (role_id = 1)
+router.get("/admin/students/count", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM users WHERE role_id = 1"
+    );
+    return res.json({ count: rows[0].count });
+  } catch (err) {
+    console.error("Student count error:", err);
+    return res.status(500).json({ message: "Database error" });
+  }
+});
+
+// Total faculty (role_id = 2)
+router.get("/admin/faculty/count", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM users WHERE role_id = 2"
+    );
+    return res.json({ count: rows[0].count });
+  } catch (err) {
+    console.error("Faculty count error:", err);
+    return res.status(500).json({ message: "Database error" });
+  }
+});
+
+// --- Admin: counts for students and faculty ---
+router.get("/admin/students/count", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM users WHERE role_id = 1"
+    );
+    return res.json({ count: rows[0].count });
+  } catch (err) {
+    console.error("Student count error:", err);
+    return res.status(500).json({ message: "Database error" });
+  }
+});
+
+router.get("/admin/faculty/count", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM users WHERE role_id = 2"
+    );
+    return res.json({ count: rows[0].count });
+  } catch (err) {
+    console.error("Faculty count error:", err);
+    return res.status(500).json({ message: "Database error" });
+  }
+});
+
 
 /* ============================================================
    ADMIN: DEACTIVATE USER (soft delete)
@@ -520,6 +575,8 @@ router.get("/all", async (req, res) => {
     return res.status(500).json({ message: "Failed to load users" });
   }
 });
+
+
 
 
 module.exports = router;
