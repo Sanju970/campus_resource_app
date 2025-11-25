@@ -43,9 +43,26 @@ router.get('/:id', async (req, res) => {
 // Create a new announcement (admin/org roles only)
 router.post('/', async (req, res) => {
   const { title, content, priority, created_by, org_id } = req.body;
-  if (!title || !content || !priority || !created_by || !org_id) {
-    return res.status(400).json({ message: 'Missing required fields (title, content, priority, created_by, org_id)' });
+
+  // Min length validation
+  if (!title || title.length < 3) {
+    return res
+      .status(400)
+      .json({ message: 'Title is required and must be at least 3 characters long.' });
   }
+  if (!content || content.length < 5) {
+    return res
+      .status(400)
+      .json({ message: 'Content/description is required and must be at least 5 characters long.' });
+  }
+
+  // Required fields validation
+  if (!priority || !created_by || !org_id) {
+    return res
+      .status(400)
+      .json({ message: 'Missing required fields (priority, created_by, org_id)' });
+  }
+
   try {
     // Insert the announcement including org_id
     await db.query(
