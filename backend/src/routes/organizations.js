@@ -356,6 +356,8 @@ router.put("/:id", async (req, res) => {
 
 /* ============================================================
    DELETE organization (GLOBAL ADMIN ONLY)
+   - Soft delete the organization (is_active = 0)
+   - Remove ALL members from organization_members
 ============================================================ */
 
 router.delete("/:id", async (req, res) => {
@@ -369,10 +371,12 @@ router.delete("/:id", async (req, res) => {
     if (!isPositiveInt(orgId)) {
       return res.status(400).json({ message: "Invalid organization id" });
     }
-
     if (!isPositiveInt(user_id)) {
-      return res.status(400).json({ message: "user_id must be a valid user id" });
+      return res
+        .status(400)
+        .json({ message: "user_id must be a valid user id" });
     }
+
     const globalRole = await getUserGlobalRole(user_id);
 
     if (!isGlobalAdmin(globalRole)) {
@@ -381,16 +385,30 @@ router.delete("/:id", async (req, res) => {
         .json({ message: "Only a global admin can delete organizations" });
     }
 
-    await db.query(`UPDATE organizations SET is_active = 0 WHERE org_id = ?`, [
-      orgId,
-    ]);
+    await db.query(
+      `UPDATE organizations SET is_active = 0 WHERE org_id = ?`,
+      [orgId]
+    );
 
-    res.json({ message: "Organization removed" });
+    await db.query(
+      `DELETE FROM organization_members WHERE org_id = ?`,
+      [orgId]
+    );
+
+    await db.query(
+      `UPDATE organizations SET location_id = NULL WHERE org_id = ?`,
+      [orgId]
+    );
+
+    return res.json({
+      message: "Organization removed and all members unassigned",
+    });
   } catch (err) {
     console.error("DELETE /organizations:", err);
     res.status(500).json({ message: "Failed to delete organization" });
   }
 });
+
 
 /* ============================================================
    JOIN ORGANIZATION
@@ -632,6 +650,22 @@ router.post("/:id/members/remove", async (req, res) => {
     else if (orgRole === "lead_faculty") {
       allowed = ["member", "coordinator", "event_manager"].includes(targetRole);
     }
+    // ❗ Prevent removing the LAST admin_delegate
+    if (targetRole === "admin_delegate") {
+      const [[count]] = await db.query(
+        `SELECT COUNT(*) AS c
+        FROM organization_members
+        WHERE org_id = ? AND role = 'admin_delegate'`,
+        [orgId]
+      );
+
+      if (count.c <= 1) {
+        return res.status(403).json({
+          message:
+            "Cannot remove the only admin_delegate. Assign another admin_delegate first.",
+        });
+      }
+    }
 
     if (!allowed) {
       return res.status(403).json({ message: "You cannot remove this member" });
@@ -716,6 +750,22 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
     /* ============================================================
        Check acting user's authority
     ============================================================= */
+    // ❗ Prevent demoting the LAST admin_delegate
+    if (currentRole === "admin_delegate" && new_role !== "admin_delegate") {
+      const [[count]] = await db.query(
+        `SELECT COUNT(*) AS c
+        FROM organization_members
+        WHERE org_id = ? AND role = 'admin_delegate'`,
+        [orgId]
+      );
+
+      if (count.c <= 1) {
+        return res.status(403).json({
+          message:
+            "Cannot demote the only admin_delegate. Assign another admin_delegate first.",
+        });
+      }
+    }
 
     let allowed = false;
 

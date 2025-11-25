@@ -322,19 +322,18 @@ export default function OrganizationsPage() {
     if (!isOrgAdmin)
       return toast.error("You do not have permission to delete this organization.");
 
-    if (!window.confirm(`Delete "${org.title}" permanently?`)) return;
-
     try {
       await api.delete(`/organizations/${org.id}`, {
         data: { user_id: user.user_id },
       });
 
-      loadOrganizations();
       toast.success("Organization deleted");
-    } catch {
-      toast.error("Failed to delete organization");
+      loadOrganizations();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete organization");
     }
   };
+
 
   const openCreateModal = () => {
     setEditingOrg(null);

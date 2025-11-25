@@ -53,11 +53,9 @@ export default function LocationsPage() {
   };
 
   const handleDelete = async (loc) => {
-    if (!window.confirm(`Delete location "${loc.location_name}"?`)) return;
-
     try {
-      await api.delete(`/locations/${loc.location_id}`,{
-          data: { user_id: user.user_id },
+      await api.delete(`/locations/${loc.location_id}`, {
+        data: { user_id: user.user_id },
       });
 
       toast.success("Location deleted");
@@ -66,6 +64,7 @@ export default function LocationsPage() {
       toast.error(err.response?.data?.message || "Failed to delete location");
     }
   };
+
 
   if (!isGlobalAdmin) {
     return (

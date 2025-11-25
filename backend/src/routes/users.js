@@ -275,11 +275,76 @@ router.patch("/admin/users/:id/update", async (req, res) => {
 router.delete("/admin/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { admin_user_id } = req.body;
+
+    // Accept admin_user_id from query or body
+    const admin_user_id =
+      req.body?.admin_user_id || req.query?.admin_user_id;
+
+    if (!admin_user_id)
+      return res.status(400).json({ message: "admin_user_id is required" });
 
     if (Number(id) === Number(admin_user_id))
+      return res
+        .status(400)
+        .json({ message: "You cannot delete your own account." });
+
+    // -------------------------------------------------------
+    // 1️⃣ BLOCK if user has announcements within 24 hours
+    // -------------------------------------------------------
+    const [recentAnnouncements] = await db.query(
+      `
+      SELECT announcement_id 
+      FROM announcements 
+      WHERE created_by = ?
+      AND created_at > (NOW() - INTERVAL 24 HOUR)
+      LIMIT 1
+    `,
+      [id]
+    );
+
+    if (recentAnnouncements.length > 0)
       return res.status(400).json({
-        message: "You cannot delete your own account.",
+        message:
+          "Cannot delete user: they have announcements created in the last 24 hours.",
+      });
+
+    // -------------------------------------------------------
+    // 2️⃣ BLOCK if user has upcoming or ongoing events
+    // -------------------------------------------------------
+    const [activeEvents] = await db.query(
+      `
+      SELECT event_id
+      FROM events
+      WHERE created_by = ?
+      AND end_datetime >= NOW()   -- future or ongoing events
+      LIMIT 1
+      `,
+      [id]
+    );
+    if (activeEvents.length > 0)
+      return res.status(400).json({
+        message:
+          "Cannot delete user: they have upcoming or ongoing events.",
+      });
+
+    // -------------------------------------------------------
+    // 3️⃣ BLOCK if user is admin_delegate or lead_faculty
+    // -------------------------------------------------------
+    const [orgRoles] = await db.query(
+      `
+      SELECT org_id 
+      FROM organization_members
+      WHERE user_id = ?
+      AND role IN ('admin_delegate', 'lead_faculty')
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    if (orgRoles.length > 0)
+      return res.status(400).json({
+        message:
+          "Cannot delete user: they are an organization admin_delegate or lead_faculty. Transfer roles first.",
       });
 
     const [result] = await db.query(`DELETE FROM users WHERE user_id = ?`, [

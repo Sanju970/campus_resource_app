@@ -10,6 +10,14 @@ import { Badge } from "./ui/badge";
 import { MapPin, Clock, Mail, Trash2, Pencil } from "lucide-react";
 import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
+import { useState } from "react";
 
 export default function OrganizationsCard({
   resource,
@@ -21,6 +29,9 @@ export default function OrganizationsCard({
   categories = [],
 }) {
   const navigate = useNavigate();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState(null);
+
   const stop = (e) => e.stopPropagation();
 
   const joined = Boolean(isMember || resource?.is_member);
@@ -137,7 +148,8 @@ const formattedLocation =
               variant="destructive"
               onClick={(e) => {
                 stop(e);
-                onDelete && onDelete(resource);
+                setOrgToDelete(resource);
+                setDeleteDialogOpen(true);
               }}
               className="w-full"
             >
@@ -184,6 +196,43 @@ const formattedLocation =
           )}
         </div>
       </CardContent>
+      {/* DELETE ORG CONFIRMATION DIALOG */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Organization?</DialogTitle>
+            <DialogDescription>
+              {orgToDelete
+                ? `Are you sure you want to delete "${orgToDelete.title}"? This action cannot be undone.`
+                : "Are you sure you want to delete this organization?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setOrgToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (orgToDelete && onDelete) onDelete(orgToDelete);
+                setDeleteDialogOpen(false);
+                setOrgToDelete(null);
+              }}
+            >
+              Yes, Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </Card>
   );
 }

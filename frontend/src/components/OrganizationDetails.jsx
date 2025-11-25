@@ -1,5 +1,4 @@
 // ======================= OrganizationDetails.jsx =========================
-
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/api";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -21,6 +20,13 @@ import {
   Globe,
 } from "lucide-react";
 import OrganizationModal from "./OrganizationModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
 
 /* ------- role labels & badge colors ------- */
 
@@ -88,6 +94,13 @@ export default function OrganizationDetails() {
   const [categories, setCategories] = useState([]);
   const [admins, setAdmins] = useState([]);
   const [locations, setLocations] = useState([]);
+  // Dialog state for member removal
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState(null);
+
+  // Dialog state for organization delete
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
 
   const [form, setForm] = useState({
     title: "",
@@ -407,29 +420,31 @@ export default function OrganizationDetails() {
     }
   };
 
-  const handleRemoveMember = async (member) => {
+  const handleRemoveMemberClick = (member) => {
     if (!canRemoveMember(member)) return;
-    if (
-      !window.confirm(
-        `Remove ${member.first_name} ${member.last_name} from this organization?`
-      )
-    )
-      return;
-
-    try {
-      await api.post(
-        `/organizations/${orgId}/members/remove`,
-        {
-          acting_user_id: actingUserId,
-          remove_user_id: member.user_id,
-        }
-      );
-      toast.success("Member removed");
-      loadMembers();
-    } catch {
-      toast.error("Failed to remove member");
-    }
+    setMemberToRemove(member);
+    setRemoveDialogOpen(true);
   };
+
+const confirmRemoveMember = async () => {
+  if (!memberToRemove) return;
+
+  try {
+    await api.post(`/organizations/${orgId}/members/remove`, {
+      acting_user_id: actingUserId,
+      remove_user_id: memberToRemove.user_id,
+    });
+
+    toast.success("Member removed");
+    loadMembers();
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Failed to remove member");
+  }
+
+  setMemberToRemove(null);
+  setRemoveDialogOpen(false);
+};
+
 
   const handleRoleChange = async (member, newRole) => {
     if (!newRole || newRole === member.org_role) return;
@@ -683,7 +698,7 @@ export default function OrganizationDetails() {
                         size="sm"
                         variant="destructive"
                         className="text-xs md:text-sm"
-                        onClick={() => handleRemoveMember(m)}
+                        onClick={() => handleRemoveMemberClick(m)}
                       >
                         Remove
                       </Button>
@@ -709,6 +724,78 @@ export default function OrganizationDetails() {
         isEdit={true}
         canTransferAdmin={isGlobalAdmin || isAdminDelegate}
       />
+      {/* ================= REMOVE MEMBER DIALOG ================= */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove member?</DialogTitle>
+            <DialogDescription>
+              {memberToRemove
+                ? `Are you sure you want to remove ${memberToRemove.first_name} ${memberToRemove.last_name} from this organization?`
+                : "Are you sure you want to remove this member?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRemoveDialogOpen(false);
+                setMemberToRemove(null);
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button variant="destructive" onClick={confirmRemoveMember}>
+              Yes, remove member
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= DELETE ORG DIALOG ================= */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete organization?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The organization will be permanently
+              removed and members will lose access.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  await api.delete(`/organizations/${org.id}`, {
+                    data: { user_id: actingUserId },
+                  });
+                  toast.success("Organization deleted");
+                  navigate("/organizations");
+                } catch (err) {
+                  toast.error(
+                    err.response?.data?.message || "Failed to delete organization"
+                  );
+                }
+                setDeleteDialogOpen(false);
+              }}
+            >
+              Yes, delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

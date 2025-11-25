@@ -14,6 +14,13 @@ import {
 } from "./ui/table";
 import { toast } from "sonner";
 import { Trash2, Plus, RefreshCw, Pencil, Eye, EyeOff } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
 
 /* -----------------------------------------------------
    Reusable Password Input
@@ -48,6 +55,8 @@ export default function AdminPage() {
   const [editOpen, setEditOpen] = useState(false);
 
   const [showAddPassword, setShowAddPassword] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
 
   /* -----------------------------------------------------
      Fetch Users
@@ -192,10 +201,10 @@ export default function AdminPage() {
     if (current?.user_id === id)
       return toast.error("You cannot delete your own account.");
 
-    if (!window.confirm("This will permanently delete user. Continue?")) return;
-
     try {
-      await api.delete(`/admin/users/${id}`, { data: { admin_user_id: current?.user_id } });
+      await api.delete(`/admin/users/${id}`, {
+        data: { admin_user_id: current?.user_id },
+      });
 
       toast.success("User permanently deleted");
       if (editUser?.user_id === id) handleCloseEdit();
@@ -316,10 +325,14 @@ export default function AdminPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDeleteUser(u.user_id)}
+                          onClick={() => {
+                            setUserToDelete(u);
+                            setDeleteDialogOpen(true);
+                          }}
                         >
                           <Trash2 className="h-4 w-4 mr-1" /> Delete
                         </Button>
+
                       </TableCell>
                     </TableRow>
                   ))}
@@ -449,6 +462,56 @@ export default function AdminPage() {
           </Button>
         </CardContent>
       </Card>
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete User?</DialogTitle>
+            <DialogDescription>
+              {userToDelete
+                ? `Are you sure you want to permanently delete "${userToDelete.first_name} ${userToDelete.last_name}"? This action cannot be undone.`
+                : "Are you sure you want to delete this user?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setUserToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  const current = JSON.parse(localStorage.getItem("user"));
+
+                  await api.delete(
+                    `/admin/users/${userToDelete.user_id}?admin_user_id=${current?.user_id}`
+                  );
+
+                  toast.success("User permanently deleted");
+                  if (editUser?.user_id === userToDelete.user_id) handleCloseEdit();
+                  fetchUsers();
+                } catch (err) {
+                  toast.error(err.response?.data?.message || "Delete failed");
+                }
+
+                setDeleteDialogOpen(false);
+                setUserToDelete(null);
+              }}
+            >
+              Yes, Delete User
+            </Button>
+
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
