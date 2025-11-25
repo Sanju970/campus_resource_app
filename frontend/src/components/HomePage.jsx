@@ -284,10 +284,11 @@ export default function HomePage() {
               variant="outline"
               size="lg"
               className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-              onClick={() => navigate("/schedule")}
+              onClick={() => navigate("/about")}
             >
-              View Schedule
+              About Us
             </Button>
+
           </div>
         </div>
       </div>
