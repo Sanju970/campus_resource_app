@@ -50,10 +50,10 @@ router.post('/', async (req, res) => {
       .status(400)
       .json({ message: 'Title is required and must be at least 3 characters long.' });
   }
-  if (!content || content.length < 5) {
+  if (!content || content.length < 10) {
     return res
       .status(400)
-      .json({ message: 'Content/description is required and must be at least 5 characters long.' });
+      .json({ message: 'Content/description is required and must be at least 10 characters long.' });
   }
 
   // Required fields validation
