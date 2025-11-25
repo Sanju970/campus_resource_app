@@ -1,8 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // This must be a promise pool!
+const db = require('../config/db'); // Promise pool
+const sendEmail = require('../config/sendEmail');
 
-// Get all announcements (optionally could join org info client-side)
+// Helper to get all user emails
+async function getAllUserEmails() {
+  const [users] = await db.query('SELECT email FROM users WHERE email IS NOT NULL');
+  return users.map(u => u.email).filter(Boolean);
+}
+
+// Get all announcements (last 24 hours)
 router.get('/', async (req, res) => {
   try {
     const [results] = await db.query(
@@ -51,10 +58,8 @@ router.post('/', async (req, res) => {
       [title, created_by]
     );
 
-    // Fetch all users for notifications
-    const [users] = await db.query('SELECT user_id FROM users');
-
-    // Prepare notification message
+    // Fetch all users for notifications and emails
+    const [users] = await db.query('SELECT user_id, email FROM users WHERE email IS NOT NULL');
     const message = `New announcement posted: ${title}`;
 
     // Insert notifications for all users asynchronously
@@ -62,6 +67,22 @@ router.post('/', async (req, res) => {
       db.query('INSERT INTO notifications (user_id, message) VALUES (?, ?)', [user.user_id, message])
     );
     await Promise.all(notificationPromises);
+
+    // Send email notifications to all users
+    const emailRecipients = users.map(u => u.email).filter(Boolean);
+    if (emailRecipients.length) {
+      const subject = `New Announcement: ${title}`;
+      const html = `
+        <p>A new announcement has been posted:</p>
+        <p><strong>${title}</strong></p>
+        <p>${content}</p>
+      `;
+      try {
+        await sendEmail({ to: emailRecipients.join(','), subject, html });
+      } catch (err) {
+        console.error('Error sending announcement creation emails:', err);
+      }
+    }
 
     // Respond with the newly created announcement
     res.json(inserted[0]);
@@ -111,14 +132,46 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// Delete announcement
+// Delete announcement and send emails
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await db.query(
-      'DELETE FROM announcements WHERE announcement_id=?',
-      [id]
+    // Get announcement details for email content
+    const [rows] = await db.query('SELECT title, content FROM announcements WHERE announcement_id=?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Announcement not found' });
+    }
+    const announcement = rows[0];
+
+    // Fetch all users with emails
+    const [users] = await db.query('SELECT user_id, email FROM users WHERE email IS NOT NULL');
+    const message = `Announcement cancelled: ${announcement.title}`;
+
+    // Send email notifications about deletion
+    const emailRecipients = users.map(u => u.email).filter(Boolean);
+    if (emailRecipients.length) {
+      const subject = `Announcement Cancelled: ${announcement.title}`;
+      const html = `
+        <p>The following announcement has been cancelled:</p>
+        <p><strong>${announcement.title}</strong></p>
+        <p>${announcement.content}</p>
+      `;
+      try {
+        await sendEmail({ to: emailRecipients.join(','), subject, html });
+      } catch (err) {
+        console.error('Error sending announcement deletion emails:', err);
+      }
+    }
+
+    // Insert notifications for all users asynchronously
+    const notificationPromises = users.map(user =>
+      db.query('INSERT INTO notifications (user_id, message) VALUES (?, ?)', [user.user_id, message])
     );
+    await Promise.all(notificationPromises);
+
+    // Delete the announcement
+    await db.query('DELETE FROM announcements WHERE announcement_id=?', [id]);
+
     res.json({ message: 'Announcement deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
