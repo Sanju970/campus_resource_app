@@ -23,7 +23,6 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { sampleAnnouncements } from '../types/announcements';
 
 // Categories (ids MUST match organization_categories.category_id in DB)
 const eventCategories = [
@@ -78,7 +77,8 @@ export default function FavoritesPage() {
 
   const [favoriteEventIds, setFavoriteEventIds] = useState([]);
   const [events, setEvents] = useState([]);
-  const [favoriteAnnouncementIds, setFavoriteAnnouncementIds] = useState(['1', '3']);
+  const [favoriteAnnouncements, setFavoriteAnnouncements] = useState([]);
+  const [favoriteAnnouncementIds, setFavoriteAnnouncementIds] = useState([]);
   const [favoriteMaterialIds, setFavoriteMaterialIds] = useState(() => {
     try {
       const saved = localStorage.getItem('favorite_material_ids');
@@ -88,7 +88,6 @@ export default function FavoritesPage() {
     }
   });
 
-  // For description popup (events)
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventDescriptionOpen, setIsEventDescriptionOpen] = useState(false);
 
@@ -97,40 +96,45 @@ export default function FavoritesPage() {
     favoriteEventIds.includes(event.event_id)
   );
 
-  // Favorite announcements filtered by sampleAnnouncement data and favoriteAnnouncementIds
-  const favoriteAnnouncements = sampleAnnouncements.filter((announcement) =>
-    favoriteAnnouncementIds.includes(announcement.id)
-  );
-
   useEffect(() => {
-    const fetchFavoritesAndEvents = async () => {
+    const fetchFavoritesAndEventsAndAnnouncements = async () => {
       try {
         // 1) Get favorites for this user from backend
-        const favoritesRes = await api.get(
-          `/favorites/user/${user.user_id}`
-        );
+        const favoritesRes = await api.get(`/favorites/user/${user.user_id}`);
 
-        // Extract favorite event ids (convert as needed)
-        const favEventIds = favoritesRes.data
+        const favEvents = favoritesRes.data
           .filter((fav) => fav.item_type === 'event')
           .map((fav) => Number(fav.item_id));
 
-        setFavoriteEventIds(favEventIds);
+        const favAnnouncements = favoritesRes.data
+          .filter((fav) => fav.item_type === 'announcement')
+          .map((fav) => Number(fav.item_id));
+
+        setFavoriteEventIds(favEvents);
+        setFavoriteAnnouncementIds(favAnnouncements);
 
         // 2) Get all events
         const eventsRes = await api.get(`/events`, {
-          params: { user_id: user.user_id }
+          params: { user_id: user.user_id },
         });
-
-
         setEvents(eventsRes.data);
+
+        // 3) Fetch favorite announcements details from backend
+        if (favAnnouncements.length > 0) {
+          const announcementPromises = favAnnouncements.map((id) =>
+            api.get(`/announcements/${id}`).then(res => res.data).catch(() => null)
+          );
+          const announcementsData = await Promise.all(announcementPromises);
+          setFavoriteAnnouncements(announcementsData.filter(Boolean));
+        } else {
+          setFavoriteAnnouncements([]);
+        }
       } catch (err) {
         console.error('Error loading favorites page:', err);
         toast.error('Failed to load favorites');
       }
     };
-
-    fetchFavoritesAndEvents();
+    fetchFavoritesAndEventsAndAnnouncements();
   }, [user.user_id]);
 
   // Remove favorite event
@@ -143,7 +147,6 @@ export default function FavoritesPage() {
           item_id: eventId,
         },
       });
-
       setFavoriteEventIds((prev) => prev.filter((id) => id !== eventId));
       toast.info('Event removed from favorites');
     } catch (err) {
@@ -152,10 +155,13 @@ export default function FavoritesPage() {
     }
   };
 
-  // Remove favorite announcement (local state only, since sample data)
+  // Remove favorite announcement
   const removeFavoriteAnnouncement = (announcementId) => {
     setFavoriteAnnouncementIds((prev) =>
       prev.filter((id) => id !== announcementId)
+    );
+    setFavoriteAnnouncements((prev) =>
+      prev.filter((a) => (a.announcement_id || a.id) !== announcementId)
     );
     toast.info('Announcement removed from favorites');
   };
@@ -165,7 +171,6 @@ export default function FavoritesPage() {
     if (!dateString) return '';
     const date = new Date(dateString);
     if (Number.isNaN(date.getTime())) return dateString;
-
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -234,10 +239,7 @@ export default function FavoritesPage() {
               {favoriteEvents.map((event) => {
                 const fullDescription = event.description || '';
                 const MAX_PREVIEW_CHARS = 30;
-
-                const shouldShowMore =
-                  fullDescription.length > MAX_PREVIEW_CHARS;
-
+                const shouldShowMore = fullDescription.length > MAX_PREVIEW_CHARS;
                 const previewDescription = shouldShowMore
                   ? fullDescription.slice(0, MAX_PREVIEW_CHARS).trimEnd() + '...'
                   : fullDescription;
@@ -249,9 +251,11 @@ export default function FavoritesPage() {
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between mb-2">
-                        <Badge className={`px-3 py-1 text-sm font-semibold rounded-md ${
-                          cat ? cat.color : ''
-                        }`}>
+                        <Badge
+                          className={`px-3 py-1 text-sm font-semibold rounded-md ${
+                            cat ? cat.color : ''
+                          }`}
+                        >
                           {cat ? cat.name : `Category ${event.category_id}`}
                         </Badge>
                         <Button
@@ -267,9 +271,7 @@ export default function FavoritesPage() {
                       {/* DESCRIPTION LINE WITH SHOW MORE */}
                       <CardDescription className="space-y-1">
                         <div className="flex items-center gap-1 max-w-full">
-                          <span className="truncate flex-1 min-w-0">
-                            {previewDescription}
-                          </span>
+                          <span className="truncate flex-1 min-w-0">{previewDescription}</span>
                           {shouldShowMore && (
                             <button
                               type="button"
@@ -288,9 +290,7 @@ export default function FavoritesPage() {
                     <CardContent className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>
-                          {formatDateTime(event.start_datetime || event.date_time)}
-                        </span>
+                        <span>{formatDateTime(event.start_datetime || event.date_time)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -299,8 +299,7 @@ export default function FavoritesPage() {
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          {event.registered_count || 0} / {event.capacity || 0}{' '}
-                          registered
+                          {event.registered_count || 0} / {event.capacity || 0} registered
                         </span>
                       </div>
                     </CardContent>
@@ -326,36 +325,37 @@ export default function FavoritesPage() {
           ) : (
             <div className="space-y-4">
               {favoriteAnnouncements.map((announcement) => (
-                <Card key={announcement.id}>
+                <Card key={announcement.announcement_id || announcement.id}>
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {announcement.is_pinned && (
-                            <Pin className="h-4 w-4 text-primary" />
-                          )}
-                          <CardTitle className="text-lg">
-                            {announcement.title}
-                          </CardTitle>
+                          {announcement.is_pinned && <Pin className="h-4 w-4 text-primary" />}
+                          <CardTitle className="text-lg">{announcement.title}</CardTitle>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
-                          <span>Posted by {announcement.created_by_name}</span>
+                          <span>Posted by {announcement.created_by_name || announcement.created_by}</span>
                           <span>•</span>
-                          <span>{formatDateTime(announcement.created_date)}</span>
+                          <span>
+                            {announcement.created_date
+                              ? new Date(announcement.created_date).toLocaleString()
+                              : ''}
+                          </span>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Badge className={getPriorityColor(announcement.priority)}>
+                        <Badge className={'bg-gray-500 text-white'}>
                           <span className="flex items-center gap-1">
-                            {getPriorityIcon(announcement.priority)}
-                            {announcement.priority.toUpperCase()}
+                            <Info className="h-4 w-4" /> Info
                           </span>
                         </Badge>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() =>
-                            removeFavoriteAnnouncement(announcement.id)
+                            removeFavoriteAnnouncement(
+                              announcement.announcement_id || announcement.id
+                            )
                           }
                           aria-label="Remove announcement from favorites"
                           title="Remove announcement from favorites"
@@ -382,12 +382,8 @@ export default function FavoritesPage() {
           <div className="text-sm text-muted-foreground">Favorite Events</div>
         </div>
         <div className="text-center space-y-1 w-56 min-w-[30rem]">
-          <div className="text-3xl font-semibold">
-            {favoriteAnnouncements.length}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Favorite Announcements
-          </div>
+          <div className="text-3xl font-semibold">{favoriteAnnouncements.length}</div>
+          <div className="text-sm text-muted-foreground">Favorite Announcements</div>
         </div>
       </div>
 
@@ -403,9 +399,7 @@ export default function FavoritesPage() {
           <DialogHeader>
             <DialogTitle>{selectedEvent?.title}</DialogTitle>
             <DialogDescription>
-              <span className="whitespace-pre-wrap">
-                {selectedEvent?.description}
-              </span>
+              <span className="whitespace-pre-wrap">{selectedEvent?.description}</span>
             </DialogDescription>
           </DialogHeader>
         </DialogContent>

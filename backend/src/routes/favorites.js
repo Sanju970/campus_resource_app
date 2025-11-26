@@ -76,5 +76,26 @@ router.delete('/', async (req, res) => {
     res.status(500).json({ error: 'Could not remove favorite.' });
   }
 });
+// DELETE /api/favorites/:favorite_id
+router.delete('/:favorite_id', async (req, res) => {
+  const favoriteId = req.params.favorite_id;
+  if (!favoriteId) {
+    return res.status(400).json({ error: 'Missing favorite ID' });
+  }
+  try {
+    const [results] = await db.query(
+      'DELETE FROM favorites WHERE favorite_id = ?',
+      [favoriteId]
+    );
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ error: 'Favorite not found or already deleted.' });
+    }
+    res.json({ message: 'Favorite removed' });
+  } catch (err) {
+    console.error('Error removing favorite:', err);
+    res.status(500).json({ error: 'Could not remove favorite.' });
+  }
+});
+
 
 module.exports = router;

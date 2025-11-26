@@ -94,7 +94,7 @@ export default function AnnouncementsEventsPage() {
   const fetchOrganizations = async () => {
     if (!user?.user_id) return;
     try {
-      const res = await api.get(`/organizations`, { params: { user_id: user.user_id } })
+      const res = await api.get(`/organizations`, { params: { user_id: user.user_id } });
       const data = res.data;
 
       const map = {};
@@ -200,7 +200,7 @@ export default function AnnouncementsEventsPage() {
       return;
     }
     try {
-      const res = await api.patch(`/announcements/${editingAnnouncement.announcement_id}`, { title, content, priority, org_id });
+      await api.patch(`/announcements/${editingAnnouncement.announcement_id}`, { title, content, priority, org_id });
       setAnnouncements(prev =>
         prev.map(a => a.announcement_id === editingAnnouncement.announcement_id
           ? { ...a, title, content, priority, org_id } : a));
