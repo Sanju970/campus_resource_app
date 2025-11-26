@@ -145,7 +145,7 @@ router.post("/register", async (req, res) => {
 --------------------------------------------------------- */
 router.post("/login", async (req, res) => {
   try {
-    const { identifier, password } = req.body; // FIXED: removed extra )
+    const { identifier, password } = req.body;
     
     if (!identifier || !password) {
       return res.status(400).json({
@@ -194,7 +194,7 @@ router.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       {
-        user_id: user.user_id,        // ADDED: useful for authorization
+        user_id: user.user_id,
         user_uid: user.user_uid,
         email: user.email,
         role_id: user.role_id,
