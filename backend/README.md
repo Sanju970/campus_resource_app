@@ -208,11 +208,11 @@ This backend is developed for **UTA Web Data Management -- Phase 3**.
 
 ## References
 
-Official Node.js Documentation – https://nodejs.org\
-Express.js Guide – https://expressjs.com\
-JWT (jsonwebtoken) Documentation – https://www.npmjs.com/package/jsonwebtoken\
-Nodemailer SMTP Documentation – https://nodemailer.com/smtp/\
-React & Vite Documentation – https://react.dev\
-Render Backend Hosting – https://render.com\
-ChatGPT – used only for bug-fix guidance & explanation\
-Google Gemini – used for AI assistance
+1. Official Node.js Documentation – https://nodejs.org
+2. Express.js Guide – https://expressjs.com
+3. JWT (jsonwebtoken) Documentation – https://www.npmjs.com/package/jsonwebtoken
+4. Nodemailer SMTP Documentation – https://nodemailer.com/smtp/
+5. React & Vite Documentation – https://react.dev
+6. Render Backend Hosting – https://render.com
+7. ChatGPT – used only for bug-fix guidance & explanation
+8. Google Gemini – used for AI assistance
