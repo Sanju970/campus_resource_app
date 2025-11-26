@@ -288,6 +288,12 @@ export default function EventsPage() {
     fetchLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+  // If the user loses/create privilege (or never had it), make sure the Created Events filter is not stuck on.
+  if (!canCreateOrApprove && showCreatedEventsOnly) {
+    setShowCreatedEventsOnly(false);
+  }
+}, [canCreateOrApprove, showCreatedEventsOnly]);
 
   const now = new Date();
 
@@ -832,6 +838,17 @@ export default function EventsPage() {
   const registeredEventsCount = allEventsForStats.filter((event) =>
     registeredEvents.includes(event.event_id)
   ).length;
+  // Events happening today (local date). This does not change any business logic — it just derives a count.
+const eventsTodayCount = allEventsForStats.filter((event) => {
+  if (!event.start_datetime) return false;
+  const start = new Date(event.start_datetime);
+  const nowLocal = new Date();
+  return (
+    start.getFullYear() === nowLocal.getFullYear() &&
+    start.getMonth() === nowLocal.getMonth() &&
+    start.getDate() === nowLocal.getDate()
+  );
+}).length;
 
   // ---------------- Members modal fetch ----------------
   const openMembersModal = async (event) => {
@@ -1129,7 +1146,7 @@ export default function EventsPage() {
           >
             All Events
           </Button>
-
+        {canCreateOrApprove && (
           <Button
             type="button"
             variant={showCreatedEventsOnly ? "default" : "outline"}
@@ -1142,7 +1159,7 @@ export default function EventsPage() {
             }}
           >
             Created Events
-          </Button>
+          </Button>)}
 
           <Button
             type="button"
@@ -1482,7 +1499,7 @@ export default function EventsPage() {
               Total Events
             </div>
           </div>
-
+          {canCreateOrApprove ? (
           <div className="flex-1 flex flex-col items-center justify-center">
             <div
               className="font-semibold"
@@ -1494,7 +1511,20 @@ export default function EventsPage() {
               Events Created
             </div>
           </div>
+          ) : (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <div
+              className="font-semibold"
+              style={{ fontSize: "2rem", lineHeight: "1" }}
+            >
+              {eventsTodayCount}
+            </div>
+            <div className="text-base text-muted-foreground mt-1">
+              Events Today
+            </div>
+          </div>
 
+          )}
           <div className="flex-1 flex flex-col items-center justify-center">
             <div
               className="font-semibold"
