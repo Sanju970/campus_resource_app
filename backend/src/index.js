@@ -53,11 +53,11 @@ app.use(express.json());
 // --- Verify DB Connection ---
 db.getConnection()
   .then((conn) => {
-    console.log("✅ Connected to MySQL Database");
+    console.log("Connected to MySQL Database");
     conn.release();
   })
   .catch((err) => {
-    console.error("❌ Database connection failed:", err.message);
+    console.error("Database connection failed:", err.message);
   });
 
 // --- Mount All Routes ---

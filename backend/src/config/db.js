@@ -20,7 +20,7 @@ db.getConnection()
     conn.release();
   })
   .catch(err => {
-    console.error("❌ Database connection failed:", err);
+    console.error("Database connection failed:", err);
   });
 
 module.exports = db;

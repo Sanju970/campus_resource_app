@@ -82,7 +82,7 @@ export default function OrganizationModal({
       </Label>
 
       <select
-        className="border rounded-md w-full p-2"
+        className="border rounded-md w-full p-2 text-sm sm:text-base"
         value={form[daysKey] || ""}
         onChange={(e) => setForm({ ...form, [daysKey]: e.target.value })}
       >
@@ -94,9 +94,9 @@ export default function OrganizationModal({
         <option value="Custom">Custom</option>
       </select>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <select
-          className="border rounded-md w-full p-2"
+          className="border rounded-md w-full p-2 text-sm sm:text-base"
           value={form[startKey] || ""}
           onChange={(e) => setForm({ ...form, [startKey]: e.target.value })}
         >
@@ -109,7 +109,7 @@ export default function OrganizationModal({
         </select>
 
         <select
-          className="border rounded-md w-full p-2"
+          className="border rounded-md w-full p-2 text-sm sm:text-base"
           value={form[endKey] || ""}
           onChange={(e) => setForm({ ...form, [endKey]: e.target.value })}
         >
@@ -140,13 +140,13 @@ export default function OrganizationModal({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto sm:w-[600px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Organization" : "Create Organization"}</DialogTitle>
           <DialogDescription>Fill in the details below.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2 sm:py-4 px-1 sm:px-0">
           {/* TITLE */}
           <div className="space-y-2">
             <Label>Organization Title</Label>
@@ -170,7 +170,7 @@ export default function OrganizationModal({
           <div className="space-y-2">
             <Label>Category</Label>
             <select
-              className="border rounded-md w-full p-2"
+              className="border rounded-md w-full p-2 text-sm sm:text-base"
               value={form.category_id}
               onChange={(e) =>
                 setForm({ ...form, category_id: Number(e.target.value) })
@@ -190,7 +190,7 @@ export default function OrganizationModal({
             <Label>Location</Label>
 
             <select
-              className="border rounded-md w-full p-2"
+              className="border rounded-md w-full p-2 text-sm sm:text-base"
               value={form.location_id || ""}
               onChange={(e) =>
                 setForm({ ...form, location_id: Number(e.target.value) })
@@ -261,7 +261,7 @@ export default function OrganizationModal({
 
           {/* ADMIN TRANSFER */}
           {isEdit && canTransferAdmin && (
-            <div className="space-y-3 border border-orange-300 p-4 rounded-md bg-orange-50">
+            <div className="space-y-3 border border-orange-300 p-3 sm:p-4 rounded-md bg-orange-50">
               <span className="text-orange-600 font-semibold">
                 Admin Delegate Transfer
               </span>
@@ -269,7 +269,7 @@ export default function OrganizationModal({
               <div className="space-y-2">
                 <Label>Select Global Admin</Label>
                 <select
-                  className="border rounded-md w-full p-2"
+                  className="border rounded-md w-full p-2 text-sm sm:text-base"
                   value={form.new_admin_id || ""}
                   onChange={(e) =>
                     setForm({ ...form, new_admin_id: Number(e.target.value) })

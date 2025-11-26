@@ -6,7 +6,6 @@ import Layout from './components/Layout';
 import HomePage from './components/HomePage';
 import EventsPage from './components/EventsPage';
 import AnnouncementsPage from './components/AnnouncementsPage';
-import MaterialsPage from './components/MaterialsPage';
 import OrganizationsPage from './components/OrganizationsPage';
 import SchedulePage from './components/SchedulePage';
 import ProfilePage from './components/ProfilePage';
@@ -58,7 +57,13 @@ function AppContent() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-      <Route path="/about" element={<AboutPage />}/>
+      <Route path="/about" element={
+        <Layout>
+          <AboutPage />
+          <AIChat />
+        </Layout>
+      } />
+
 
       {/* If not logged in, redirect everything else to login */}
       {!user ? (
@@ -74,7 +79,6 @@ function AppContent() {
                 <Route path="/events" element={<EventsPage />} />
                 <Route path="/events/:eventId/members" element={<EventMembersPage />} />
                 <Route path="/announcements" element={<AnnouncementsPage />} />
-                <Route path="/materials" element={<MaterialsPage />} />
                 <Route path="/organizations" element={<OrganizationsPage />} />
                 <Route path="/schedule" element={<SchedulePage />} />
                 <Route path="/profile" element={<ProfilePage />} />
@@ -84,7 +88,7 @@ function AppContent() {
                 <Route path="/organizations/:orgId" element={<OrganizationDetails />} />
                 <Route path="/users/:userId" element={<UserPublicProfile />} />
                 <Route path="/people" element={<AllUsersPage />} />
-                <Route path="/about" element={<AboutPage />}/>
+                {/* <Route path="/about" element={<AboutPage />}/> */}
                 
 
                 <Route

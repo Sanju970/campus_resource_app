@@ -33,7 +33,7 @@ function authMiddleware(req, res, next) {
    QUICK TEST
 ============================================================ */
 router.get("/", (req, res) => {
-  res.json({ message: "✅ scheduleRoutes root is working" });
+  res.json({ message: "scheduleRoutes root is working" });
 });
 
 /* ============================================================

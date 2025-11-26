@@ -316,7 +316,13 @@ export default function AboutPage() {
 
   // If logged in → wrap in Layout to show navbar
   if (user) {
-    return <Layout>{content}</Layout>;
+    return (
+      <AboutContent
+        showLoginButton={!user}
+        onLoginClick={() => navigate("/login")}
+      />
+    );
+
   }
 
   // If not logged in → just show About content with Login button
