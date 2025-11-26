@@ -270,7 +270,6 @@ export default function AnnouncementsEventsPage() {
       case 'high': return <AlertTriangle className="h-4 w-4" />;
       case 'medium': return <Info className="h-4 w-4" />;
       case 'low': return <CheckCircle className="h-4 w-4" />;
-      case 'urgent': return <AlertTriangle className="h-4 w-4 text-red-700" />;
       default: return null;
     }
   };
@@ -280,7 +279,6 @@ export default function AnnouncementsEventsPage() {
       case 'high': return 'bg-red-500 text-white';
       case 'medium': return 'bg-blue-500 text-white';
       case 'low': return 'bg-gray-500 text-white';
-      case 'urgent': return 'bg-red-700 text-white';
       default: return 'bg-gray-500 text-white';
     }
   };
@@ -456,7 +454,7 @@ export default function AnnouncementsEventsPage() {
           My Announcements
         </Button>
 
-        {['high', 'medium', 'low', 'urgent'].map((p) => (
+        {['high', 'medium', 'low'].map((p) => (
           <Button
             key={p}
             variant={selectedPriority === p ? 'default' : 'outline'}
