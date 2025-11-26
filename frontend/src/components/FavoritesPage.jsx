@@ -84,7 +84,7 @@ export default function FavoritesPage() {
   const [isEventDescriptionOpen, setIsEventDescriptionOpen] = useState(false);
 
   const favoriteEvents = events.filter((event) =>
-    favoriteEventIds.includes(event.event_id)
+    favoriteEventIds.includes(Number(event.event_id))
   );
 
   useEffect(() => {
@@ -145,7 +145,14 @@ export default function FavoritesPage() {
       toast.error('Could not remove favorite');
     }
   };
-
+  // helper to construct location label from event (same logic as EventsPage)
+const buildLocationLabel = (event) => {
+  const parts = [];
+  if (event.location_name) parts.push(event.location_name);
+  if (event.building) parts.push(event.building);
+  if (event.room) parts.push(`Room ${event.room}`);
+  return parts.join(" · ") || "";
+};
   // Remove favorite announcement
   const removeFavoriteAnnouncement = (announcementId) => {
     setFavoriteAnnouncementIds((prev) =>
@@ -285,7 +292,7 @@ export default function FavoritesPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{event.location}</span>
+                        <span>{buildLocationLabel(event)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
