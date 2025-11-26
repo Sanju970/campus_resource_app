@@ -139,7 +139,7 @@ export default function LocationsPage() {
       <div className="space-y-3">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
-          Existing Locations
+          Existing Locations ({locations.length})
         </h2>
 
         {locations.map((loc) => (

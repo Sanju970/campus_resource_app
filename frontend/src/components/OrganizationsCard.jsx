@@ -7,7 +7,7 @@ import {
 } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { MapPin, Clock, Mail, Trash2, Pencil } from "lucide-react";
+import { MapPin, Clock, Phone, Trash2, Pencil } from "lucide-react";
 import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
 import {
@@ -131,7 +131,7 @@ const formattedLocation =
 
           {resource.contact && (
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
+              <Phone className="h-4 w-4 text-muted-foreground" />
               <span>{resource.contact}</span>
             </div>
           )}

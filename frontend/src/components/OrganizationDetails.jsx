@@ -14,7 +14,7 @@ import { Button } from "./ui/button";
 import {
   MapPin,
   Clock,
-  Mail,
+  Phone,
   ArrowLeft,
   Pencil,
   Globe,
@@ -568,7 +568,7 @@ const confirmRemoveMember = async () => {
           {/* Contact */}
           {org.contact && (
             <div className="flex items-start gap-3">
-              <Mail className="h-5 w-5 text-primary mt-1" />
+              <Phone className="h-5 w-5 text-primary mt-1" />
               <div>
                 <p className="text-sm font-semibold">Contact</p>
                 <p className="text-sm text-muted-foreground">

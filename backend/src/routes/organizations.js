@@ -184,62 +184,117 @@ router.get("/", async (req, res) => {
 /* ============================================================
    CREATE organization (GLOBAL ADMIN ONLY)
 ============================================================ */
-
 router.post("/", async (req, res) => {
   try {
     const {
       title,
       description,
       location_id,
-      hours,
+      hours_days_main,
+      hours_start_main,
+      hours_end_main,
+      hours_days_secondary,
+      hours_start_secondary,
+      hours_end_secondary,
       contact,
       website,
       category_id,
       created_by,
     } = req.body;
 
-    if (!title || !created_by || !category_id || !location_id) {
+    /* ===========================================
+       BASIC REQUIRED FIELDS
+    ============================================ */
+
+    // Title
+    if (!isValidTitle(title)) {
       return res.status(400).json({
-        message: "Title, category_id, created_by, and location_id are required",
+        message: "Title is required and must be at least 5 characters long",
       });
     }
 
-    const cleanTitle = title.trim();
-    if (cleanTitle.length < 5) {
+    // Description
+    if (!isValidDescription(description)) {
       return res.status(400).json({
-        message: "Title must be at least 5 letters long",
+        message: "Description must contain at least 3 words or 10 characters",
       });
     }
 
-    if (description) {
-      const descTrim = description.trim();
-      const wordCount = descTrim.split(/\s+/).length;
+    // Category
+    if (!category_id || !isPositiveInt(category_id)) {
+      return res.status(400).json({
+        message: "category_id is required and must be a positive integer",
+      });
+    }
 
-      if (descTrim.length < 10 && wordCount < 3) {
+    // Location
+    if (!location_id || !isPositiveInt(location_id)) {
+      return res.status(400).json({
+        message: "location_id is required and must be a positive integer",
+      });
+    }
+
+    // Contact (10-digit)
+    if (!isValidContact(contact)) {
+      return res.status(400).json({
+        message: "Contact must be a valid 10-digit phone number",
+      });
+    }
+
+    // created_by
+    if (!created_by || !isPositiveInt(created_by)) {
+      return res.status(400).json({
+        message: "created_by is required and must be a valid user id",
+      });
+    }
+
+    /* ===========================================
+       HOURS VALIDATION (PRIMARY / SECONDARY)
+    ============================================ */
+
+    const hasPrimary =
+      !!hours_days_main || !!hours_start_main || !!hours_end_main;
+
+    const hasSecondary =
+      !!hours_days_secondary ||
+      !!hours_start_secondary ||
+      !!hours_end_secondary;
+
+    // PRIMARY RULES
+    if (hasPrimary) {
+      if (!hours_days_main || !hours_start_main || !hours_end_main) {
         return res.status(400).json({
-          message: "Description must contain at least 3 words or 10 characters",
+          message:
+            "Primary hours must include days, start time, and end time together.",
         });
       }
     }
 
-    if (contact && !/^[0-9]{10}$/.test(contact)) {
-      return res.status(400).json({
-        message: "Contact must be a valid 10-digit number",
-      });
+    // SECONDARY RULES
+    if (hasSecondary) {
+      // secondary only allowed if primary exists
+      if (!hasPrimary) {
+        return res.status(400).json({
+          message:
+            "Secondary hours cannot be added unless primary hours are provided.",
+        });
+      }
+
+      if (
+        !hours_days_secondary ||
+        !hours_start_secondary ||
+        !hours_end_secondary
+      ) {
+        return res.status(400).json({
+          message:
+            "Secondary hours must include days, start time, and end time together.",
+        });
+      }
     }
 
-    if (!isPositiveInt(created_by)) {
-      return res.status(400).json({
-        message: "created_by must be a valid user id",
-      });
-    }
-
-    if (!isPositiveInt(category_id)) {
-      return res.status(400).json({
-        message: "category_id must be a valid number",
-      });
-    }
-
+    /* ============================================================
+       ROLE VALIDATION
+    ============================================================= */
     const globalRole = await getUserGlobalRole(created_by);
     if (!isGlobalAdmin(globalRole)) {
       return res
@@ -247,16 +302,36 @@ router.post("/", async (req, res) => {
         .json({ message: "Only global admins can create organizations" });
     }
 
+    /* ============================================================
+       LOCATION VALIDATION
+    ============================================================= */
     if (!(await isLocationValid(location_id))) {
       return res.status(400).json({ message: "Invalid location_id" });
     }
 
     if (await isLocationTaken(location_id)) {
-      return res
-        .status(400)
-        .json({ message: "Location is already used by another organization" });
+      return res.status(400).json({
+        message: "Location is already used by another organization",
+      });
     }
 
+    /* ============================================================
+       BUILD HOURS STRING
+       (e.g., "Mon–Fri: 9 AM - 5 PM | Sat–Sun: 10 AM - 2 PM")
+    ============================================================= */
+    let hours = null;
+
+    if (hasPrimary) {
+      hours = `${hours_days_main}: ${hours_start_main} - ${hours_end_main}`;
+
+      if (hasSecondary) {
+        hours += ` | ${hours_days_secondary}: ${hours_start_secondary} - ${hours_end_secondary}`;
+      }
+    }
+
+    /* ============================================================
+       INSERT ORG
+    ============================================================= */
     const [result] = await db.query(
       `
       INSERT INTO organizations
@@ -264,12 +339,12 @@ router.post("/", async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        title,
-        description,
+        title.trim(),
+        description.trim(),
         location_id,
         hours,
         contact,
-        website,
+        website || null,
         category_id,
         created_by,
       ]
@@ -277,13 +352,17 @@ router.post("/", async (req, res) => {
 
     const orgId = result.insertId;
 
+    // Creator becomes admin_delegate for this org
     await db.query(
       `INSERT INTO organization_members (org_id, user_id, role)
        VALUES (?, ?, 'admin_delegate')`,
       [orgId, created_by]
     );
 
-    res.status(201).json({ message: "Organization created", org_id: orgId });
+    return res.status(201).json({
+      message: "Organization created successfully",
+      org_id: orgId,
+    });
   } catch (err) {
     console.error("POST /organizations:", err);
     res.status(500).json({ message: "Failed to create organization" });
@@ -301,62 +380,58 @@ router.put("/:id", async (req, res) => {
       title,
       description,
       location_id,
-      hours,
+      hours_days_main,
+      hours_start_main,
+      hours_end_main,
+      hours_days_secondary,
+      hours_start_secondary,
+      hours_end_secondary,
       contact,
       website,
       category_id,
       updated_by,
     } = req.body;
 
-    if (!updated_by) {
-      return res.status(400).json({ message: "updated_by is required" });
-    }
+    // Basic id checks
     if (!isPositiveInt(orgId)) {
       return res.status(400).json({ message: "Invalid organization id" });
     }
 
-    if (!title || !category_id) {
+    if (!updated_by || !isPositiveInt(updated_by)) {
+      return res.status(400).json({ message: "updated_by is required" });
+    }
+
+    // Title & category
+    if (!isValidTitle(title) || !category_id || !isPositiveInt(category_id)) {
       return res.status(400).json({
-        message: "Title and category_id are required",
+        message: "Title (>=5 chars) and valid category_id are required",
       });
     }
 
-    const cleanTitle = title.trim();
-    if (cleanTitle.length < 5) {
+    // Description (if provided)
+    if (description && !isValidDescription(description)) {
       return res.status(400).json({
-        message: "Title must be at least 5 letters long",
+        message: "Description must contain at least 3 words or 10 characters",
       });
     }
 
-    if (description) {
-      const descTrim = description.trim();
-      const wordCount = descTrim.split(/\s+/).length;
-
-      if (descTrim.length < 10 && wordCount < 3) {
-        return res.status(400).json({
-          message: "Description must contain at least 3 words or 10 characters",
-        });
-      }
-    }
-
-    if (contact && !/^[0-9]{10}$/.test(contact)) {
+    // Contact (optional, but if present must be valid)
+    if (contact && !isValidContact(contact)) {
       return res.status(400).json({
         message: "Contact must be a valid 10-digit number",
       });
     }
 
-    if (!isPositiveInt(updated_by)) {
-      return res.status(400).json({
-        message: "updated_by must be a valid user id",
-      });
-    }
-
+    // Category check
     if (!isPositiveInt(category_id)) {
       return res.status(400).json({
         message: "category_id must be a valid number",
       });
     }
 
+    /* ============================================================
+       AUTHORIZATION
+    ============================================================= */
     const { globalRole, orgRole } = await getAuthContext(orgId, updated_by);
     const canEdit =
       isGlobalAdmin(globalRole) ||
@@ -366,6 +441,15 @@ router.put("/:id", async (req, res) => {
       return res
         .status(403)
         .json({ message: "You are not allowed to update this organization" });
+    }
+
+    /* ============================================================
+       LOCATION VALIDATION
+    ============================================================= */
+    if (!location_id || !isPositiveInt(location_id)) {
+      return res.status(400).json({
+        message: "location_id is required and must be a positive integer",
+      });
     }
 
     if (!(await isLocationValid(location_id))) {
@@ -378,19 +462,100 @@ router.put("/:id", async (req, res) => {
       });
     }
 
+    /* ============================================================
+       HOURS VALIDATION (PRIMARY / SECONDARY)
+    ============================================================= */
+    const hasPrimary =
+      !!hours_days_main || !!hours_start_main || !!hours_end_main;
+
+    const hasSecondary =
+      !!hours_days_secondary ||
+      !!hours_start_secondary ||
+      !!hours_end_secondary;
+
+    if (hasPrimary) {
+      if (!hours_days_main || !hours_start_main || !hours_end_main) {
+        return res.status(400).json({
+          message:
+            "Primary hours must include days, start time, and end time together.",
+        });
+      }
+    }
+
+    if (hasSecondary) {
+      if (!hasPrimary) {
+        return res.status(400).json({
+          message:
+            "Secondary hours cannot be added unless primary hours are provided.",
+        });
+      }
+
+      if (
+        !hours_days_secondary ||
+        !hours_start_secondary ||
+        !hours_end_secondary
+      ) {
+        return res.status(400).json({
+          message:
+            "Secondary hours must include days, start time, and end time together.",
+        });
+      }
+    }
+
+    /* ============================================================
+       BUILD HOURS STRING OR KEEP EXISTING
+    ============================================================= */
+    let hours;
+
+    if (hasPrimary) {
+      // Build new hours string from provided primary/secondary
+      hours = `${hours_days_main}: ${hours_start_main} - ${hours_end_main}`;
+      if (hasSecondary) {
+        hours += ` | ${hours_days_secondary}: ${hours_start_secondary} - ${hours_end_secondary}`;
+      }
+    } else if (hasSecondary) {
+      // This case should already be blocked by validation above,
+      // but keep for safety
+      return res.status(400).json({
+        message:
+          "Secondary hours cannot be added unless primary hours are provided.",
+      });
+    } else {
+      // No hours fields sent → keep existing hours value
+      const [[orgRow]] = await db.query(
+        `SELECT hours FROM organizations WHERE org_id = ?`,
+        [orgId]
+      );
+
+      if (!orgRow) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
+      hours = orgRow.hours;
+    }
+
+    /* ============================================================
+       UPDATE ORG
+    ============================================================= */
     await db.query(
       `
       UPDATE organizations
-      SET title=?, description=?, location_id=?, hours=?, contact=?, website=?, category_id=?
-      WHERE org_id=?
+      SET title = ?, 
+          description = ?, 
+          location_id = ?, 
+          hours = ?, 
+          contact = ?, 
+          website = ?, 
+          category_id = ?
+      WHERE org_id = ?
       `,
       [
-        title,
-        description,
+        title.trim(),
+        description ? description.trim() : null,
         location_id,
         hours,
-        contact,
-        website,
+        contact || null,
+        website || null,
         category_id,
         orgId,
       ]
@@ -402,6 +567,7 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ message: "Failed to update organization" });
   }
 });
+
 
 /* ============================================================
    DELETE organization (GLOBAL ADMIN ONLY)

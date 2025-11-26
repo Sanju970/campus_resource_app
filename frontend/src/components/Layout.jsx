@@ -156,7 +156,7 @@ export default function Layout({ children, notificationCount = 0 }) {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 pt-16 px-2 md:px-4">
+      <main className="flex-1 px-2 md:px-4">
         {children}
       </main>
     </div>

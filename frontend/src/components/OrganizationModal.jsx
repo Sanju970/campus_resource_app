@@ -205,10 +205,6 @@ export default function OrganizationModal({
                 </option>
               ))}
             </select>
-
-            {!form.location_id && (
-              <p className="text-xs text-red-500">Location is required</p>
-            )}
           </div>
 
           {/* HOURS */}
@@ -249,6 +245,9 @@ export default function OrganizationModal({
               value={form.contact}
               onChange={(e) => setForm({ ...form, contact: e.target.value })}
             />
+            <p className="text-xs text-muted-foreground">
+              Must be a 10-digit phone number (numbers only)
+            </p>
           </div>
 
           {/* WEBSITE */}
