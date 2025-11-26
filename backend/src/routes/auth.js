@@ -10,9 +10,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_key";
 const DEFAULT_BIO = "This is my profile bio.";
 
-/* ---------------------------------------------------------
-   TEST EMAIL
---------------------------------------------------------- */
+//  test email
 router.get("/test-mail", async (req, res) => {
   try {
     await sendEmail({
@@ -26,9 +24,6 @@ router.get("/test-mail", async (req, res) => {
   }
 });
 
-/* ---------------------------------------------------------
-   PASSWORD STRENGTH VALIDATION
---------------------------------------------------------- */
 function isStrongPassword(password) {
   return (
     typeof password === "string" &&
@@ -40,9 +35,7 @@ function isStrongPassword(password) {
   );
 }
 
-/* ---------------------------------------------------------
-   REGISTER  (student/faculty)
---------------------------------------------------------- */
+//  REGISTER  (student/faculty)
 router.post("/register", async (req, res) => {
   try {
     const { first_name, last_name, user_uid, password } = req.body;
@@ -100,7 +93,6 @@ router.post("/register", async (req, res) => {
       DEFAULT_BIO,
     ]);
 
-    // 🔥 Send welcome email BEFORE returning response
     try {
       await sendEmail({
         to: email,
@@ -140,9 +132,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-/* ---------------------------------------------------------
-   LOGIN
---------------------------------------------------------- */
+//  LOGIN
 router.post("/login", async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -225,9 +215,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-/* ---------------------------------------------------------
-   CHANGE PASSWORD (LOGGED-IN)
---------------------------------------------------------- */
+// CHANGE PASSWORD (LOGGED-IN)
 router.post("/change-password", async (req, res) => {
   try {
     const { user_uid, oldPassword, newPassword } = req.body;
@@ -276,9 +264,8 @@ router.post("/change-password", async (req, res) => {
   }
 });
 
-/* ---------------------------------------------------------
-   FORGOT PASSWORD — SEND TOKEN
---------------------------------------------------------- */
+
+//  FORGOT PASSWORD
 router.post("/forgot-password", async (req, res) => {
   try {
     const { identifier } = req.body;
@@ -336,9 +323,7 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-/* ---------------------------------------------------------
-   RESET PASSWORD — USE TOKEN
---------------------------------------------------------- */
+//  RESET PASSWORD
 router.post("/reset-password/:token", async (req, res) => {
   try {
     const { token } = req.params;

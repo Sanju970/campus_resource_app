@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
-/* ============================================================
-   Helper functions
-============================================================ */
+/* Helper functions */
 
 // Global role: 'student' | 'faculty' | 'admin'
 async function getUserGlobalRole(userId) {
@@ -60,10 +58,6 @@ function isPositiveInt(value) {
   return Number.isInteger(num) && num > 0;
 }
 
-/* ============================================================
-   LOCATION VALIDATION HELPERS
-============================================================ */
-
 async function isLocationValid(location_id) {
   const [rows] = await db.query(
     `SELECT location_id FROM campus_locations WHERE location_id = ?`,
@@ -102,9 +96,9 @@ function isValidContact(contact) {
   return /^[0-9]{10}$/.test(contact || "");
 }
 
-/* ============================================================
-   GET all organizations
-============================================================ */
+/* 
+   GET all orgs
+ */
 router.get("/", async (req, res) => {
   const userId = req.query.user_id || null;
 
@@ -181,9 +175,9 @@ router.get("/", async (req, res) => {
 });
 
 
-/* ============================================================
-   CREATE organization (GLOBAL ADMIN ONLY)
-============================================================ */
+/* 
+   CREATE organization (allow global admin only)
+ */
 router.post("/", async (req, res) => {
   try {
     const {
@@ -201,10 +195,6 @@ router.post("/", async (req, res) => {
       category_id,
       created_by,
     } = req.body;
-
-    /* ===========================================
-       BASIC REQUIRED FIELDS
-    ============================================ */
 
     // Title
     if (!isValidTitle(title)) {
@@ -247,11 +237,7 @@ router.post("/", async (req, res) => {
         message: "created_by is required and must be a valid user id",
       });
     }
-
-    /* ===========================================
-       HOURS VALIDATION (PRIMARY / SECONDARY)
-    ============================================ */
-
+    // hours
     const hasPrimary =
       !!hours_days_main || !!hours_start_main || !!hours_end_main;
 
@@ -272,7 +258,6 @@ router.post("/", async (req, res) => {
 
     // SECONDARY RULES
     if (hasSecondary) {
-      // secondary only allowed if primary exists
       if (!hasPrimary) {
         return res.status(400).json({
           message:
@@ -291,10 +276,7 @@ router.post("/", async (req, res) => {
         });
       }
     }
-
-    /* ============================================================
-       ROLE VALIDATION
-    ============================================================= */
+    // roles
     const globalRole = await getUserGlobalRole(created_by);
     if (!isGlobalAdmin(globalRole)) {
       return res
@@ -302,9 +284,7 @@ router.post("/", async (req, res) => {
         .json({ message: "Only global admins can create organizations" });
     }
 
-    /* ============================================================
-       LOCATION VALIDATION
-    ============================================================= */
+    // locations
     if (!(await isLocationValid(location_id))) {
       return res.status(400).json({ message: "Invalid location_id" });
     }
@@ -315,10 +295,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    /* ============================================================
-       BUILD HOURS STRING
-       (e.g., "Mon–Fri: 9 AM - 5 PM | Sat–Sun: 10 AM - 2 PM")
-    ============================================================= */
+    // hour strings
     let hours = null;
 
     if (hasPrimary) {
@@ -329,9 +306,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    /* ============================================================
-       INSERT ORG
-    ============================================================= */
+    // org insert
     const [result] = await db.query(
       `
       INSERT INTO organizations
@@ -369,9 +344,9 @@ router.post("/", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    UPDATE organization
-============================================================ */
+ */
 router.put("/:id", async (req, res) => {
   try {
     const orgId = Number(req.params.id);
@@ -429,9 +404,7 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    /* ============================================================
-       AUTHORIZATION
-    ============================================================= */
+    // auth
     const { globalRole, orgRole } = await getAuthContext(orgId, updated_by);
     const canEdit =
       isGlobalAdmin(globalRole) ||
@@ -443,9 +416,7 @@ router.put("/:id", async (req, res) => {
         .json({ message: "You are not allowed to update this organization" });
     }
 
-    /* ============================================================
-       LOCATION VALIDATION
-    ============================================================= */
+    // location
     if (!location_id || !isPositiveInt(location_id)) {
       return res.status(400).json({
         message: "location_id is required and must be a positive integer",
@@ -462,9 +433,7 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    /* ============================================================
-       HOURS VALIDATION (PRIMARY / SECONDARY)
-    ============================================================= */
+    // hours
     const hasPrimary =
       !!hours_days_main || !!hours_start_main || !!hours_end_main;
 
@@ -502,26 +471,20 @@ router.put("/:id", async (req, res) => {
       }
     }
 
-    /* ============================================================
-       BUILD HOURS STRING OR KEEP EXISTING
-    ============================================================= */
+    // hours string
     let hours;
 
     if (hasPrimary) {
-      // Build new hours string from provided primary/secondary
       hours = `${hours_days_main}: ${hours_start_main} - ${hours_end_main}`;
       if (hasSecondary) {
         hours += ` | ${hours_days_secondary}: ${hours_start_secondary} - ${hours_end_secondary}`;
       }
     } else if (hasSecondary) {
-      // This case should already be blocked by validation above,
-      // but keep for safety
       return res.status(400).json({
         message:
           "Secondary hours cannot be added unless primary hours are provided.",
       });
     } else {
-      // No hours fields sent → keep existing hours value
       const [[orgRow]] = await db.query(
         `SELECT hours FROM organizations WHERE org_id = ?`,
         [orgId]
@@ -534,9 +497,7 @@ router.put("/:id", async (req, res) => {
       hours = orgRow.hours;
     }
 
-    /* ============================================================
-       UPDATE ORG
-    ============================================================= */
+    // org updates
     await db.query(
       `
       UPDATE organizations
@@ -569,11 +530,11 @@ router.put("/:id", async (req, res) => {
 });
 
 
-/* ============================================================
+/* 
    DELETE organization (GLOBAL ADMIN ONLY)
    - Soft delete the organization (is_active = 0)
    - Remove ALL members from organization_members
-============================================================ */
+ */
 
 router.delete("/:id", async (req, res) => {
   try {
@@ -625,9 +586,9 @@ router.delete("/:id", async (req, res) => {
 });
 
 
-/* ============================================================
+/* 
    JOIN ORGANIZATION
-============================================================ */
+ */
 
 router.post("/:id/join", async (req, res) => {
   try {
@@ -664,9 +625,9 @@ router.post("/:id/join", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    LEAVE ORGANIZATION (with role protection)
-============================================================ */
+ */
 
 router.post("/:id/leave", async (req, res) => {
   try {
@@ -684,7 +645,6 @@ router.post("/:id/leave", async (req, res) => {
       return res.status(400).json({ message: "user_id must be a valid user id" });
     }
 
-    // Get the user's current org role
     const [[row]] = await db.query(
       `SELECT role FROM organization_members WHERE org_id=? AND user_id=?`,
       [orgId, user_id]
@@ -694,7 +654,6 @@ router.post("/:id/leave", async (req, res) => {
 
     const role = row.role;
 
-    // prevent removing last admin_delegate
     if (role === "admin_delegate") {
       const [[count]] = await db.query(
         `SELECT COUNT(*) AS c FROM organization_members WHERE org_id=? AND role='admin_delegate'`,
@@ -708,7 +667,6 @@ router.post("/:id/leave", async (req, res) => {
       }
     }
 
-    // prevent removing last lead_faculty
     if (role === "lead_faculty") {
       const [[count]] = await db.query(
         `SELECT COUNT(*) AS c FROM organization_members WHERE org_id=? AND role='lead_faculty'`,
@@ -734,9 +692,9 @@ router.post("/:id/leave", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    GET MEMBERS OF ORGANIZATION
-============================================================ */
+ */
 
 router.get("/:id/members", async (req, res) => {
   try {
@@ -774,9 +732,9 @@ router.get("/:id/members", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    ADD MEMBER
-============================================================ */
+ */
 
 router.post("/:id/members/add", async (req, res) => {
   try {
@@ -824,9 +782,9 @@ router.post("/:id/members/add", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    REMOVE MEMBER
-============================================================ */
+ */
 
 router.post("/:id/members/remove", async (req, res) => {
   try {
@@ -865,7 +823,6 @@ router.post("/:id/members/remove", async (req, res) => {
     else if (orgRole === "lead_faculty") {
       allowed = ["member", "coordinator", "event_manager"].includes(targetRole);
     }
-    // ❗ Prevent removing the LAST admin_delegate
     if (targetRole === "admin_delegate") {
       const [[count]] = await db.query(
         `SELECT COUNT(*) AS c
@@ -898,13 +855,9 @@ router.post("/:id/members/remove", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    UPDATE MEMBER ROLE
-============================================================ */
-
-/* ============================================================
-   UPDATE MEMBER ROLE  (FULL VALIDATION RESTORED)
-============================================================ */
+ */
 router.put("/:id/members/:memberId/role", async (req, res) => {
   try {
     const orgId = Number(req.params.id);
@@ -944,10 +897,6 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
     if (!g) return res.status(400).json({ message: "Target user not found" });
     const targetGlobal = g.role_id;
 
-    /* ============================================================
-       STRONG VALIDATION RULES (RESTORED FROM OLD FILE)
-    ============================================================= */
-
     // admin_delegate → ONLY global admin
     if (new_role === "admin_delegate" && targetGlobal !== 3) {
       return res.status(400).json({
@@ -962,10 +911,6 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
       });
     }
 
-    /* ============================================================
-       Check acting user's authority
-    ============================================================= */
-    // ❗ Prevent demoting the LAST admin_delegate
     if (currentRole === "admin_delegate" && new_role !== "admin_delegate") {
       const [[count]] = await db.query(
         `SELECT COUNT(*) AS c
@@ -1017,9 +962,9 @@ router.put("/:id/members/:memberId/role", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    TRANSFER ADMIN_ROLE
-============================================================ */
+ */
 
 router.post("/:id/transfer-admin", async (req, res) => {
   try {
@@ -1077,10 +1022,9 @@ router.post("/:id/transfer-admin", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    GLOBAL ADMINS LIST
-============================================================ */
-
+ */
 router.get("/global-admins", async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -1095,10 +1039,9 @@ router.get("/global-admins", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    ORG DASHBOARD STATS
-============================================================ */
-
+ */
 router.get("/dashboard", async (req, res) => {
   try {
     const userId = req.query.user_id;
@@ -1167,9 +1110,9 @@ router.get("/dashboard", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    MUTUAL ORGANIZATIONS
-============================================================ */
+ */
 router.get("/mutual-orgs/:viewerId/:profileId", async (req, res) => {
   try {
     const { viewerId, profileId } = req.params;

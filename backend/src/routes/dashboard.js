@@ -1,7 +1,7 @@
 // backend/src/routes/dashboard.js
 const express = require("express");
 const router = express.Router();
-const db = require("../config/db"); // <-- correct import
+const db = require("../config/db");
 
 // GET /api/dashboard/stats/:userId
 router.get("/stats/:userId", async (req, res) => {

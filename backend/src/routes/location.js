@@ -3,9 +3,9 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
-/* ============================================================
+/* 
    Helper – check if user is global admin
-============================================================ */
+ */
 async function isGlobalAdmin(userId) {
   const [rows] = await db.query(
     `
@@ -20,9 +20,9 @@ async function isGlobalAdmin(userId) {
   return rows[0]?.role_name === "admin";
 }
 
-/* ============================================================
+/* 
    1. GET ALL LOCATIONS
-============================================================ */
+ */
 router.get("/", async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -37,9 +37,9 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    2. GET AVAILABLE LOCATIONS (not assigned to orgs)
-============================================================ */
+ */
 router.get("/available", async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -58,9 +58,9 @@ router.get("/available", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    3. CHECK ORGANIZATION LOCATION
-============================================================ */
+ */
 router.get("/check-org/:location_id", async (req, res) => {
   const { location_id } = req.params;
 
@@ -84,9 +84,9 @@ router.get("/check-org/:location_id", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    4. CHECK EVENT LOCATION OVERLAP
-============================================================ */
+ */
 router.post("/check-event", async (req, res) => {
   const { location_id, start_datetime, end_datetime, event_id } = req.body;
 
@@ -122,9 +122,9 @@ router.post("/check-event", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    5. ADD LOCATION (Global Admin only)
-============================================================ */
+ */
 router.post("/", async (req, res) => {
   try {
     const { user_id, location_name, building, room } = req.body;
@@ -168,9 +168,9 @@ router.post("/", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    6. DELETE LOCATION (only if unused)
-============================================================ */
+ */
 router.delete("/:location_id", async (req, res) => {
   const { location_id } = req.params;
   const { user_id } = req.body;
@@ -233,9 +233,9 @@ router.delete("/:location_id", async (req, res) => {
 });
 
 
-/* ============================================================
+/* 
    7. UPDATE LOCATION (Global Admin only)
-============================================================ */
+ */
 router.put("/:location_id", async (req, res) => {
   const { location_id } = req.params;
   const { user_id, location_name, building, room } = req.body;

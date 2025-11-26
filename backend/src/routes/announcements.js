@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // Promise pool
+const db = require('../config/db');
 const sendEmail = require('../config/sendEmail');
 
 // Helper to get all user emails
@@ -131,7 +131,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Partial update announcement (PATCH)
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
   const { title, content, priority, org_id } = req.body;

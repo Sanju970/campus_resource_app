@@ -8,9 +8,9 @@ const router = express.Router();
 
 const DEFAULT_BIO = "This is my profile bio.";
 
-/* ============================================================
+/* 
    ADMIN: FETCH USERS
-============================================================ */
+ */
 router.get("/admin/users", async (req, res) => {
   try {
     const includeAll = req.query.all === "true";
@@ -31,9 +31,9 @@ router.get("/admin/users", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    ADMIN: CREATE USER
-============================================================ */
+ */
 router.post("/admin/create", async (req, res) => {
   try {
     const { first_name, last_name, user_uid, password, role_id } = req.body;
@@ -154,37 +154,10 @@ router.post("/admin/create", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    ADMIN: STATS – TOTAL STUDENTS & FACULTY
-============================================================ */
+ */
 
-// Total students (role_id = 1)
-router.get("/admin/students/count", async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      "SELECT COUNT(*) AS count FROM users WHERE role_id = 1"
-    );
-    return res.json({ count: rows[0].count });
-  } catch (err) {
-    console.error("Student count error:", err);
-    return res.status(500).json({ message: "Database error" });
-  }
-});
-
-// Total faculty (role_id = 2)
-router.get("/admin/faculty/count", async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      "SELECT COUNT(*) AS count FROM users WHERE role_id = 2"
-    );
-    return res.json({ count: rows[0].count });
-  } catch (err) {
-    console.error("Faculty count error:", err);
-    return res.status(500).json({ message: "Database error" });
-  }
-});
-
-// --- Admin: counts for students and faculty ---
 router.get("/admin/students/count", async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -209,10 +182,35 @@ router.get("/admin/faculty/count", async (req, res) => {
   }
 });
 
+// Admin: counts for students and faculty 
+router.get("/admin/students/count", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM users WHERE role_id = 1"
+    );
+    return res.json({ count: rows[0].count });
+  } catch (err) {
+    console.error("Student count error:", err);
+    return res.status(500).json({ message: "Database error" });
+  }
+});
 
-/* ============================================================
+router.get("/admin/faculty/count", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) AS count FROM users WHERE role_id = 2"
+    );
+    return res.json({ count: rows[0].count });
+  } catch (err) {
+    console.error("Faculty count error:", err);
+    return res.status(500).json({ message: "Database error" });
+  }
+});
+
+
+/* 
    ADMIN: DEACTIVATE USER (soft delete)
-============================================================ */
+ */
 router.patch("/admin/users/:id/deactivate", async (req, res) => {
   try {
     const { id } = req.params;
@@ -238,9 +236,9 @@ router.patch("/admin/users/:id/deactivate", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    ADMIN: REACTIVATE USER
-============================================================ */
+ */
 router.patch("/admin/users/:id/activate", async (req, res) => {
   try {
     const { id } = req.params;
@@ -260,9 +258,9 @@ router.patch("/admin/users/:id/activate", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    ADMIN: UPDATE USER
-============================================================ */
+ */
 router.patch("/admin/users/:id/update", async (req, res) => {
   try {
     const { id } = req.params;
@@ -324,9 +322,7 @@ router.patch("/admin/users/:id/update", async (req, res) => {
   }
 });
 
-/* ============================================================
-   ADMIN: HARD DELETE USER (permanent)
-============================================================ */
+  //  ADMIN: HARD DELETE USER 
 router.delete("/admin/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -343,9 +339,7 @@ router.delete("/admin/users/:id", async (req, res) => {
         .status(400)
         .json({ message: "You cannot delete your own account." });
 
-    // -------------------------------------------------------
-    // 1️⃣ BLOCK if user has announcements within 24 hours
-    // -------------------------------------------------------
+    // BLOCK if user has announcements within 24 hours
     const [recentAnnouncements] = await db.query(
       `
       SELECT announcement_id 
@@ -363,9 +357,6 @@ router.delete("/admin/users/:id", async (req, res) => {
           "Cannot delete user: they have announcements created in the last 24 hours.",
       });
 
-    // -------------------------------------------------------
-    // 2️⃣ BLOCK if user has upcoming or ongoing events
-    // -------------------------------------------------------
     const [activeEvents] = await db.query(
       `
       SELECT event_id
@@ -382,9 +373,6 @@ router.delete("/admin/users/:id", async (req, res) => {
           "Cannot delete user: they have upcoming or ongoing events.",
       });
 
-    // -------------------------------------------------------
-    // 3️⃣ BLOCK if user is admin_delegate or lead_faculty
-    // -------------------------------------------------------
     const [orgRoles] = await db.query(
       `
       SELECT org_id 
@@ -416,9 +404,9 @@ router.delete("/admin/users/:id", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    Get user details by user ID
-============================================================ */
+ */
 router.get('/user/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -436,9 +424,9 @@ router.get('/user/:id', async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    USER: UPDATE BIO (self-service)
-============================================================ */
+ */
 router.post("/user/update-bio", async (req, res) => {
   try {
     const { user_id, bio } = req.body;
@@ -464,9 +452,9 @@ router.post("/user/update-bio", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    USER: UPDATE PROFILE (first_name, last_name, bio)
-============================================================ */
+ */
 router.post("/user/update-profile", async (req, res) => {
   try {
     const { user_id, first_name, last_name, bio } = req.body;
@@ -516,9 +504,9 @@ router.post("/user/update-profile", async (req, res) => {
 
 
 
-/* ============================================================
+/* 
    UPDATE EMAIL NOTIFICATION PREFERENCE
-============================================================ */
+ */
 router.post("/user/update-notifications", async (req, res) => {
   try {
     const { user_id, enabled } = req.body;
@@ -539,9 +527,9 @@ router.post("/user/update-notifications", async (req, res) => {
   }
 });
 
-/* ============================================================
+/* 
    GET ALL ACTIVE USERS (for dropdown)
-============================================================ */
+ */
 router.get("/all", async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -575,8 +563,5 @@ router.get("/all", async (req, res) => {
     return res.status(500).json({ message: "Failed to load users" });
   }
 });
-
-
-
 
 module.exports = router;

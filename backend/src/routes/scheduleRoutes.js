@@ -21,7 +21,7 @@ function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // contains { user_id, email, role_id, user_uid }
+    req.user = decoded;
     next();
   } catch (err) {
     console.error("JWT verify error (schedule):", err);
@@ -29,9 +29,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
-/* ============================================================
-   QUICK TEST
-============================================================ */
+
 router.get("/", (req, res) => {
   res.json({ message: "scheduleRoutes root is working" });
 });

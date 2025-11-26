@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // should export mysql2/promise pool
+const db = require('../config/db');
 
 // ---------------- Get all favorites (debug/admin) ----------------
 router.get('/', async (req, res) => {

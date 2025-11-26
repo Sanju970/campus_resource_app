@@ -8,10 +8,10 @@
 - **Harshini Yallabandi** -- 1002232400
 - **Celina Ann Thomas** -- 1002234178
 
-**Hosted Backend Link (UTA Cloud):**\
+**Hosted Backend Link (UTA Cloud):**
 https://sxt0660.uta.cloud/
 
-**GitHub Repository:**\
+**GitHub Repository:**
 https://github.com/Sanju970/campus_resource_app
 
 ------------------------------------------------------------------------
@@ -151,7 +151,7 @@ dynamic campus portal.
   Database            MySQL2 (Promise)
   Authentication      JWT + bcrypt
   Email Service       Nodemailer (Gmail SMTP)
-  Hosting             UTA Cloud
+  Frontend Hosting    UTA Cloud
   API Format          REST JSON
 
 ------------------------------------------------------------------------
