@@ -315,35 +315,13 @@ router.post('/:event_id/rsvp', async (req, res) => {
       return res.status(400).json({ message: 'Valid event_id and user_id are required' });
     }
 
-    // Fetch event title
-    const [eventRows] = await pool.query('SELECT title FROM events WHERE event_id = ?', [eventId]);
-    if (!eventRows.length) {
-      return res.status(404).json({ message: 'Event not found' });
-    }
-    const eventTitle = eventRows[0].title;
-
-    // Prevent duplicate registrations
+    // Prevent duplicate registrations (DB insert)
     await pool.query(
       `INSERT IGNORE INTO event_registrations (event_id, user_id, registered_at) VALUES (?, ?, NOW())`,
       [eventId, user_id]
     );
 
-    // Notification message including event title
-    const notifMsg = `You have successfully registered for the event "${eventTitle}".`;
-    await createNotification(user_id, notifMsg);
-
-    // Send confirmation email with event title
-    const email = await getUserEmail(user_id);
-    if (email) {
-      const subject = `Registration Confirmed: ${eventTitle}`;
-      const html = `<p>You have been registered for the event: <strong>${eventTitle}</strong>.</p>`;
-      try {
-        await sendEmail({ to: email, subject, html });
-      } catch (err) {
-        console.error('Error sending registration confirmation email:', err);
-      }
-    }
-
+    // Immediately return the updated count to the client (fast)
     const [rows] = await pool.query(
       'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
       [eventId]
@@ -351,12 +329,42 @@ router.post('/:event_id/rsvp', async (req, res) => {
     const registered_count = rows[0]?.registered_count || 0;
 
     res.json({ registered_count });
+
+    // Fire-and-forget: notifications & email (do not block response)
+    (async () => {
+      try {
+        // Fetch event title (for message/email)
+        const [eventRows] = await pool.query('SELECT title FROM events WHERE event_id = ?', [eventId]);
+        const eventTitle = eventRows.length ? eventRows[0].title : `Event #${eventId}`;
+
+        // Create notification (async)
+        const notifMsg = `You have successfully registered for the event "${eventTitle}".`;
+        try {
+          await createNotification(user_id, notifMsg);
+        } catch (nErr) {
+          console.error('Async createNotification error:', nErr);
+        }
+
+        // Send confirmation email if user has email (async)
+        try {
+          const email = await getUserEmail(user_id);
+          if (email) {
+            const subject = `Registration Confirmed: ${eventTitle}`;
+            const html = `<p>You have been registered for the event: <strong>${eventTitle}</strong>.</p>`;
+            await sendEmail({ to: email, subject, html });
+          }
+        } catch (mailErr) {
+          console.error('Async sendEmail error (registration):', mailErr);
+        }
+      } catch (asyncErr) {
+        console.error('Async RSVP post-processing error:', asyncErr);
+      }
+    })();
   } catch (err) {
     console.error('RSVP register error:', err);
     res.status(500).json({ message: 'Failed to register for event', error: err.message });
   }
 });
-
 
 /* ================================
    RSVP: Cancel registration
@@ -371,35 +379,13 @@ router.delete('/:event_id/rsvp', async (req, res) => {
       return res.status(400).json({ message: 'Valid event_id and user_id are required' });
     }
 
-    // Fetch event title
-    const [eventRows] = await pool.query('SELECT title FROM events WHERE event_id = ?', [eventId]);
-    if (!eventRows.length) {
-      return res.status(404).json({ message: 'Event not found' });
-    }
-    const eventTitle = eventRows[0].title;
-
-    // Delete registration
+    // Delete registration (DB operation)
     await pool.query(
       'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?',
       [eventId, user_id]
     );
 
-    // Notification message with event title
-    const notifMsg = `Your registration for the event "${eventTitle}" has been cancelled.`;
-    await createNotification(user_id, notifMsg);
-
-    // Send cancellation email with event title
-    const email = await getUserEmail(user_id);
-    if (email) {
-      const subject = `Registration Cancelled: ${eventTitle}`;
-      const html = `<p>Your registration for the event <strong>${eventTitle}</strong> has been cancelled.</p>`;
-      try {
-        await sendEmail({ to: email, subject, html });
-      } catch (err) {
-        console.error('Error sending cancellation email:', err);
-      }
-    }
-
+    // Immediately return the updated count to the client (fast)
     const [rows] = await pool.query(
       'SELECT COUNT(*) AS registered_count FROM event_registrations WHERE event_id = ?',
       [eventId]
@@ -407,6 +393,37 @@ router.delete('/:event_id/rsvp', async (req, res) => {
     const registered_count = rows[0]?.registered_count || 0;
 
     res.json({ registered_count });
+
+    // Fire-and-forget: notifications & email (do not block response)
+    (async () => {
+      try {
+        // Fetch event title (for message/email)
+        const [eventRows] = await pool.query('SELECT title FROM events WHERE event_id = ?', [eventId]);
+        const eventTitle = eventRows.length ? eventRows[0].title : `Event #${eventId}`;
+
+        // Create notification (async)
+        const notifMsg = `Your registration for the event "${eventTitle}" has been cancelled.`;
+        try {
+          await createNotification(user_id, notifMsg);
+        } catch (nErr) {
+          console.error('Async createNotification error (cancellation):', nErr);
+        }
+
+        // Send cancellation email if user has email (async)
+        try {
+          const email = await getUserEmail(user_id);
+          if (email) {
+            const subject = `Registration Cancelled: ${eventTitle}`;
+            const html = `<p>Your registration for the event <strong>${eventTitle}</strong> has been cancelled.</p>`;
+            await sendEmail({ to: email, subject, html });
+          }
+        } catch (mailErr) {
+          console.error('Async sendEmail error (cancellation):', mailErr);
+        }
+      } catch (asyncErr) {
+        console.error('Async RSVP delete post-processing error:', asyncErr);
+      }
+    })();
   } catch (err) {
     console.error('RSVP cancel error:', err);
     res.status(500).json({ message: 'Failed to cancel RSVP', error: err.message });
@@ -423,7 +440,6 @@ router.delete('/:event_id/rsvp', async (req, res) => {
        * location_id exists
        * no overlapping events at same location_id
 ================================== */
-// --- CREATE Event route ---
 router.post('/', async (req, res) => {
   const {
     title,
@@ -554,43 +570,109 @@ router.post('/', async (req, res) => {
     ]);
 
     const newEventId = results.insertId;
-    const locationLabel = await getLocationLabel(location_id);
 
-    // Notify creator
-    await createNotification(
+    // Fetch inserted event with location fields and registered_count so client gets full object
+    const [fetchedRows] = await pool.query(
+      `
+      SELECT 
+        e.*,
+        cl.location_name,
+        cl.building,
+        cl.room,
+        (
+          SELECT COUNT(*) 
+          FROM event_registrations er 
+          WHERE er.event_id = e.event_id
+        ) AS registered_count
+      FROM events e
+      LEFT JOIN campus_locations cl
+        ON cl.location_id = e.location_id
+      WHERE e.event_id = ?
+      LIMIT 1
+      `,
+      [newEventId]
+    );
+
+    const savedEvent = fetchedRows.length ? fetchedRows[0] : {
+      event_id: newEventId,
+      title,
+      description,
+      start_datetime,
+      end_datetime,
+      location_id,
+      capacity: capacityNum,
+      category_id,
+      category: categoryName,
+      registration_required: registration_required ? 1 : 0,
+      instructor_email: finalInstructorEmail,
       created_by,
-      `Your event "${title}" has been created.`
-    );
+      approved_by: approvedByUserId,
+      status: 'approved',
+      org_id: organization_id,
+      members_only: membersOnlyValue,
+      location_name: null,
+      building: null,
+      room: null,
+      registered_count: 0,
+    };
 
-    // Notify users
-    let notifiedUsers;
-    if (membersOnlyValue) {
-      const [members] = await pool.query(
-        `SELECT u.user_id, u.email FROM organization_members om JOIN users u ON om.user_id = u.user_id WHERE om.org_id = ?`,
-        [organization_id]
-      );
-      notifiedUsers = members;
-    } else {
-      const [users] = await pool.query(
-        `SELECT user_id, email FROM users WHERE user_id != ?`,
-        [created_by]
-      );
-      notifiedUsers = users;
-    }
+    // Immediately respond with the full created event (fast response)
+    res.status(201).json(savedEvent);
 
-    const notifyMessage = `A new event "${title}" has been created.`;
-    await Promise.all(
-      notifiedUsers.map((u) => createNotification(u.user_id, notifyMessage))
-    );
+    // Fire-and-forget: notifications + emails (do not block the response)
+    (async () => {
+      try {
+        // Notify creator
+        try {
+          await createNotification(
+            created_by,
+            `Your event "${title}" has been created.`
+          );
+        } catch (nErr) {
+          console.error('Async createNotification (creator) error:', nErr);
+        }
 
-    // Send event creation emails
-    await sendEventCreationEmails(
-      { title, description, start_datetime, end_datetime },
-      notifiedUsers,
-      locationLabel
-    );
+        // Determine recipients
+        let notifiedUsers;
+        if (membersOnlyValue) {
+          const [members] = await pool.query(
+            `SELECT u.user_id, u.email FROM organization_members om JOIN users u ON om.user_id = u.user_id WHERE om.org_id = ?`,
+            [organization_id]
+          );
+          notifiedUsers = members;
+        } else {
+          const [users] = await pool.query(
+            `SELECT user_id, email FROM users WHERE user_id != ?`,
+            [created_by]
+          );
+          notifiedUsers = users;
+        }
 
-    res.status(201).json({ event_id: newEventId, message: 'Event created successfully' });
+        const notifyMessage = `A new event "${title}" has been created.`;
+
+        // Create notifications (async)
+        try {
+          await Promise.all(
+            notifiedUsers.map((u) => createNotification(u.user_id, notifyMessage))
+          );
+        } catch (nErr2) {
+          console.error('Async createNotification (recipients) error:', nErr2);
+        }
+
+        // Send event creation emails (async)
+        try {
+          await sendEventCreationEmails(
+            { title, description, start_datetime, end_datetime },
+            notifiedUsers,
+            await getLocationLabel(location_id)
+          );
+        } catch (mailErr) {
+          console.error('Async sendEventCreationEmails error:', mailErr);
+        }
+      } catch (asyncErr) {
+        console.error('Async post-create processing error:', asyncErr);
+      }
+    })();
   } catch (err) {
     console.error('Error creating event:', err);
     res.status(500).json({ message: 'Failed to create event', error: err.message });

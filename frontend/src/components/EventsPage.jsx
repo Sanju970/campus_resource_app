@@ -110,7 +110,8 @@ export default function EventsPage() {
   if (!user) {
     throw new Error("EventsPage must be used within an AuthProvider");
   }
-
+  // Add this to EventsPage component's state area
+  const [rsvpLoading, setRsvpLoading] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [organizations, setOrganizations] = useState([]);
   const [locations, setLocations] = useState([]); // 🔹 campus locations
@@ -417,6 +418,7 @@ export default function EventsPage() {
       : false;
 
   const handleRSVP = async (eventId) => {
+     setRsvpLoading((prev) => new Set(prev).add(eventId));
     try {
       const alreadyRegistered = registeredEvents.includes(eventId);
       if (!alreadyRegistered) {
