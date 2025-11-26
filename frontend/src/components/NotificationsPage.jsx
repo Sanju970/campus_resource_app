@@ -93,49 +93,51 @@ export default function NotificationsPage() {
               No notifications
             </p>
           ) : (
-            notifications.map((notification) => (
-              <div
-                key={notification.notification_id}
-                className={`p-4 rounded-lg border ${
-                  notification.is_read ? 'bg-background' : 'bg-muted/50'
-                } hover:bg-muted/70 transition-colors`}
-              >
-                <div className="flex items-start gap-3">
-                  {getNotificationIcon(notification.type)}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={notification.is_read ? '' : 'font-medium'}>
-                        {notification.message}
+            notifications
+              .slice() // create a shallow copy to avoid mutating state
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) // newest first
+              .map((notification) => (
+                <div
+                  key={notification.notification_id}
+                  className={`p-4 rounded-lg border ${notification.is_read ? 'bg-background' : 'bg-muted/50'
+                    } hover:bg-muted/70 transition-colors`}
+                >
+                  <div className="flex items-start gap-3">
+                    {getNotificationIcon(notification.type)}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={notification.is_read ? '' : 'font-medium'}>
+                          {notification.message}
+                        </p>
+                        {!notification.is_read && (
+                          <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(notification.created_at).toLocaleString()}
                       </p>
-                      {!notification.is_read && (
-                        <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(notification.created_at).toLocaleString()}
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      {!notification.is_read && (
+                      <div className="flex gap-2 mt-2">
+                        {!notification.is_read && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => markAsRead(notification.notification_id)}
+                          >
+                            Mark as read
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => markAsRead(notification.notification_id)}
+                          onClick={() => deleteNotification(notification.notification_id)}
                         >
-                          Mark as read
+                          Delete
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteNotification(notification.notification_id)}
-                      >
-                        Delete
-                      </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))
           )}
         </CardContent>
       </Card>
