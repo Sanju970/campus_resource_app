@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Backend URL from .env
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = "https://campus-resource-app.onrender.com";
 
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
