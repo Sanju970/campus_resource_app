@@ -233,7 +233,7 @@ export default function FavoritesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {favoriteEvents.map((event) => {
                 const fullDescription = event.description || '';
-                const MAX_PREVIEW_CHARS = 35;
+                const MAX_PREVIEW_CHARS = 30;
 
                 const shouldShowMore =
                   fullDescription.length > MAX_PREVIEW_CHARS;
@@ -376,12 +376,12 @@ export default function FavoritesPage() {
       </Tabs>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-8 border-t">
-        <div className="text-center space-y-1">
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-22 pt-8 border-t">
+        <div className="text-center space-y-1 w-56 min-w-[30rem]">
           <div className="text-3xl font-semibold">{favoriteEvents.length}</div>
           <div className="text-sm text-muted-foreground">Favorite Events</div>
         </div>
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-1 w-56 min-w-[30rem]">
           <div className="text-3xl font-semibold">
             {favoriteAnnouncements.length}
           </div>

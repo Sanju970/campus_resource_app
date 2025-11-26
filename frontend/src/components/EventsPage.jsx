@@ -1236,7 +1236,7 @@ const eventsTodayCount = allEventsForStats.filter((event) => {
             const isCompleted = eventStatus === "completed";
 
             const fullDescription = event.description || "";
-            const MAX_PREVIEW_CHARS = 35;
+            const MAX_PREVIEW_CHARS = 30;
             const shouldShowMore =
               fullDescription.length > MAX_PREVIEW_CHARS;
 
