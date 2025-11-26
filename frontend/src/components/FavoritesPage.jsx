@@ -79,19 +79,10 @@ export default function FavoritesPage() {
   const [events, setEvents] = useState([]);
   const [favoriteAnnouncements, setFavoriteAnnouncements] = useState([]);
   const [favoriteAnnouncementIds, setFavoriteAnnouncementIds] = useState([]);
-  const [favoriteMaterialIds, setFavoriteMaterialIds] = useState(() => {
-    try {
-      const saved = localStorage.getItem('favorite_material_ids');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
 
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventDescriptionOpen, setIsEventDescriptionOpen] = useState(false);
 
-  // Derive favorite events from all events + favoriteEventIds
   const favoriteEvents = events.filter((event) =>
     favoriteEventIds.includes(event.event_id)
   );

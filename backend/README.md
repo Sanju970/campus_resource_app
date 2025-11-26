@@ -8,11 +8,32 @@
 - **Harshini Yallabandi** -- 1002232400
 - **Celina Ann Thomas** -- 1002234178
 
-**Hosted Backend Link (UTA Cloud):**
+## Hosting & Deployment
+
+**GitHub Repository:**   
+https://github.com/Sanju970/campus_resource_app
+
+**Hosted Frontend Link (UTA Cloud):**  
 https://sxt0660.uta.cloud/
 
-**GitHub Repository:**
-https://github.com/Sanju970/campus_resource_app
+**Hosted Backend Link (Render):**  
+https://campus-resource-app.onrender.com/
+
+**Database Hosting (AWS RDS MySQL):**
+
+```bash
+backend/src/models/campus_portal.sql
+```
+
+AWS RDS is used as the cloud-hosted MySQL database for the backend.  
+The RDS endpoint is private and accessible only to the backend server deployed on Render.  
+This ensures security, reliability, and scalable performance.
+
+To run the project locally, developers can use the provided SQL schema.
+
+Import **campus_portal.sql** into any local MySQL instance (MySQL 8+)  
+to recreate the complete database structure and run the backend independently.
+
 
 ------------------------------------------------------------------------
 
@@ -34,80 +55,134 @@ using:
 It provides secure REST APIs used by the React frontend to build a fully
 dynamic campus portal.
 
-------------------------------------------------------------------------
+---
 
 ## Features Implemented
 
 ### Authentication & User Management
-
--   Login / Register using MySQL database
--   Secure password hashing (bcrypt)
--   Automatic role detection (no radio buttons)
--   JWT-based session management
--   "Session persists until logout" functionality
--   Email notifications using Gmail SMTP
--   Strict input validation
+- Login / Register using MySQL  
+- Secure password hashing (bcrypt)  
+- Automatic role detection  
+- JWT-based session persistence  
+- Session persists until logout
+- Forgot Password + Reset Password  
+- Profile settings (update name, bio, etc.)  
+- User data management (Admin)  
+- Strict backend validation on all inputs  
+- Email notifications using Gmail SMTP  
+- Logout functionality  
 
 ### Organization Management
-
--   CRUD for organizations (Admin / Delegates)
--   Organization categories
--   Join/Leave organizations
--   Role enforcement for all protected routes
+- Full CRUD for organizations (Admin / Delegates)  
+- Join / Leave organizations  
+- Organization categories and tagging  
+- Organization-level roles (admin_delegate, lead_faculty, coordinator, event_manager, member)  
+- Protected routes with RBAC enforcement  
+- View detailed org info & member list  
 
 ### Events System
-
--   Create / Approve / Update events
--   Event registration
--   Schedule and upcoming events
--   Dashboard statistics
+- Full CRUD for events  (Admin / Org roles)
+- Student event registration & interest  
+- Upcoming events widget  
+- Event location assignment  
+- Attendance viewing  
+- Filter / search events  
+- Event status tracking on Admin Dashboard  
+- Email + in-app notifications for event updates  
 
 ### Announcements & Notifications
-
--   Create announcements
--   User notifications
--   Favorites system
+- Create announcements for orgs or global users  
+- Notifications for events, org changes, schedule updates  
+- Read/unread support  
+- Delete notifications  
+- Favorites system for orgs/events/materials  
 
 ### Locations & Scheduling
+- CRUD for campus locations  
+- Validate event-location assignments  
+- User weekly schedule (classes/events)  
+- Add/remove schedule entries  
+- Reminder notifications  
 
--   CRUD for campus locations
--   Schedule management routes
+### AI Chat Assistant
+- Fully integrated AI chat module  
+- `/api/assistant` endpoint  
+- Helps with event/org queries, guidance, and general Q&A  
+
+### User Dashboard & Profile
+- View and edit profile  
+- Manage notifications  
+- Manage favorites  
+- View joined organizations  
+- View registered events  
+
+### Static Pages
+- About Us page  
+- Contact Us page  
 
 ### Admin Dashboard
+- User, event, organization statistics  
+- Event approval workflow  
+- User role management  
+- locations management  
+- Global content administration  
 
--   User metrics
--   Event/Org statistics
--   Profile management
+---
 
-------------------------------------------------------------------------
+# API Endpoints
 
-## API Architecture
-
-  -----------------------------------------------------------------------
-  Module                            Routes
-  --------------------------------- -------------------------------------
-  Authentication                    `/api/auth/login`,
-                                    `/api/auth/register`,
-                                    `/api/auth/profile`
-
-  Users                             `/api/users/:id`, `/api/users/update`
-
-  Organizations                     `/api/organizations/*`
-
-  Events                            `/api/events/*`
-
-  Event Registrations               `/api/event_registrations/*`
-
-  Announcements                     `/api/announcements/*`
-
-  Favorites                         `/api/favorites/*`
-
-  Notifications                     `/api/notifications/*`
-
-  Locations                         `/api/locations/*`
-
-  Dashboard                         `/api/dashboard/*`
-  -----------------------------------------------------------------------
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register user |
+| POST | `/api/auth/login` | Login + JWT |
+| GET | `/api/auth/profile` | Get logged-in user |
+| POST | `/api/assistant` | AI chatbot response |
+| GET | `/api/users/:id` | Get user profile |
+| PUT | `/api/users/update` | Update profile |
+| GET | `/api/users` | Admin list users |
+| PATCH | `/api/users/:id/role` | Update user role |
+| GET | `/api/organizations` | List organizations |
+| POST | `/api/organizations` | Create organization |
+| GET | `/api/organizations/:id` | Get organization |
+| PUT | `/api/organizations/:id` | Update organization |
+| DELETE | `/api/organizations/:id` | Delete organization |
+| POST | `/api/organizations/:id/join` | Join organization |
+| POST | `/api/organizations/:id/leave` | Leave organization |
+| GET | `/api/organizations/:id/members` | List members |
+| PATCH | `/api/organizations/:id/members/:userId/role` | Update org role |
+| GET | `/api/org-categories` | Get categories |
+| GET | `/api/events` | All events |
+| POST | `/api/events` | Create event |
+| GET | `/api/events/:id` | Single event |
+| PUT | `/api/events/:id` | Update event |
+| DELETE | `/api/events/:id` | Delete event |
+| PATCH | `/api/events/:id/approve` | Approve event |
+| POST | `/api/event_registrations/:eventId` | Register |
+| GET | `/api/event_registrations/:eventId` | Attendees |
+| DELETE | `/api/event_registrations/:eventId/cancel` | Cancel |
+| GET | `/api/announcements` | All announcements |
+| POST | `/api/announcements` | Create |
+| GET | `/api/announcements/:orgId` | Org announcements |
+| DELETE | `/api/announcements/:id` | Delete |
+| GET | `/api/favorites` | User favorites |
+| POST | `/api/favorites/add` | Add favorite |
+| DELETE | `/api/favorites/remove/:itemId` | Remove favorite |
+| GET | `/api/notifications` | All notifications |
+| PATCH | `/api/notifications/:id/read` | Mark read |
+| DELETE | `/api/notifications/:id` | Delete |
+| GET | `/api/locations` | All locations |
+| POST | `/api/locations` | Add location |
+| PUT | `/api/locations/:id` | Update |
+| DELETE | `/api/locations/:id` | Delete |
+| GET | `/api/schedule` | User schedule |
+| POST | `/api/schedule` | Add schedule entry |
+| DELETE | `/api/schedule/:id` | Remove schedule |
+| GET | `/api/faculty` | List faculty |
+| POST | `/api/faculty` | Add faculty |
+| DELETE | `/api/faculty/:id` | Delete faculty |
+| GET | `/api/dashboard/stats` | User/org/event stats |
+| GET | `/api/dashboard/events/status` | Event status breakdown |
+| GET | `/api/dashboard/users/activity` | User activity logs |
 
 ------------------------------------------------------------------------
 
@@ -145,14 +220,14 @@ dynamic campus portal.
 
 ## Tech Stack
 
-  Category            Technology
-  ------------------- -------------------------
-  Backend Framework   Node.js + Express.js
-  Database            MySQL2 (Promise)
-  Authentication      JWT + bcrypt
-  Email Service       Nodemailer (Gmail SMTP)
-  Frontend Hosting    UTA Cloud
-  API Format          REST JSON
+|Category|Technology|
+|---|----|
+|Backend Framework| Node.js + Express.js|
+|Database|  MySQL2 (Promise)|
+|Authentication| JWT + bcrypt|
+|Email Service|Nodemailer (Gmail SMTP)|
+| Frontend Hosting|UTA Cloud|
+|API Format|REST JSON|
 
 ------------------------------------------------------------------------
 
@@ -166,11 +241,22 @@ dynamic campus portal.
 
 ## Installation & Setup Guide
 
-    git clone https://github.com/Sanju970/campus_resource_app
-    cd campus_resource_app/backend/
-    npm install
+``` bash
+# Clone the repository
+git clone https://github.com/Sanju970/campus_resource_app
 
-### Configure `.env`:
+# Navigate into the backend folder
+cd campus_resource_app/backend/
+
+# Install backend dependencies
+npm install
+
+# Start the backend server (development mode)
+npm run dev
+
+```
+
+### Configure using example `.env`:
 
     DB_HOST=localhost
     DB_USER=root
@@ -184,18 +270,14 @@ dynamic campus portal.
     SMTP_FROM="Campus Portal <your-email@gmail.com>"
     FRONTEND_URL=http://localhost:3000
 
-### Start Server
-
-    npm start
-
 ------------------------------------------------------------------------
 
 ## Deployment on UTA Cloud
 
-1.  Upload backend files\
-2.  Install Node.js\
-3.  Ensure DB access\
-4.  Run: `node server.js`\
+1.  Upload backend files
+2.  Install Node.js
+3.  Ensure DB access
+4.  Run: `node server.js`
 5.  Connect with frontend hosted at: https://sxt0660.uta.cloud/
 
 ------------------------------------------------------------------------
