@@ -19,8 +19,8 @@ https://sxt0660.uta.cloud/
 **Hosted Backend Link (Render):**  
 https://campus-resource-app.onrender.com/
 
-**Database Hosting (AWS RDS MySQL):**
-
+**Database Hosting (AWS RDS MySQL):**  
+SQL schema: 
 ```bash
 backend/src/models/campus_portal.sql
 ```
@@ -28,11 +28,8 @@ backend/src/models/campus_portal.sql
 AWS RDS is used as the cloud-hosted MySQL database for the backend.  
 The RDS endpoint is private and accessible only to the backend server deployed on Render.  
 This ensures security, reliability, and scalable performance.
-
 To run the project locally, developers can use the provided SQL schema.
-
-Import **campus_portal.sql** into any local MySQL instance (MySQL 8+)  
-to recreate the complete database structure and run the backend independently.
+Import **campus_portal.sql** into any local MySQL instance (MySQL 8+) to recreate the complete database structure and run the backend independently.
 
 
 ------------------------------------------------------------------------
@@ -270,21 +267,14 @@ npm run dev
     SMTP_FROM="Campus Portal <your-email@gmail.com>"
     FRONTEND_URL=http://localhost:3000
 
-------------------------------------------------------------------------
+### Existing users:
 
-## Deployment on UTA Cloud
+| Role|user_id| Email| Password|
+|-|-|-|-|
+| **Student**|stu0001|[stu0001@gmail.com](mailto:stu0001@gmail.com)|Student@123 |
+| **Faculty**|fac0001|[fac0001@gmail.com](mailto:fac0001@gmail.com)|Faculty@123 |
+| **Admin**|adm0001|[adm0001@gmail.com](mailto:adm0001@gmail.com)|Admin@123|
 
-1.  Upload backend files
-2.  Install Node.js
-3.  Ensure DB access
-4.  Run: `node server.js`
-5.  Connect with frontend hosted at: https://sxt0660.uta.cloud/
-
-------------------------------------------------------------------------
-
-## License
-
-This backend is developed for **UTA Web Data Management -- Phase 3**.
 
 ------------------------------------------------------------------------
 
@@ -298,3 +288,11 @@ This backend is developed for **UTA Web Data Management -- Phase 3**.
 6. Render Backend Hosting – https://render.com
 7. ChatGPT – used only for bug-fix guidance & explanation
 8. Google Gemini – used for AI assistance
+------------------------------------------------------------------------
+## License
+
+This backend is developed for **UTA Web Data Management -- Phase 3**.
+
+------------------------------------------------------------------------
+
+
