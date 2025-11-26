@@ -34,22 +34,31 @@ const buttonVariants = cva(
   },
 );
 
-function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  ...props
-}) {
-  const Comp = asChild ? Slot : "button";
+// Forward ref so Radix components (DialogTrigger asChild etc.) can attach refs/props
+const Button = React.forwardRef(
+  (
+    { className, variant, size, asChild = false, type, ...props },
+    ref
+  ) => {
+    const Comp = asChild ? Slot : "button";
 
-  return (
-    <Comp
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  );
-}
+    // If underlying element is a real <button> and caller didn't provide type, default to "button"
+    const finalProps =
+      Comp === "button"
+        ? { type: type ?? "button", ...props }
+        : { ...props };
+
+    return (
+      <Comp
+        ref={ref}
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...finalProps}
+      />
+    );
+  }
+);
+
+Button.displayName = "Button";
 
 export { Button, buttonVariants };

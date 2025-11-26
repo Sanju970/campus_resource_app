@@ -869,7 +869,7 @@ export default function EventsPage() {
             onOpenChange={handleDialogOpenChange}
           >
             <DialogTrigger asChild>
-              <Button>
+              <Button type="button">
                 <Plus className="h-4 w-4 mr-2" /> Create Event
               </Button>
             </DialogTrigger>
@@ -1082,6 +1082,7 @@ export default function EventsPage() {
                 </div>
 
                 <Button
+                  type="button"
                   onClick={editingEvent ? handleUpdateEvent : handleCreateEvent}
                   className="w-full"
                 >
@@ -1107,6 +1108,7 @@ export default function EventsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
+            type="button"
             variant={
               !showCreatedEventsOnly &&
               !showRegisteredEventsOnly &&
@@ -1127,6 +1129,7 @@ export default function EventsPage() {
           </Button>
 
           <Button
+            type="button"
             variant={showCreatedEventsOnly ? "default" : "outline"}
             size="sm"
             onClick={() => {
@@ -1140,6 +1143,7 @@ export default function EventsPage() {
           </Button>
 
           <Button
+            type="button"
             variant={showRegisteredEventsOnly ? "default" : "outline"}
             size="sm"
             onClick={() => {
@@ -1252,6 +1256,7 @@ export default function EventsPage() {
                     </div>
 
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => toggleFavorite(event.event_id)}
@@ -1320,6 +1325,7 @@ export default function EventsPage() {
 
                   {showRSVP && !isCompleted && (
                     <Button
+                      type="button"
                       size="sm"
                       variant={isRegistered ? "outline" : "default"}
                       disabled={isFull && !isRegistered}
@@ -1346,6 +1352,7 @@ export default function EventsPage() {
                     <div className="w-full space-y-2">
                       {isCompleted ? (
                         <Button
+                          type="button"
                           size="sm"
                           variant="default"
                           disabled
@@ -1357,6 +1364,7 @@ export default function EventsPage() {
                         <>
                           {isCreator && (
                             <Button
+                              type="button"
                               size="sm"
                               variant="default"
                               disabled
@@ -1366,6 +1374,7 @@ export default function EventsPage() {
                             </Button>
                           )}
                           <Button
+                            type="button"
                             size="sm"
                             onClick={() => handleOpenEditDialog(event)}
                             className="w-full"
@@ -1373,6 +1382,7 @@ export default function EventsPage() {
                             Edit Event
                           </Button>
                           <Button
+                            type="button"
                             size="sm"
                             variant="destructive"
                             onClick={() => handleCancelClick(event)}
@@ -1438,6 +1448,7 @@ export default function EventsPage() {
           </DialogHeader>
           <div className="flex justify-end gap-3 mt-4">
             <Button
+              type="button"
               variant="outline"
               onClick={() => {
                 setIsCancelDialogOpen(false);
@@ -1446,7 +1457,9 @@ export default function EventsPage() {
             >
               Keep Event
             </Button>
-            <Button variant="destructive" onClick={confirmCancelEvent}>
+            <Button 
+              type="button"
+              variant="destructive" onClick={confirmCancelEvent}>
               Yes, Cancel Event
             </Button>
           </div>
