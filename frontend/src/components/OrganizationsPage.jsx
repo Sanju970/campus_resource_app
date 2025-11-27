@@ -63,6 +63,15 @@ export default function OrganizationsPage() {
       .catch(() => toast.error("Failed to load organizations"))
       .finally(() => setLoading(false));
   };
+  function DashboardCard({ title, value }) {
+    return (
+      <div className="p-5 rounded-lg shadow bg-white">
+        <h3 className="text-sm text-muted-foreground">{title}</h3>
+        <p className="text-3xl font-bold">{value}</p>
+      </div>
+    );
+  }
+
 
   /* ============================
      LOAD CATEGORIES
@@ -356,6 +365,28 @@ export default function OrganizationsPage() {
 
     setModalOpen(true);
   };
+  // dashboard variables
+  const totalOrgs = organizations.length;
+
+  const myMemberOrgs = organizations.filter(o => o.is_member === 1).length;
+
+  const myStudentManagedOrgs = organizations.filter(
+    o => o.current_org_role === "coordinator" || o.current_org_role === "event_manager"
+  ).length;
+
+  const myLeadFacultyOrgs = organizations.filter(
+    o => o.current_org_role === "lead_faculty"
+  ).length;
+
+  const myAdminDelegateOrgs = organizations.filter(
+    o => o.current_org_role === "admin_delegate"
+  ).length;
+
+  const totalMembersOverall = organizations.reduce(
+    (sum, o) => sum + (o.member_count || 0),
+    0
+  );
+
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -477,105 +508,37 @@ export default function OrganizationsPage() {
           ))}
         </div>
       )}
-      {/* ============================
-            ROLE-BASED DASHBOARD
-      ================================ */}
+      {/* role based dashboard */}
       <div className="my-8 space-y-6">
 
-        {/* GLOBAL ADMIN DASHBOARD */}
-        {isGlobalAdmin && (
+        {/* GLOBAL ADMIN */}
+        {user.role === "admin" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Total Organizations</h3>
-              <p className="text-3xl font-bold">{organizations.length}</p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Managed Orgs</h3>
-              <p className="text-3xl font-bold">
-                {organizations.filter(o => o.is_org_admin === 1).length}
-              </p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Total Categories</h3>
-              <p className="text-3xl font-bold">{categories.length}</p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">All Members (Across Orgs)</h3>
-              <p className="text-3xl font-bold">
-                {
-                  organizations.reduce((sum, o) => sum + (o.member_count || 0), 0)
-                }
-              </p>
-            </div>
+            <DashboardCard title="Total Organizations" value={totalOrgs} />
+            <DashboardCard title="Organizations I Manage" value={myAdminDelegateOrgs} />
+            <DashboardCard title="Organizations I Joined" value={myMemberOrgs} />
+            <DashboardCard title="Total Members Overall" value={totalMembersOverall} />
           </div>
         )}
 
-        {/* ORG MANAGER DASHBOARD (lead_faculty / admin_delegate / coordinator / event_manager) */}
-        {!isGlobalAdmin && organizations.some(o => o.is_org_admin === 1) && (
+        {/* FACULTY */}
+        {user.role === "faculty" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Organizations You Manage</h3>
-              <p className="text-3xl font-bold">
-                {organizations.filter(o => o.is_org_admin === 1).length}
-              </p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Total Members</h3>
-              <p className="text-3xl font-bold">
-                {
-                  organizations
-                    .filter(o => o.is_org_admin === 1)
-                    .reduce((sum, o) => sum + (o.member_count || 0), 0)
-                }
-              </p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Events Managed</h3>
-              <p className="text-3xl font-bold">
-                {
-                  organizations
-                    .filter(o => o.is_org_admin === 1)
-                    .reduce((sum, o) => sum + (o.events_count || 0), 0)
-                }
-              </p>
-            </div>
+            <DashboardCard title="Total Organizations" value={totalOrgs} />
+            <DashboardCard title="Organizations I Joined" value={myMemberOrgs} />
+            <DashboardCard title="Organizations I Manage (Lead Faculty)" value={myLeadFacultyOrgs} />
           </div>
         )}
 
-        {/* STUDENT / MEMBER DASHBOARD */}
-        {!isGlobalAdmin && organizations.some(o => o.is_member) && (
+        {/* STUDENT */}
+        {user.role === "student" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">My Organizations</h3>
-              <p className="text-3xl font-bold">
-                {organizations.filter(o => o.is_member).length}
-              </p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">Upcoming Events</h3>
-              <p className="text-3xl font-bold">
-                {
-                  organizations
-                    .filter(o => o.is_member)
-                    .reduce((sum, o) => sum + (o.upcoming_events || 0), 0)
-                }
-              </p>
-            </div>
-
-            <div className="p-5 rounded-lg shadow bg-white">
-              <h3 className="text-sm text-muted-foreground">My Roles</h3>
-              <p className="text-3xl font-bold">
-                {organizations.filter(o => o.my_org_role).length}
-              </p>
-            </div>
+            <DashboardCard title="Total Organizations" value={totalOrgs} />
+            <DashboardCard title="Organizations I Joined" value={myMemberOrgs} />
+            <DashboardCard title="Orgs I Manage" value={myStudentManagedOrgs} />
           </div>
         )}
+
       </div>
 
       {/* Modal */}
