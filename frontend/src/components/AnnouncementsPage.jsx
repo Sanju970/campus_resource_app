@@ -1,3 +1,4 @@
+// src/components/AnnouncementsEventsPage.jsx
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -120,10 +121,10 @@ export default function AnnouncementsEventsPage() {
       const res = await api.get(`/favorites/user/${user.user_id}`);
       const data = res.data;
       const announcementFavs = data.filter(fav => fav.item_type === 'announcement');
-      setFavoriteAnnouncements(announcementFavs.map(fav => fav.item_id));
+      setFavoriteAnnouncements(announcementFavs.map(fav => Number(fav.item_id)));
       const favObjMap = {};
       announcementFavs.forEach(fav => {
-        favObjMap[fav.item_id] = fav;
+        favObjMap[Number(fav.item_id)] = fav;
       });
       setFavoriteObjects(favObjMap);
     } catch {
@@ -141,6 +142,16 @@ export default function AnnouncementsEventsPage() {
       fetchFavorites();
       fetchOrganizations();
     }
+  }, [user]);
+
+  // Listen for global favorites change (from FavoritesPage)
+  useEffect(() => {
+    const refreshFavorites = () => {
+      if (user?.user_id) fetchFavorites();
+    };
+
+    window.addEventListener("favorites-changed", refreshFavorites);
+    return () => window.removeEventListener("favorites-changed", refreshFavorites);
   }, [user]);
 
   // Reset announcement form
@@ -167,7 +178,7 @@ export default function AnnouncementsEventsPage() {
 
     try {
       const res = await api.post('/announcements', {
-          title, content, priority, created_by: user.user_id, org_id,
+        title, content, priority, created_by: user.user_id, org_id,
       });
       const savedAnnouncement = res.data;
       setAnnouncements(prev => [savedAnnouncement, ...prev]);
@@ -200,10 +211,16 @@ export default function AnnouncementsEventsPage() {
       return;
     }
     try {
-      await api.patch(`/announcements/${editingAnnouncement.announcement_id}`, { title, content, priority, org_id });
+      await api.patch(`/announcements/${editingAnnouncement.announcement_id}`, {
+        title, content, priority, org_id,
+      });
       setAnnouncements(prev =>
-        prev.map(a => a.announcement_id === editingAnnouncement.announcement_id
-          ? { ...a, title, content, priority, org_id } : a));
+        prev.map(a =>
+          a.announcement_id === editingAnnouncement.announcement_id
+            ? { ...a, title, content, priority, org_id }
+            : a
+        )
+      );
       setEditingAnnouncement(null);
       setIsCreateDialogOpen(false);
       resetAnnouncementForm();
@@ -221,9 +238,9 @@ export default function AnnouncementsEventsPage() {
         return;
       }
       const res = await api.post('/favorites', {
-          user_id: user.user_id,
-          item_type: 'announcement',
-          item_id: announcementId,
+        user_id: user.user_id,
+        item_type: 'announcement',
+        item_id: announcementId,
       });
       if (res.status === 409) {
         toast.info('Already favorited');
@@ -233,6 +250,7 @@ export default function AnnouncementsEventsPage() {
         toast.success('Added to favorites');
       }
       await fetchFavorites();
+      window.dispatchEvent(new Event("favorites-changed"));
     } catch {
       toast.error('Could not favorite item');
     }
@@ -248,6 +266,7 @@ export default function AnnouncementsEventsPage() {
       await api.delete(`/favorites/${favObj.favorite_id}`);
       toast.success('Removed from favorites');
       await fetchFavorites();
+      window.dispatchEvent(new Event("favorites-changed"));
     } catch {
       toast.error('Could not remove favorite');
     }
@@ -319,7 +338,9 @@ export default function AnnouncementsEventsPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div className="space-y-1 flex-1">
           <h1 className="text-2xl font-semibold">Announcements</h1>
-          <p className="text-muted-foreground">Stay updated with important campus announcements</p>
+          <p className="text-muted-foreground">
+            Stay updated with important campus announcements
+          </p>
         </div>
 
         {canCreate && (
@@ -346,7 +367,9 @@ export default function AnnouncementsEventsPage() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>{editingAnnouncement ? 'Edit Announcement' : 'Create New Announcement'}</DialogTitle>
+                <DialogTitle>
+                  {editingAnnouncement ? 'Edit Announcement' : 'Create New Announcement'}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-5 py-4">
                 {/* Organization */}
@@ -384,7 +407,9 @@ export default function AnnouncementsEventsPage() {
                   <Input
                     id="title"
                     value={newAnnouncement.title}
-                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                    onChange={(e) =>
+                      setNewAnnouncement({ ...newAnnouncement, title: e.target.value })
+                    }
                     placeholder="e.g., Library Hours Extended"
                   />
                 </div>
@@ -393,7 +418,9 @@ export default function AnnouncementsEventsPage() {
                   <Textarea
                     id="content"
                     value={newAnnouncement.content}
-                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                    onChange={(e) =>
+                      setNewAnnouncement({ ...newAnnouncement, content: e.target.value })
+                    }
                     placeholder="Announcement details..."
                     rows={5}
                   />
@@ -406,7 +433,9 @@ export default function AnnouncementsEventsPage() {
                         key={p}
                         variant={newAnnouncement.priority === p ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => setNewAnnouncement({ ...newAnnouncement, priority: p })}
+                        onClick={() =>
+                          setNewAnnouncement({ ...newAnnouncement, priority: p })
+                        }
                       >
                         {p.charAt(0).toUpperCase() + p.slice(1)}
                       </Button>
@@ -470,16 +499,20 @@ export default function AnnouncementsEventsPage() {
       <div className="space-y-5">
         {sortedAnnouncements.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">No announcements found matching your criteria.</p>
+            <p className="text-muted-foreground">
+              No announcements found matching your criteria.
+            </p>
           </div>
         )}
         {sortedAnnouncements.map((announcement) => {
           const poster = userMap[announcement.created_by];
           const org = orgMap[announcement.org_id];
-          const isFavorite = favoriteAnnouncements.includes(announcement.announcement_id);
+          const isFavorite = favoriteAnnouncements.includes(
+            Number(announcement.announcement_id)
+          );
 
           const isAdminPoster =
-            user?.role === 'admin' || announcement.created_by === user.user_id;
+            user?.role === 'admin' || announcement.created_by === user?.user_id;
 
           const isOrgCreator =
             user &&
@@ -495,7 +528,9 @@ export default function AnnouncementsEventsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <CardTitle className="text-lg truncate">{announcement.title}</CardTitle>
+                      <CardTitle className="text-lg truncate">
+                        {announcement.title}
+                      </CardTitle>
                       <Badge className={getPriorityColor(announcement.priority)}>
                         <span className="flex items-center gap-1">
                           {getPriorityIcon(announcement.priority)}
@@ -507,7 +542,9 @@ export default function AnnouncementsEventsPage() {
                       <span>
                         Posted by{' '}
                         {org ? org.title : 'Unknown Organization'} (
-                        {poster ? `${poster.first_name} ${poster.last_name}` : announcement.created_by}
+                        {poster
+                          ? `${poster.first_name} ${poster.last_name}`
+                          : announcement.created_by}
                         )
                       </span>
                       <span>•</span>
@@ -525,7 +562,11 @@ export default function AnnouncementsEventsPage() {
                       aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                       title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                     >
-                      <Heart size={22} fill={isFavorite ? 'red' : 'none'} stroke={isFavorite ? 'red' : 'gray'} />
+                      <Heart
+                        size={22}
+                        fill={isFavorite ? 'red' : 'none'}
+                        stroke={isFavorite ? 'red' : 'gray'}
+                      />
                     </div>
                     {canEditDelete && (
                       <div className="flex gap-2">
@@ -542,7 +583,9 @@ export default function AnnouncementsEventsPage() {
                           variant="destructive"
                           size="icon"
                           className="p-2"
-                          onClick={() => handleDeleteAnnouncement(announcement.announcement_id)}
+                          onClick={() =>
+                            handleDeleteAnnouncement(announcement.announcement_id)
+                          }
                           title="Delete announcement"
                         >
                           <Trash className="w-4 h-4" />

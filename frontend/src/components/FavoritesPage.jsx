@@ -1,3 +1,4 @@
+// src/components/FavoritesPage.jsx
 import { useState, useEffect } from 'react';
 import api from "../api/api";
 import {
@@ -77,8 +78,12 @@ export default function FavoritesPage() {
 
   const [favoriteEventIds, setFavoriteEventIds] = useState([]);
   const [events, setEvents] = useState([]);
+
   const [favoriteAnnouncements, setFavoriteAnnouncements] = useState([]);
   const [favoriteAnnouncementIds, setFavoriteAnnouncementIds] = useState([]);
+
+  const [userMap, setUserMap] = useState({});
+  const [orgMap, setOrgMap] = useState({});
 
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventDescriptionOpen, setIsEventDescriptionOpen] = useState(false);
@@ -88,9 +93,9 @@ export default function FavoritesPage() {
   );
 
   useEffect(() => {
-    const fetchFavoritesAndEventsAndAnnouncements = async () => {
+    const fetchAll = async () => {
       try {
-        // 1) Get favorites for this user from backend
+        // 1) Get favorites
         const favoritesRes = await api.get(`/favorites/user/${user.user_id}`);
 
         const favEvents = favoritesRes.data
@@ -111,21 +116,52 @@ export default function FavoritesPage() {
         setEvents(eventsRes.data);
 
         // 3) Fetch favorite announcements details from backend
+        let announcementsData = [];
         if (favAnnouncements.length > 0) {
           const announcementPromises = favAnnouncements.map((id) =>
             api.get(`/announcements/${id}`).then(res => res.data).catch(() => null)
           );
-          const announcementsData = await Promise.all(announcementPromises);
-          setFavoriteAnnouncements(announcementsData.filter(Boolean));
-        } else {
-          setFavoriteAnnouncements([]);
+          announcementsData = (await Promise.all(announcementPromises)).filter(Boolean);
+        }
+        setFavoriteAnnouncements(announcementsData);
+
+        // 4) Build user map (for creator names)
+        const uniqueUserIds = [
+          ...new Set(announcementsData.map(a => a.created_by)),
+        ].filter(Boolean);
+
+        if (uniqueUserIds.length) {
+          const userPromises = uniqueUserIds.map(id =>
+            api.get(`/user/${id}`).then(res => res.data).catch(() => null)
+          );
+          const userResults = await Promise.all(userPromises);
+          const newUserMap = {};
+          uniqueUserIds.forEach((id, idx) => {
+            if (userResults[idx]) newUserMap[id] = userResults[idx];
+          });
+          setUserMap(newUserMap);
+        }
+
+        // 5) Fetch organizations (to show org titles if possible)
+        try {
+          const orgRes = await api.get('/organizations', {
+            params: { user_id: user.user_id },
+          });
+          const map = {};
+          orgRes.data.forEach(org => {
+            map[org.id] = org;
+          });
+          setOrgMap(map);
+        } catch (e) {
+          // Org titles are nice-to-have, don't hard fail
         }
       } catch (err) {
         console.error('Error loading favorites page:', err);
         toast.error('Failed to load favorites');
       }
     };
-    fetchFavoritesAndEventsAndAnnouncements();
+
+    fetchAll();
   }, [user.user_id]);
 
   // Remove favorite event
@@ -139,29 +175,47 @@ export default function FavoritesPage() {
         },
       });
       setFavoriteEventIds((prev) => prev.filter((id) => id !== eventId));
+      window.dispatchEvent(new Event("favorites-changed"));
       toast.info('Event removed from favorites');
     } catch (err) {
       console.error('Error removing favorite:', err);
       toast.error('Could not remove favorite');
     }
   };
+
   // helper to construct location label from event (same logic as EventsPage)
-const buildLocationLabel = (event) => {
-  const parts = [];
-  if (event.location_name) parts.push(event.location_name);
-  if (event.building) parts.push(event.building);
-  if (event.room) parts.push(`Room ${event.room}`);
-  return parts.join(" · ") || "";
-};
+  const buildLocationLabel = (event) => {
+    const parts = [];
+    if (event.location_name) parts.push(event.location_name);
+    if (event.building) parts.push(event.building);
+    if (event.room) parts.push(`Room ${event.room}`);
+    return parts.join(" · ") || "";
+  };
+
   // Remove favorite announcement
-  const removeFavoriteAnnouncement = (announcementId) => {
-    setFavoriteAnnouncementIds((prev) =>
-      prev.filter((id) => id !== announcementId)
-    );
-    setFavoriteAnnouncements((prev) =>
-      prev.filter((a) => (a.announcement_id || a.id) !== announcementId)
-    );
-    toast.info('Announcement removed from favorites');
+  const removeFavoriteAnnouncement = async (announcementId) => {
+    try {
+      await api.delete('/favorites', {
+        data: {
+          user_id: user.user_id,
+          item_type: "announcement",
+          item_id: announcementId,
+        },
+      });
+
+      setFavoriteAnnouncementIds(prev =>
+        prev.filter(id => id !== announcementId)
+      );
+      setFavoriteAnnouncements(prev =>
+        prev.filter(a => (a.announcement_id || a.id) !== announcementId)
+      );
+
+      window.dispatchEvent(new Event("favorites-changed"));
+      toast.info("Announcement removed from favorites");
+    } catch (err) {
+      console.error('Error removing favorite announcement:', err);
+      toast.error('Could not remove favorite');
+    }
   };
 
   // Date formatting helper
@@ -181,12 +235,13 @@ const buildLocationLabel = (event) => {
   // Priority icon helper for announcements
   const getPriorityIcon = (priority) => {
     switch (priority) {
-      case 'urgent':
-        return <AlertCircle className="h-4 w-4" />;
       case 'high':
         return <AlertTriangle className="h-4 w-4" />;
-      default:
+      case 'medium':
         return <Info className="h-4 w-4" />;
+      case 'low':
+      default:
+        return <CheckCircle className="h-4 w-4" />;
     }
   };
 
@@ -197,6 +252,7 @@ const buildLocationLabel = (event) => {
         return 'bg-red-500 text-white';
       case 'medium':
         return 'bg-blue-500 text-white';
+      case 'low':
       default:
         return 'bg-gray-500 text-white';
     }
@@ -206,8 +262,10 @@ const buildLocationLabel = (event) => {
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="space-y-2">
-        <h1>Favorites</h1>
-        <p className="text-muted-foreground">Your saved events and announcements</p>
+        <h1 className="text-2xl font-semibold">Favorites</h1>
+        <p className="text-muted-foreground">
+          Your saved events and announcements
+        </p>
       </div>
 
       <Tabs defaultValue="events" className="w-full">
@@ -269,7 +327,9 @@ const buildLocationLabel = (event) => {
                       {/* DESCRIPTION LINE WITH SHOW MORE */}
                       <CardDescription className="space-y-1">
                         <div className="flex items-center gap-1 max-w-full">
-                          <span className="truncate flex-1 min-w-0">{previewDescription}</span>
+                          <span className="truncate flex-1 min-w-0">
+                            {previewDescription}
+                          </span>
                           {shouldShowMore && (
                             <button
                               type="button"
@@ -322,64 +382,85 @@ const buildLocationLabel = (event) => {
             </Card>
           ) : (
             <div className="space-y-4">
-              {favoriteAnnouncements.map((announcement) => (
-                <Card key={announcement.announcement_id || announcement.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {announcement.is_pinned && <Pin className="h-4 w-4 text-primary" />}
-                          <CardTitle className="text-lg">{announcement.title}</CardTitle>
+              {favoriteAnnouncements.map((announcement) => {
+                const poster = userMap[announcement.created_by];
+                const org = orgMap[announcement.org_id];
+
+                return (
+                  <Card key={announcement.announcement_id || announcement.id} className="shadow-sm">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            {announcement.is_pinned && (
+                              <Pin className="h-4 w-4 text-primary" />
+                            )}
+                            <CardTitle className="text-lg truncate">
+                              {announcement.title}
+                            </CardTitle>
+                            <Badge className={getPriorityColor(announcement.priority)}>
+                              <span className="flex items-center gap-1">
+                                {getPriorityIcon(announcement.priority)}
+                                {announcement.priority
+                                  ? announcement.priority.toUpperCase()
+                                  : 'INFO'}
+                              </span>
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+                            <span>
+                              Posted by{' '}
+                              {org ? org.title : 'Unknown Organization'} (
+                              {poster
+                                ? `${poster.first_name} ${poster.last_name}`
+                                : announcement.created_by}
+                              )
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {announcement.created_at
+                                ? formatDateTime(announcement.created_at)
+                                : ''}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
-                          <span>Posted by {announcement.created_by_name || announcement.created_by}</span>
-                          <span>•</span>
-                          <span>
-                            {announcement.created_date
-                              ? new Date(announcement.created_date).toLocaleString()
-                              : ''}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              removeFavoriteAnnouncement(
+                                announcement.announcement_id || announcement.id
+                              )
+                            }
+                            aria-label="Remove announcement from favorites"
+                            title="Remove announcement from favorites"
+                          >
+                            <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Badge className={'bg-gray-500 text-white'}>
-                          <span className="flex items-center gap-1">
-                            <Info className="h-4 w-4" /> Info
-                          </span>
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            removeFavoriteAnnouncement(
-                              announcement.announcement_id || announcement.id
-                            )
-                          }
-                          aria-label="Remove announcement from favorites"
-                          title="Remove announcement from favorites"
-                        >
-                          <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm">{announcement.content}</p>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm whitespace-pre-line">
+                        {announcement.content}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
       {/* Quick stats */}
-      <div className="flex flex-col sm:flex-row justify-center items-center gap-22 pt-8 border-t">
-        <div className="text-center space-y-1 w-56 min-w-[30rem]">
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-10 pt-8 border-t">
+        <div className="text-center space-y-1 w-56">
           <div className="text-3xl font-semibold">{favoriteEvents.length}</div>
           <div className="text-sm text-muted-foreground">Favorite Events</div>
         </div>
-        <div className="text-center space-y-1 w-56 min-w-[30rem]">
+        <div className="text-center space-y-1 w-56">
           <div className="text-3xl font-semibold">{favoriteAnnouncements.length}</div>
           <div className="text-sm text-muted-foreground">Favorite Announcements</div>
         </div>
@@ -397,7 +478,9 @@ const buildLocationLabel = (event) => {
           <DialogHeader>
             <DialogTitle>{selectedEvent?.title}</DialogTitle>
             <DialogDescription>
-              <span className="whitespace-pre-wrap">{selectedEvent?.description}</span>
+              <span className="whitespace-pre-wrap">
+                {selectedEvent?.description}
+              </span>
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
