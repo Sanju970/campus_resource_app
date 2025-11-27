@@ -452,7 +452,6 @@ export default function OrganizationsPage() {
           ))}
         </div>
       </div>
-
       {/* ORG GRID */}
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">
@@ -478,6 +477,106 @@ export default function OrganizationsPage() {
           ))}
         </div>
       )}
+      {/* ============================
+            ROLE-BASED DASHBOARD
+      ================================ */}
+      <div className="my-8 space-y-6">
+
+        {/* GLOBAL ADMIN DASHBOARD */}
+        {isGlobalAdmin && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Total Organizations</h3>
+              <p className="text-3xl font-bold">{organizations.length}</p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Managed Orgs</h3>
+              <p className="text-3xl font-bold">
+                {organizations.filter(o => o.is_org_admin === 1).length}
+              </p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Total Categories</h3>
+              <p className="text-3xl font-bold">{categories.length}</p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">All Members (Across Orgs)</h3>
+              <p className="text-3xl font-bold">
+                {
+                  organizations.reduce((sum, o) => sum + (o.member_count || 0), 0)
+                }
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ORG MANAGER DASHBOARD (lead_faculty / admin_delegate / coordinator / event_manager) */}
+        {!isGlobalAdmin && organizations.some(o => o.is_org_admin === 1) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Organizations You Manage</h3>
+              <p className="text-3xl font-bold">
+                {organizations.filter(o => o.is_org_admin === 1).length}
+              </p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Total Members</h3>
+              <p className="text-3xl font-bold">
+                {
+                  organizations
+                    .filter(o => o.is_org_admin === 1)
+                    .reduce((sum, o) => sum + (o.member_count || 0), 0)
+                }
+              </p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Events Managed</h3>
+              <p className="text-3xl font-bold">
+                {
+                  organizations
+                    .filter(o => o.is_org_admin === 1)
+                    .reduce((sum, o) => sum + (o.events_count || 0), 0)
+                }
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* STUDENT / MEMBER DASHBOARD */}
+        {!isGlobalAdmin && organizations.some(o => o.is_member) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">My Organizations</h3>
+              <p className="text-3xl font-bold">
+                {organizations.filter(o => o.is_member).length}
+              </p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">Upcoming Events</h3>
+              <p className="text-3xl font-bold">
+                {
+                  organizations
+                    .filter(o => o.is_member)
+                    .reduce((sum, o) => sum + (o.upcoming_events || 0), 0)
+                }
+              </p>
+            </div>
+
+            <div className="p-5 rounded-lg shadow bg-white">
+              <h3 className="text-sm text-muted-foreground">My Roles</h3>
+              <p className="text-3xl font-bold">
+                {organizations.filter(o => o.my_org_role).length}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Modal */}
       <OrganizationModal
