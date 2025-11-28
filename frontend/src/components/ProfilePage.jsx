@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import { Sun, Moon } from 'lucide-react';
+
 
 // Move PasswordInput OUTSIDE the parent component
 const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
@@ -308,6 +310,62 @@ function NotificationToggle() {
     </Button>
   );
 }
+function ThemeToggle() {
+  // initial theme: localStorage -> system -> light
+  const getInitial = () => {
+    if (typeof window === 'undefined') return 'light';
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  };
+
+  const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState(getInitial);
+
+  const applyTheme = (t) => {
+    const root = document.documentElement;
+    if (t === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+    localStorage.setItem('theme', t);
+  };
+
+  // run once on mount to ensure class matches stored value
+  useEffect(() => {
+    applyTheme(theme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleToggle = async () => {
+    try {
+      setLoading(true);
+      const next = theme === 'dark' ? 'light' : 'dark';
+      setTheme(next);
+      applyTheme(next);
+      toast.success(`Switched to ${next} mode`);
+      // optional: persist to server:
+      // await api.post('/user/update-theme', { user_id: user.user_id, theme: next });
+    } catch (err) {
+      toast.error('Could not change theme');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleToggle}
+      disabled={loading}
+      className="flex items-center gap-2"
+    >
+      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {theme === 'dark' ? 'Light' : 'Dark'}
+    </Button>
+  );
+}
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -410,6 +468,15 @@ export default function ProfilePage() {
               </p>
             </div>
             <NotificationToggle />
+          </div>
+          <div className="flex items-center justify-between border-t pt-4">
+            <div>
+              <p>Theme</p>
+              <p className="text-sm text-muted-foreground">
+                Switch between Light and Dark mode
+              </p>
+            </div>
+            <ThemeToggle />
           </div>
 
           {/* Change Password Dropdown Section */}
