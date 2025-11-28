@@ -1244,9 +1244,35 @@ const eventsTodayCount = allEventsForStats.filter((event) => {
               ? fullDescription.slice(0, MAX_PREVIEW_CHARS).trimEnd() + "..."
               : fullDescription;
 
-            const cardClasses = `overflow-hidden hover:shadow-lg transition-shadow border ${
-              isRegistered ? "border-green-500" : "border-gray-200"
-            }`;
+            // --- put this where you're computing cardClasses (inside the .map for each event) ---
+const isLightMode = typeof document !== "undefined" && !document.documentElement.classList.contains("dark");
+
+// Keep base classes; allow overflow-visible for registered to show the ring
+const baseCardClasses = "transition-shadow border hover:shadow-lg";
+
+// For registered events we want the glow *only* in light mode — in dark mode disable ring/bg
+const registeredLightClasses = "overflow-visible border-green-500 bg-green-50";
+const registeredDarkClasses = "dark:border-gray-700 dark:bg-transparent"; // no glow in dark
+
+const notRegisteredClasses = "overflow-hidden border-gray-200 dark:border-gray-700";
+
+const cardClasses = isRegistered
+  ? `${baseCardClasses} ${isLightMode ? registeredLightClasses : registeredDarkClasses}`
+  : `${baseCardClasses} ${notRegisteredClasses}`;
+
+// Create an inline style for the exact glow you liked.
+// This applies only when registered AND in light mode. In dark mode we keep undefined.
+const cardStyle =
+  isRegistered && isLightMode
+    ? {
+        // subtle green inner tint (keeps your previous light background if you want),
+        // plus a multi-layer shadow that looks like a glow/ring.
+        backgroundColor: "#ecfdf3", // light green background (same as before)
+        boxShadow:
+          // first is soft bigger blur, second is tighter faint glow ring
+          "0 12px 30px rgba(16,185,129,0.06), 0 0 0 6px rgba(16,185,129,0.08)",
+      }
+    : undefined;
 
             const locationLabel = buildLocationLabel(event);
 
@@ -1254,9 +1280,7 @@ const eventsTodayCount = allEventsForStats.filter((event) => {
               <Card
                 key={event.event_id}
                 className={cardClasses}
-                style={
-                  isRegistered ? { backgroundColor: "#ecfdf3" } : undefined
-                }
+                style={cardStyle}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
@@ -1268,7 +1292,7 @@ const eventsTodayCount = allEventsForStats.filter((event) => {
                       )}
 
                       {isRegistered && (
-                        <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm">
+                        <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-500 text-white border border-green-600 shadow-sm dark:bg-transparent dark:text-foreground dark:border-gray-600 dark:shadow-none">
                           You’re Registered
                         </span>
                       )}
