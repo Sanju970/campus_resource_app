@@ -56,6 +56,11 @@ export default function AnnouncementsEventsPage() {
     if (user.role === 'admin') return true;
     return myCreatorOrgs.length > 0;
   }, [user, myCreatorOrgs]);
+  useEffect(() => {
+  if (!canCreate && filterMine) {
+    setFilterMine(false);
+  }
+}, [canCreate, filterMine]);
 
   // Fetch announcements
   const fetchAnnouncements = async () => {
@@ -475,6 +480,7 @@ export default function AnnouncementsEventsPage() {
         >
           All Announcements
         </Button>
+        {canCreate && (
         <Button
           variant={filterMine ? 'default' : 'outline'}
           size="sm"
@@ -482,7 +488,7 @@ export default function AnnouncementsEventsPage() {
         >
           My Announcements
         </Button>
-
+        )}
         {['high', 'medium', 'low'].map((p) => (
           <Button
             key={p}
