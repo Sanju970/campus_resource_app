@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from "../api/api";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -22,13 +28,16 @@ import {
   ChevronDown,
   ChevronUp,
   PenIcon,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Sun, Moon } from 'lucide-react';
 
-
-// Move PasswordInput OUTSIDE the parent component
+/**
+ * PasswordInput is kept OUTSIDE parent component to avoid re-creation on every render
+ * Props: { placeholder, value, onChange (string), show (bool), toggleShow (fn) }
+ */
 const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
   <div className="relative w-full">
     <Input
@@ -43,6 +52,7 @@ const PasswordInput = ({ placeholder, value, onChange, show, toggleShow }) => (
       onClick={toggleShow}
       className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 z-10"
       tabIndex={-1}
+      aria-label={show ? 'Hide password' : 'Show password'}
     >
       {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
     </button>
@@ -70,18 +80,20 @@ function ChangePasswordSection() {
     if (!/[A-Z]/.test(pwd)) hints.push('Add at least one uppercase letter (A–Z)');
     if (!/[a-z]/.test(pwd)) hints.push('Add at least one lowercase letter (a–z)');
     if (!/[0-9]/.test(pwd)) hints.push('Add at least one number (0–9)');
-    if (!/[@$!%*?&]/.test(pwd))
-      hints.push('Add at least one special character (@$!%*?&)');
+    if (!/[@$!%*?&]/.test(pwd)) hints.push('Add at least one special character (@$!%*?&)');
     setPasswordHints(hints);
   };
 
   const handlePasswordUpdate = async () => {
-    if (!oldPassword || !newPassword || !confirmPassword)
+    if (!oldPassword || !newPassword || !confirmPassword) {
       return toast.error('All fields are required');
-    if (newPassword !== confirmPassword)
+    }
+    if (newPassword !== confirmPassword) {
       return toast.error('New passwords do not match');
-    if (!strongPasswordRegex.test(newPassword))
+    }
+    if (!strongPasswordRegex.test(newPassword)) {
       return toast.error('Password does not meet strength requirements.');
+    }
 
     try {
       setLoading(true);
@@ -105,21 +117,19 @@ function ChangePasswordSection() {
 
   return (
     <div className="border-t pt-4 mt-4">
-      {/* Dropdown Header */}
       <div
         className="flex items-center justify-between cursor-pointer select-none"
         onClick={() => setOpen(!open)}
+        role="button"
+        aria-expanded={open}
       >
         <div>
           <p>Change Password</p>
-          <p className="text-sm text-muted-foreground">
-            Update your account password
-          </p>
+          <p className="text-sm text-muted-foreground">Update your account password</p>
         </div>
         {open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
       </div>
 
-      {/* Dropdown Content */}
       {open && (
         <div className="mt-4 space-y-3">
           <PasswordInput
@@ -127,7 +137,7 @@ function ChangePasswordSection() {
             value={oldPassword}
             onChange={setOldPassword}
             show={showOld}
-            toggleShow={() => setShowOld(!showOld)}
+            toggleShow={() => setShowOld((s) => !s)}
           />
           <PasswordInput
             placeholder="New Password"
@@ -137,28 +147,26 @@ function ChangePasswordSection() {
               evaluatePassword(val);
             }}
             show={showNew}
-            toggleShow={() => setShowNew(!showNew)}
+            toggleShow={() => setShowNew((s) => !s)}
           />
           <PasswordInput
             placeholder="Confirm New Password"
             value={confirmPassword}
             onChange={setConfirmPassword}
             show={showConfirm}
-            toggleShow={() => setShowConfirm(!showConfirm)}
+            toggleShow={() => setShowConfirm((s) => !s)}
           />
 
-          {/* Submit button - right below confirm password */}
-          
           <Button
             onClick={handlePasswordUpdate}
             disabled={loading}
-            variant="outline" size="sm"
+            variant="outline"
+            size="sm"
             className="w-full bg-blue-600 text-black hover:bg-blue-700"
           >
             {loading ? 'Updating...' : 'Update Password'}
           </Button>
 
-          {/* Show missing hints BELOW the button */}
           {passwordHints.length > 0 && (
             <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
               <p className="font-medium mb-1">Missing:</p>
@@ -174,35 +182,40 @@ function ChangePasswordSection() {
     </div>
   );
 }
+
 function EditProfileSection() {
   const { user, setUser } = useAuth();
   const [open, setOpen] = useState(false);
 
-  const [first, setFirst] = useState(user?.first_name || "");
-  const [last, setLast] = useState(user?.last_name || "");
-  const [bio, setBio] = useState(user?.bio || "");
+  const [first, setFirst] = useState(user?.first_name || '');
+  const [last, setLast] = useState(user?.last_name || '');
+  const [bio, setBio] = useState(user?.bio || '');
 
   const [loading, setLoading] = useState(false);
 
+  // Keep local inputs in sync if user object changes externally
+  useEffect(() => {
+    setFirst(user?.first_name || '');
+    setLast(user?.last_name || '');
+    setBio(user?.bio || '');
+  }, [user?.first_name, user?.last_name, user?.bio]);
+
   const submitUpdate = async () => {
     if (!first.trim() || !last.trim()) {
-      return toast.error("First and Last name are required");
+      return toast.error('First and Last name are required');
     }
 
     try {
       setLoading(true);
+      const res = await api.post('/user/update-profile', {
+        user_id: user.user_id,
+        first_name: first,
+        last_name: last,
+        bio,
+      });
 
-      const res = await api.post("/user/update-profile", {
-          user_id: user.user_id,
-          first_name: first,
-          last_name: last,
-          bio,
-        }
-      );
+      toast.success(res.data.message || 'Profile updated');
 
-      toast.success(res.data.message);
-
-      // Update user everywhere
       const updated = {
         ...user,
         first_name: first,
@@ -210,11 +223,10 @@ function EditProfileSection() {
         bio,
       };
       setUser(updated);
-      localStorage.setItem("user", JSON.stringify(updated));
-
+      localStorage.setItem('user', JSON.stringify(updated));
       setOpen(false);
     } catch (err) {
-      toast.error("Could not update profile");
+      toast.error('Could not update profile');
     } finally {
       setLoading(false);
     }
@@ -225,17 +237,16 @@ function EditProfileSection() {
       <div
         className="flex items-center justify-between cursor-pointer select-none"
         onClick={() => setOpen(!open)}
+        role="button"
+        aria-expanded={open}
       >
         <div>
           <p>Edit Profile</p>
-          <p className="text-sm text-muted-foreground">
-            Change your name or bio
-          </p>
+          <p className="text-sm text-muted-foreground">Change your name or bio</p>
         </div>
         {open ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
       </div>
 
-      {/* Body */}
       {open && (
         <div className="mt-4 space-y-3">
           <div>
@@ -250,26 +261,24 @@ function EditProfileSection() {
 
           <div>
             <Label>Bio</Label>
-            <Textarea
-              rows={3}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-            />
+            <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} />
           </div>
 
           <Button
             onClick={submitUpdate}
             disabled={loading}
-            variant="outline" size="sm"
+            variant="outline"
+            size="sm"
             className="w-full bg-blue-600 text-black hover:bg-blue-700"
           >
-            {loading ? "Saving..." : "Save Changes"}
+            {loading ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       )}
     </div>
   );
 }
+
 function NotificationToggle() {
   const { user, setUser } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -279,61 +288,67 @@ function NotificationToggle() {
   const handleToggle = async () => {
     try {
       setLoading(true);
-
-      const res = await api.post("/user/update-notifications", {
+      const res = await api.post('/user/update-notifications', {
         user_id: user.user_id,
         enabled: !enabled,
       });
 
-      toast.success(res.data.message);
+      toast.success(res.data.message || 'Notification preference updated');
 
+      // refresh user
       const freshUser = await api.get(`/user/${user.user_id}`);
-
       setUser(freshUser.data);
-      localStorage.setItem("user", JSON.stringify(freshUser.data));
-
+      localStorage.setItem('user', JSON.stringify(freshUser.data));
     } catch (err) {
-      toast.error("Failed to update notifications.");
+      toast.error('Failed to update notifications.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      disabled={loading}
-      onClick={handleToggle}
-    >
-      {enabled ? "Disable" : "Enable"}
+    <Button variant="outline" size="sm" disabled={loading} onClick={handleToggle}>
+      {enabled ? 'Disable' : 'Enable'}
     </Button>
   );
 }
+
+/**
+ * ThemeToggle behavior:
+ * - Default is LIGHT unless localStorage 'theme' explicitly contains 'dark'
+ * - We DO NOT fallback to system preference (prefers-color-scheme) to avoid auto-switching
+ */
 function ThemeToggle() {
-  // initial theme: localStorage -> system -> light
+  // Determine initial theme only from localStorage; default to 'light'
   const getInitial = () => {
     if (typeof window === 'undefined') return 'light';
     const saved = localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') return saved;
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
+    return 'light';
   };
 
-  const [loading, setLoading] = useState(false);
+  // lazy init to avoid mismatch in SSR environments
   const [theme, setTheme] = useState(getInitial);
+  const [loading, setLoading] = useState(false);
 
   const applyTheme = (t) => {
     const root = document.documentElement;
-    if (t === 'dark') root.classList.add('dark');
-    else root.classList.remove('dark');
-    localStorage.setItem('theme', t);
+    if (t === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('theme', t);
+    } catch (e) {
+      // ignore localStorage write errors
+    }
   };
 
-  // run once on mount to ensure class matches stored value
+  // On mount, ensure the DOM reflects the theme determined on init
   useEffect(() => {
     applyTheme(theme);
+    // run only once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -344,7 +359,7 @@ function ThemeToggle() {
       setTheme(next);
       applyTheme(next);
       toast.success(`Switched to ${next} mode`);
-      // optional: persist to server:
+      // optional: persist to server if you want (commented intentionally)
       // await api.post('/user/update-theme', { user_id: user.user_id, theme: next });
     } catch (err) {
       toast.error('Could not change theme');
@@ -369,6 +384,7 @@ function ThemeToggle() {
 
 export default function ProfilePage() {
   const { user } = useAuth();
+
   const getRoleIcon = () => {
     switch (user?.role) {
       case 'student':
@@ -411,7 +427,7 @@ export default function ProfilePage() {
           <div className="flex flex-col md:flex-row items-start gap-6">
             <Avatar className="h-24 w-24">
               <AvatarFallback className={`${getRoleBadgeColor()} text-3xl`}>
-                {user?.first_name?.charAt(0).toUpperCase()}
+                {user?.first_name?.charAt(0)?.toUpperCase() ?? ''}
               </AvatarFallback>
             </Avatar>
 
@@ -419,10 +435,10 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <h2>{`${user?.first_name} ${user?.last_name}`}</h2>
+                    <h2>{`${user?.first_name || ''} ${user?.last_name || ''}`}</h2>
                     <Badge variant="secondary" className="capitalize">
                       <RoleIcon className="h-3 w-3 mr-1" />
-                      {user?.role}
+                      {user?.role || 'user'}
                     </Badge>
                   </div>
                   <p className="text-muted-foreground">{user?.email}</p>
@@ -440,11 +456,14 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <PenIcon className="h-4 w-4 text-muted-foreground" />
-                  <span>Bio: {user?.bio}</span>
+                  <span>Bio: {user?.bio || '-'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>Joined {new Date(user?.created_at).toLocaleDateString()}</span>
+                  <span>
+                    Joined{' '}
+                    {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -460,26 +479,23 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <EditProfileSection />
+
           <div className="flex items-center justify-between border-t pt-4">
             <div>
               <p>Email Notifications</p>
-              <p className="text-sm text-muted-foreground">
-                Receive updates about your account
-              </p>
+              <p className="text-sm text-muted-foreground">Receive updates about your account</p>
             </div>
             <NotificationToggle />
           </div>
+
           <div className="flex items-center justify-between border-t pt-4">
             <div>
               <p>Theme</p>
-              <p className="text-sm text-muted-foreground">
-                Switch between Light and Dark mode
-              </p>
+              <p className="text-sm text-muted-foreground">Switch between Light and Dark mode</p>
             </div>
             <ThemeToggle />
           </div>
 
-          {/* Change Password Dropdown Section */}
           <ChangePasswordSection />
         </CardContent>
       </Card>
