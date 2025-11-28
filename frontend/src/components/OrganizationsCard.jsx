@@ -64,11 +64,41 @@ const formattedLocation =
       }${resource.room ? ` — Room ${resource.room}` : ""}`
     : resource.legacy_location;
 
+    // --- add these to enable light-mode-only green glow ---
+  const isLightMode =
+    typeof document !== "undefined" &&
+    !document.documentElement.classList.contains("dark");
+
+  // base classes (keeps existing hover/shadow behavior)
+  const baseCardClasses = "transition-shadow border hover:shadow-lg";
+
+  // when joined: slightly different handling for light vs dark
+  const joinedLightClasses = "overflow-visible border-green-500";
+  const joinedDarkClasses = "overflow-hidden dark:border-gray-700 dark:bg-transparent";
+
+  // when not joined
+  const notJoinedClasses = "overflow-hidden border-gray-200 dark:border-gray-700";
+
+  // final class + inline style (only add boxShadow for light mode)
+  const cardClass = joined
+    ? `${baseCardClasses} ${isLightMode ? joinedLightClasses : joinedDarkClasses}`
+    : `${baseCardClasses} ${notJoinedClasses}`;
+
+  const cardStyle =
+    joined && isLightMode
+      ? {
+          backgroundColor: "#ecfdf3", // same light-green background you used earlier
+          // subtle glow + outer ring — tweak values if you want stronger/weaker glow
+          boxShadow:
+            "0 12px 30px rgba(16,185,129,0.06), 0 0 0 6px rgba(16,185,129,0.08)",
+        }
+      : undefined;
+
 
   return (
     <Card
-      className="overflow-hidden hover:shadow-lg transition-shadow border"
-      style={joined ? { backgroundColor: "#ecfdf3" } : undefined}
+      className={cardClass}
+      style={cardStyle}
       onClick={(e) => {
         // prevent navigation while delete dialog is open
         if (deleteDialogOpen) {
