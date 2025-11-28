@@ -11,7 +11,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
 
-  /* LOAD FROM LOCALSTORAGE */
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const storedToken = localStorage.getItem("token");
@@ -22,12 +21,17 @@ export const AuthProvider = ({ children }) => {
   /* LOGIN */
   const login = async (identifier, password) => {
     try {
-      const res = await api.post(`${API_URL}/login`, { identifier, password });
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
 
+      const res = await api.post(`${API_URL}/login`, { identifier, password });
       const { token, user } = res.data;
+
+      const fresh = await api.get(`/user/${user.user_id}`);
+
       const fullUser = {
-        ...user,
-        name: `${user.first_name} ${user.last_name}`,
+        ...fresh.data, 
+        name: `${fresh.data.first_name} ${fresh.data.last_name}`,
       };
 
       setUser(fullUser);
@@ -70,7 +74,6 @@ export const AuthProvider = ({ children }) => {
     toast.success("Logged out successfully.");
   };
 
-  /* ATTACH TOKEN */
   useEffect(() => {
     if (token) {
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -80,7 +83,7 @@ export const AuthProvider = ({ children }) => {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, setUser }}>
+    <AuthContext.Provider value={{ user, setUser, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

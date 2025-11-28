@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from "../api/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -268,52 +268,49 @@ function EditProfileSection() {
     </div>
   );
 }
+function NotificationToggle() {
+  const { user, setUser } = useAuth();
+  const [loading, setLoading] = useState(false);
+
+  const enabled = user?.email_notifications === 1;
+
+  const handleToggle = async () => {
+    try {
+      setLoading(true);
+
+      const res = await api.post("/user/update-notifications", {
+        user_id: user.user_id,
+        enabled: !enabled,
+      });
+
+      toast.success(res.data.message);
+
+      const freshUser = await api.get(`/user/${user.user_id}`);
+
+      setUser(freshUser.data);
+      localStorage.setItem("user", JSON.stringify(freshUser.data));
+
+    } catch (err) {
+      toast.error("Failed to update notifications.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={loading}
+      onClick={handleToggle}
+    >
+      {enabled ? "Disable" : "Enable"}
+    </Button>
+  );
+}
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  function NotificationToggle() {
-    const { user, setUser } = useAuth();
-    const [enabled, setEnabled] = useState(user?.email_notifications);
-    const [loading, setLoading] = useState(false);
-
-    const handleToggle = async () => {
-      try {
-        setLoading(true);
-        const res = await api.post(
-          "/user/update-notifications",
-          {
-            user_id: user.user_id,
-            enabled: !enabled,
-          }
-        );
-
-        toast.success(res.data.message);
-
-        // update React & localStorage
-        const updated = { ...user, email_notifications: !enabled };
-        setUser(updated);
-        localStorage.setItem("user", JSON.stringify(updated));
-
-        setEnabled(!enabled);
-      } catch (err) {
-        toast.error("Failed to update setting");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleToggle}
-        disabled={loading}
-      >
-        {enabled ? "Disable" : "Enable"}
-      </Button>
-    );
-  }
-
   const getRoleIcon = () => {
     switch (user?.role) {
       case 'student':

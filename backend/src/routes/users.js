@@ -46,7 +46,7 @@ router.post("/admin/create", async (req, res) => {
 
     if (!uidPattern.test(cleanUid))
       return res.status(400).json({
-        message: "Invalid User ID. Must be stu/fac/adm + 4–5 digits.",
+        message: "Invalid User ID. Must be stu/fac/adm + 4-5 digits.",
       });
 
     let autoRole =
@@ -95,8 +95,8 @@ router.post("/admin/create", async (req, res) => {
     const hashed = await bcrypt.hash(plainPassword, 10);
 
     const sql = `
-      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id, bio)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id, bio, email_notifications)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `;
 
     const [result] = await db.query(sql, [
@@ -405,24 +405,55 @@ router.delete("/admin/users/:id", async (req, res) => {
 });
 
 /* 
-   Get user details by user ID
- */
-router.get('/user/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const [results] = await db.query(
-      'SELECT user_id, user_uid, first_name, last_name, email, bio, role_id, is_active, created_at, updated_at FROM users WHERE user_id = ?',
-      [id]
-    );
-    if (results.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
+   Get user details by user ID (NO CACHE)
+*/
+router.get(
+  "/user/:id",
+  (req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+  },
+  async (req, res) => {
+    const { id } = req.params;
+    try {
+      const [results] = await db.query(
+        `SELECT 
+            user_id, 
+            user_uid, 
+            first_name, 
+            last_name, 
+            email, 
+            bio, 
+            role_id,
+            CASE 
+              WHEN role_id = 3 THEN 'admin'
+              WHEN role_id = 2 THEN 'faculty'
+              WHEN role_id = 1 THEN 'student'
+              ELSE 'unknown'
+            END AS role,
+            email_notifications,
+            is_active,
+            created_at, 
+            updated_at 
+         FROM users 
+         WHERE user_id = ?`,
+        [id]
+      );
+
+      if (results.length === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(results[0]);
+    } catch (err) {
+      console.error("Get user by id error:", err);
+      res.status(500).json({ error: err.message });
     }
-    res.json(results[0]);
-  } catch (err) {
-    console.error("Get user by id error:", err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
+
 
 /* 
    USER: UPDATE BIO (self-service)
@@ -472,9 +503,10 @@ router.post("/user/update-profile", async (req, res) => {
     const cleanBio =
       typeof bio === "string" && bio.trim().length > 0
         ? bio.trim()
-        : "This is my profile bio.";
+        : DEFAULT_BIO;
 
-    const [result] = await db.query(
+    // Update user
+    await db.query(
       `
       UPDATE users 
       SET first_name = ?, last_name = ?, bio = ?, updated_at = NOW()
@@ -483,18 +515,34 @@ router.post("/user/update-profile", async (req, res) => {
       [cleanFirst, cleanLast, cleanBio, user_id]
     );
 
-    if (result.affectedRows === 0) {
+    // Fetch FULL updated user object
+    const [rows] = await db.query(
+      `
+      SELECT 
+        user_id,
+        user_uid,
+        first_name,
+        last_name,
+        email,
+        bio,
+        role_id,
+        email_notifications,
+        is_active,
+        created_at,
+        updated_at
+      FROM users 
+      WHERE user_id = ?
+      `,
+      [user_id]
+    );
+
+    if (!rows.length) {
       return res.status(404).json({ message: "User not found" });
     }
 
     return res.json({
       message: "Profile updated successfully",
-      user: {
-        user_id,
-        first_name: cleanFirst,
-        last_name: cleanLast,
-        bio: cleanBio,
-      },
+      user: rows[0],
     });
   } catch (err) {
     console.error("Profile update error:", err);
@@ -503,10 +551,9 @@ router.post("/user/update-profile", async (req, res) => {
 });
 
 
-
 /* 
    UPDATE EMAIL NOTIFICATION PREFERENCE
- */
+*/
 router.post("/user/update-notifications", async (req, res) => {
   try {
     const { user_id, enabled } = req.body;
@@ -515,15 +562,22 @@ router.post("/user/update-notifications", async (req, res) => {
       return res.status(400).json({ message: "Invalid value" });
     }
 
+    const value = enabled ? 1 : 0;
+
     await db.query(
       "UPDATE users SET email_notifications = ? WHERE user_id = ?",
-      [enabled, user_id]
+      [value, user_id]
     );
 
-    return res.json({ message: "Notification preference updated" });
+    return res.json({
+      message: enabled
+        ? "Email notifications enabled"
+        : "Email notifications disabled",
+      email_notifications: value
+    });
   } catch (err) {
     console.error("Notification update error:", err);
-    return res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

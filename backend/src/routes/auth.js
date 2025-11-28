@@ -79,8 +79,8 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(cleanPass, 10);
 
     const sql = `
-      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id, bio)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (first_name, last_name, user_uid, email, password_hash, role_id, bio, email_notifications)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `;
 
     await db.query(sql, [
