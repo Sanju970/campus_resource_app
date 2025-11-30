@@ -114,7 +114,7 @@ export default function EventsPage() {
   const [rsvpLoading, setRsvpLoading] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [organizations, setOrganizations] = useState([]);
-  const [locations, setLocations] = useState([]); // 🔹 campus locations
+  const [locations, setLocations] = useState([]); // campus locations
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [events, setEvents] = useState([]);
   const [registeredEvents, setRegisteredEvents] = useState([]);
@@ -149,7 +149,7 @@ export default function EventsPage() {
     description: "",
     date_time: "",
     end_time: "",
-    location_id: "", // 🔹 use location_id instead of free-text location
+    location_id: "", // use location_id instead of free-text location
     capacity: "",
     category_id: "",
     organization_id: "",
@@ -268,7 +268,7 @@ export default function EventsPage() {
     }
   };
 
-  // 🔹 Fetch campus locations for dropdown (same as orgs page style)
+  // Fetch campus locations for dropdown (same as orgs page style)
   const fetchLocations = async () => {
     try {
       const res = await api.get("/locations");

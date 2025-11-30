@@ -12,7 +12,7 @@
 [https://sxt0660.uta.cloud/](https://sxt0660.uta.cloud/)
 
 **GitHub Repository:**
-[https://github.com/Sanju970/ai_campus_portal_frontend](https://github.com/Sanju970/ai_campus_portal_frontend)
+[https://github.com/Sanju970/campus_resource_app](https://github.com/Sanju970/campus_resource_app)
 
 ---
 
@@ -37,20 +37,30 @@ It was developed for **Phase 2 – Front-End Development** using **Vite + React 
 ### Pages Included
 | Page | Description |
 |------|--------------|
-| LoginPage.jsx | Handles secure login and signup with validation. |
-| HomePage.jsx | Main dashboard after authentication. |
-| EventsPage.jsx | Displays upcoming campus events. |
-| AnnouncementsPage.jsx | Lists announcements and notices. |
+| LoginPage.jsx | User login with validation, role auto-detection, and redirection based on role. |
+|ForgotPasswordPage.jsx |Handles sending reset password email via backend SMTP.|
+|ResetPasswordPage.jsx|Allows user to enter new password with strength validation.|
+| HomePage.jsx | Main dashboard after authentication.Dashboard showing events, announcements, organizations, reminders, and quick actions. |
+|AboutPage.jsx|Static information about the platform, team, purpose, and links.|
+| EventsPage.jsx | Full events module: create/update events (faculty/admin), register/unregister, upcoming events calendar. |
+|EventMembersPage.jsx|Shows list of users registered for a specific event; admins/faculty can manage attendees.|
+| AnnouncementsPage.jsx | Create/view/edit/delete announcements (admin/faculty) and view feed for students. |
 | MaterialsPage.jsx | Repository of learning materials. |
-| OrganizationsPage.jsx | Resource cards with categorized links. |
-| SchedulePage.jsx | Weekly class or event schedule. |
-| ProfilePage.jsx | View and edit user information. |
-| NotificationsPage.jsx | View alerts and messages. |
-| FavoritesPage.jsx | Manage bookmarked resources. |
-| AIChat.jsx | Integrated AI chatbot for quick help. |
+| OrganizationsPage.jsx | Browse all organizations, filter by categories, join/leave organizations dynamically. |
+|OrganizationsCard.jsx|Reusable card component for displaying organizations in lists.|
+|OrganizationDetails.jsx|Full org profile: members list, roles, join/leave, edit/delete (org roles).|
+|OrganizationModal.jsx|Modal for creating or editing organizations with validation.|
+| SchedulePage.jsx | upcoming event schedule with date/time blocks and dynamic updates. |
+| ProfilePage.jsx | User profile management: edit personal info, bio, change password and email notification toggle, dark mode toggle. |
+| NotificationsPage.jsx | Real-time in-app notifications for events and announcements updates. |
+| FavoritesPage.jsx | Users can bookmark events, announcements for quick access. |
+| AIChat.jsx | Integrated AI assistant for student help, navigation, and guidance. |
+|AllUsersPage.jsx| view all users profiles and mutual organizations.|
 | AdminPage.jsx | Allows admins to manage users, roles, and access data. |
-| Layout.jsx | Centralized layout component managing navigation, header, and theme. |
-| ResourcesCard.jsx | Reusable card component used to display individual resource items. |
+| Layout.jsx | Main layout for navigation, header, sidebar, role-based menu, and responsive UI. |
+|LocationsPage.jsx|CRUD for campus locations (admin), displayed dynamically with validation.|
+|UserPublicProfile.jsx | Public-facing profile of another user, with mutual organizations display.|
+
 ---
 
 ## UI & Design
@@ -105,10 +115,10 @@ Older Node versions (like 10, 12, or 14) will cause build failures because Vite,
 
 ```bash
 # Clone the Repository
-git clone https://github.com/Sanju970/ai_campus_portal_frontend.git
+git clone https://github.com/Sanju970/campus_resource_app.git
 
-# Navigate to the Project Directory
-cd ai_campus_portal_frontend
+# Navigate to the Frontend Directory
+cd campus_resource_app/frontend
 
 # Clean old installations
 rm -rf node_modules package-lock.json
@@ -128,9 +138,9 @@ npm run build
 You can use the following test accounts to explore different roles in the portal:
 | Role| Email| Password|
 |-|-|-|
-| **Student**|[student@gmail.com](mailto:student@gmail.com)|student123 |
-| **Faculty**|[faculty@gmail.com](mailto:faculty@gmail.com)|faculty123 |
-| **Admin**|[admin@gmail.com](mailto:admin@gmail.com)|admin123|
+| **Student**|[stu0001@gmail.com](mailto:student@gmail.com)|Student@123 |
+| **Faculty**|[fac0001@gmail.com](mailto:faculty@gmail.com)|Faculty@123 |
+| **Admin**|[adm0001@gmail.com](mailto:admin@gmail.com)|Admin@123|
 
 
 ## Deployment on UTA Cloud

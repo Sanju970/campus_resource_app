@@ -229,7 +229,7 @@ export default function HomePage() {
         console.error("Failed to fetch registered events for stats:", err);
       }
 
-      // 🔹 Admin-only: compute totals from /users
+      // Admin-only: compute totals from /users
       if (user?.role == 3 || user?.role_id == 3) {
         try {
           const usersRes = await api.get("/all");

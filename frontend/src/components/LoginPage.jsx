@@ -400,7 +400,12 @@ export default function LoginPage() {
 
                 <div className="flex items-center gap-2 bg-gray-100 border rounded-md p-2">
                   <Mail className="h-4 w-4 text-gray-700" />
-                  <span className="text-sm">campus.dev@university.edu</span>
+                  <a
+                    href="mailto:campus.dev@university.edu"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    campus.dev@university.edu
+                  </a>
                 </div>
               </div>
 
@@ -411,7 +416,12 @@ export default function LoginPage() {
 
                 <div className="flex items-center gap-2 bg-gray-100 border rounded-md p-2">
                   <Mail className="h-4 w-4 text-gray-700" />
-                  <span className="text-sm">campus.support@university.edu</span>
+                  <a
+                    href="mailto:campus.support@university.edu"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    campus.support@university.edu
+                  </a>
                 </div>
               </div>
 
@@ -425,7 +435,20 @@ export default function LoginPage() {
                 </p>
               </div>
 
+              {/* About Us link */}
+              <div className="text-center pt-2">
+                <a
+                  href={`${window.location.origin}/about`}
+                  className="text-blue-600 hover:underline text-sm font-medium"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  About Us Page →
+                </a>
+              </div>
+
             </div>
+
           </DialogContent>
 
         </Dialog>

@@ -29,11 +29,11 @@ export default function AllUsersPage() {
       setLoading(true);
       try {
         if (isAdmin) {
-          // 🔹 Admin: see everyone (existing /all endpoint)
+          // Admin: see everyone (existing /all endpoint)
           const res = await api.get("/all");
           setAdminUsers(res.data || []);
         } else {
-          // 🔹 Student / Faculty: only see users from the same orgs
+          // Student / Faculty: only see users from the same orgs
           // 1) Get all orgs (same endpoint used on OrganizationsPage)
           const orgRes = await api.get("/organizations", {
             params: { user_id: user.user_id },
