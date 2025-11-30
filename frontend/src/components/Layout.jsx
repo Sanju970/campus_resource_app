@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Outlet } from 'react-router-dom';
 import { Users, Home, Info, Calendar, User, LogOut, GraduationCap, Bell, Heart, CalendarDays } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useAuth } from '../contexts/AuthContext';
+import AIChat from './AIChat';
+
 
 export default function Layout({ children, notificationCount = 0 }) {
   const { user, logout } = useAuth();
@@ -157,8 +159,9 @@ export default function Layout({ children, notificationCount = 0 }) {
 
       {/* Main Content */}
       <main className="flex-1 px-2 md:px-4">
-        {children}
+        <Outlet />
       </main>
+      <AIChat /> 
     </div>
   );
 }
