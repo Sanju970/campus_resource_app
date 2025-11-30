@@ -356,6 +356,17 @@ export default function LoginPage() {
             </TabsContent>
           </Tabs>
         </Card>
+                     {/* About Us link */}
+              <div className="text-center pt-2">
+                <a
+                  href={`${window.location.origin}/about`}
+                  className="text-blue-600 hover:underline text-sm font-medium"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  About Us Page →
+                </a>
+              </div>
 
         <div className="text-center mt-4">
           <button
@@ -433,18 +444,6 @@ export default function LoginPage() {
                 <p className="text-xs text-blue-700/70 mt-1">
                   Report bugs or request help from our support team.
                 </p>
-              </div>
-
-              {/* About Us link */}
-              <div className="text-center pt-2">
-                <a
-                  href={`${window.location.origin}/about`}
-                  className="text-blue-600 hover:underline text-sm font-medium"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  About Us Page →
-                </a>
               </div>
 
             </div>
