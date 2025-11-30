@@ -539,18 +539,6 @@ VALUES
  80, 2, 'Contest', 0, 'pending',
  3, 2, 0);
 
--- 5) Rejected Music Event
-INSERT INTO events (
- title, description, start_datetime, end_datetime,
- location_id, capacity, category_id, category,
- registration_required, status, created_by, org_id, members_only
-)
-VALUES
-('Unapproved Music Jam', 'Informal jam session.',
- '2025-12-18 14:00:00', '2025-12-18 16:00:00',
- (SELECT location_id FROM campus_locations WHERE location_name='Auditorium'),
- 150, 6, 'Music', 0, 'rejected',
- 7, 6, 0);
 
 -- 6) Wellness Yoga
 INSERT INTO events (
