@@ -23,10 +23,10 @@ import AllUsersPage from "./components/AllUsersPage";
 import LocationsPage from "./components/LocationsPage";
 import EventMembersPage from "./components/EventMembersPage";
 import AboutPage from './components/AboutPage'; 
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function AppContent() {
   const { user, setUser } = useAuth();
-  const [currentPage, setCurrentPage] = useState("home");
   const [loading, setLoading] = useReactState(true);
 
   // Restore user from localStorage
@@ -57,68 +57,61 @@ function AppContent() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-      <Route path="/about" element={
-        <Layout>
-          <AboutPage />
-          <AIChat />
-        </Layout>
-      } />
+      <Route
+        path="/about"
+        element={
+          <Layout>
+            <AboutPage />
+            <AIChat />
+          </Layout>
+        }
+      />
 
+      {/* ALL PRIVATE ROUTES */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<HomePage />} />
+        <Route path="events" element={<EventsPage />} />
+        <Route path="events/:eventId/members" element={<EventMembersPage />} />
+        <Route path="announcements" element={<AnnouncementsPage />} />
+        <Route path="organizations" element={<OrganizationsPage />} />
+        <Route path="organizations/:orgId" element={<OrganizationDetails />} />
+        <Route path="schedule" element={<SchedulePage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="my-events" element={<EventsPage />} />
+        <Route path="users/:userId" element={<UserPublicProfile />} />
+        <Route path="people" element={<AllUsersPage />} />
 
-      {/* If not logged in, redirect everything else to login */}
-      {!user ? (
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      ) : (
-        /* PRIVATE ROUTES */
+        {/* Admin-only */}
         <Route
-          path="*"
+          path="admin"
           element={
-            <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
-              <Routes>
-                <Route path="/" element={<HomePage onNavigate={setCurrentPage} />} />
-                <Route path="/events" element={<EventsPage />} />
-                <Route path="/events/:eventId/members" element={<EventMembersPage />} />
-                <Route path="/announcements" element={<AnnouncementsPage />} />
-                <Route path="/organizations" element={<OrganizationsPage />} />
-                <Route path="/schedule" element={<SchedulePage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/favorites" element={<FavoritesPage />} />
-                <Route path="/my-events" element={<EventsPage />} />
-                <Route path="/organizations/:orgId" element={<OrganizationDetails />} />
-                <Route path="/users/:userId" element={<UserPublicProfile />} />
-                <Route path="/people" element={<AllUsersPage />} />
-                {/* <Route path="/about" element={<AboutPage />}/> */}
-                
-
-                <Route
-                  path="/admin"
-                  element={
-                    user.role === 3 || user.role === "3" || user.role === "admin" ? (
-                      <AdminPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
-
-                <Route
-                  path="/locations"
-                  element={
-                    user.role === 3 || user.role === "3" || user.role === "admin" ? (
-                      <LocationsPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
-
-              </Routes>
-              <AIChat />
-            </Layout>
+            user?.role === 3 || user?.role === "3" || user?.role === "admin"
+              ? <AdminPage />
+              : <Navigate to="/" replace />
           }
         />
-      )}
+
+        <Route
+          path="locations"
+          element={
+            user?.role === 3 || user?.role === "3" || user?.role === "admin"
+              ? <LocationsPage />
+              : <Navigate to="/" replace />
+          }
+        />
+      </Route>
+
+      {/* CATCH-ALL */}
+      <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
     </Routes>
   );
 }
