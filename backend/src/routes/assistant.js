@@ -267,6 +267,7 @@ router.post("/chat", async (req, res) => {
     console.error("Campus Assistant error:", err);
     return res.status(500).json({
       error: "Failed to generate a response from the Campus Assistant.",
+      detail: err.message,
     });
   }
 });
