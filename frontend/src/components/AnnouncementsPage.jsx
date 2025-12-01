@@ -216,7 +216,7 @@ export default function AnnouncementsEventsPage() {
       return;
     }
     try {
-      await api.patch(`/announcements/${editingAnnouncement.announcement_id}`, {
+      await api.put(`/announcements/${editingAnnouncement.announcement_id}`, {
         title, content, priority, org_id,
       });
       setAnnouncements(prev =>
