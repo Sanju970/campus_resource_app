@@ -1,8 +1,12 @@
 import axios from "axios";
 
-// Backend URL from .env
-// const API_BASE = "https://campus-resource-app.onrender.com";
-const API_BASE = "http://localhost:5000";
+// Decide backend URL based on build mode
+const isProd = import.meta.env.MODE === "production";
+
+const API_BASE = isProd
+  ? "https://campus-resource-app.onrender.com"  
+  : "http://localhost:5000";                    
+
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
   withCredentials: true,
