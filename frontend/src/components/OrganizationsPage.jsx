@@ -150,19 +150,31 @@ export default function OrganizationsPage() {
     isGlobalAdmin,
   ]);
 
-  /* ============================
-     HOURS HELPER
-  ============================ */
   const parseHours = (hoursString) => {
     const clean = (hoursString || "").trim();
     if (!clean) return { b1: {}, b2: {} };
 
-    const blocks = clean.split(";").map((b) => b.trim()).filter(Boolean);
+    // Normalize backend formats:
+    // 1. Replace "|" with ";"
+    // 2. Replace "-" with "–" (only for the time separator)
+    let normalized = clean.replace(/\|/g, ";");
+
+    // Convert " - " (backend) into " – " (frontend expectation)
+    normalized = normalized.replace(/ - /g, " – ");
+
+    const blocks = normalized
+      .split(";")
+      .map((b) => b.trim())
+      .filter(Boolean);
 
     const parseBlock = (block) => {
       const [daysPart, timePart] = block.split(":");
       if (!daysPart || !timePart) return {};
-      const [start, end] = timePart.split("–");
+
+      let [start, end] = timePart.includes("–")
+        ? timePart.split("–")
+        : timePart.split("-"); // fallback
+
       return {
         days: daysPart.trim(),
         start: start?.trim(),
@@ -171,10 +183,11 @@ export default function OrganizationsPage() {
     };
 
     return {
-      b1: parseBlock(blocks[0] ?? ""),
-      b2: parseBlock(blocks[1] ?? ""),
+      b1: parseBlock(blocks[0] || ""),
+      b2: parseBlock(blocks[1] || ""),
     };
   };
+
 
   /* ============================
      EDIT FORM LOADER
@@ -254,28 +267,27 @@ export default function OrganizationsPage() {
 
     try {
       if (editingOrg) {
-        await api.put(
-          `/organizations/${editingOrg.id}`,
-          {
-            title: form.title,
-            description: form.description,
-            location_id: form.location_id,
-            hours: hoursFormatted,
-            contact: form.contact,
-            website: form.website,
-            category_id: form.category_id,
-            updated_by: user.user_id,
-          }
-        );
+        await api.put(`/organizations/${editingOrg.id}`, {
+          title: form.title,
+          description: form.description,
+          location_id: form.location_id,
+          hours_days_main: form.hours_days_main,
+          hours_start_main: form.hours_start_main,
+          hours_end_main: form.hours_end_main,
+          hours_days_secondary: form.hours_days_secondary,
+          hours_start_secondary: form.hours_start_secondary,
+          hours_end_secondary: form.hours_end_secondary,
+          contact: form.contact,
+          website: form.website,
+          category_id: form.category_id,
+          updated_by: user.user_id,
+        });
 
         if (form.new_admin_id) {
-          await api.post(
-            `/organizations/${editingOrg.id}/transfer-admin`,
-            {
-              acting_user_id: user.user_id,
-              new_admin_id: form.new_admin_id,
-            }
-          );
+          await api.post(`/organizations/${editingOrg.id}/transfer-admin`, {
+            acting_user_id: user.user_id,
+            new_admin_id: form.new_admin_id,
+          });
           toast.success("Admin rights transferred");
         }
 
@@ -286,7 +298,12 @@ export default function OrganizationsPage() {
           title: form.title,
           description: form.description,
           location_id: form.location_id,
-          hours: hoursFormatted,
+          hours_days_main: form.hours_days_main,
+          hours_start_main: form.hours_start_main,
+          hours_end_main: form.hours_end_main,
+          hours_days_secondary: form.hours_days_secondary,
+          hours_start_secondary: form.hours_start_secondary,
+          hours_end_secondary: form.hours_end_secondary,
           contact: form.contact,
           website: form.website,
           category_id: form.category_id,

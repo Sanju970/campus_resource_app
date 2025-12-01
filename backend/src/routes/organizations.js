@@ -95,6 +95,13 @@ function isValidDescription(desc) {
 function isValidContact(contact) {
   return /^[0-9]{10}$/.test(contact || "");
 }
+function isValidWebsite(url) {
+  if (!url) return true; // empty allowed
+
+  const pattern = /^(https?:\/\/)[^\s]+\.[^\s]+$/i;
+  return pattern.test(url.trim());
+}
+
 
 /* 
    GET all orgs
@@ -230,6 +237,12 @@ router.post("/", async (req, res) => {
         message: "Contact must be a valid 10-digit phone number",
       });
     }
+    // Website validation
+    if (!isValidWebsite(website)) {
+      return res.status(400).json({
+        message: "Website must begin with http:// or https:// and contain a valid domain",
+      });
+    }
 
     // created_by
     if (!created_by || !isPositiveInt(created_by)) {
@@ -294,6 +307,23 @@ router.post("/", async (req, res) => {
         message: "Location is already used by another organization",
       });
     }
+    // If primary and secondary hours are identical → drop secondary
+    const primaryStr = `${hours_days_main || ""}|${hours_start_main || ""}|${hours_end_main || ""}`;
+    const secondaryStr = `${hours_days_secondary || ""}|${hours_start_secondary || ""}|${hours_end_secondary || ""}`;
+
+    let ignoreSecondary = false;
+
+    if (
+      hours_days_main &&
+      hours_start_main &&
+      hours_end_main &&
+      hours_days_secondary &&
+      hours_start_secondary &&
+      hours_end_secondary &&
+      primaryStr === secondaryStr
+    ) {
+      ignoreSecondary = true;
+    }
 
     // hour strings
     let hours = null;
@@ -301,7 +331,7 @@ router.post("/", async (req, res) => {
     if (hasPrimary) {
       hours = `${hours_days_main}: ${hours_start_main} - ${hours_end_main}`;
 
-      if (hasSecondary) {
+      if (hasSecondary && !ignoreSecondary) {
         hours += ` | ${hours_days_secondary}: ${hours_start_secondary} - ${hours_end_secondary}`;
       }
     }
@@ -346,7 +376,7 @@ router.post("/", async (req, res) => {
 
 /* 
    UPDATE organization
- */
+*/
 router.put("/:id", async (req, res) => {
   try {
     const orgId = Number(req.params.id);
@@ -383,28 +413,28 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    // Description (if provided)
+    // Description
     if (description && !isValidDescription(description)) {
       return res.status(400).json({
         message: "Description must contain at least 3 words or 10 characters",
       });
     }
 
-    // Contact (optional, but if present must be valid)
+    // Contact
     if (contact && !isValidContact(contact)) {
       return res.status(400).json({
         message: "Contact must be a valid 10-digit number",
       });
     }
-
-    // Category check
-    if (!isPositiveInt(category_id)) {
+    // Website validation
+    if (!isValidWebsite(website)) {
       return res.status(400).json({
-        message: "category_id must be a valid number",
+        message: "Website must begin with http:// or https:// and contain a valid domain",
       });
     }
 
-    // auth
+
+    // Auth
     const { globalRole, orgRole } = await getAuthContext(orgId, updated_by);
     const canEdit =
       isGlobalAdmin(globalRole) ||
@@ -433,14 +463,32 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    // hours
     const hasPrimary =
       !!hours_days_main || !!hours_start_main || !!hours_end_main;
 
-    const hasSecondary =
+    const hasSecondaryRaw =
       !!hours_days_secondary ||
       !!hours_start_secondary ||
       !!hours_end_secondary;
+
+    const primaryStr = `${hours_days_main || ""}|${hours_start_main || ""}|${hours_end_main || ""}`;
+    const secondaryStr = `${hours_days_secondary || ""}|${hours_start_secondary || ""}|${hours_end_secondary || ""}`;
+
+    let ignoreSecondary = false;
+
+    if (
+      hours_days_main &&
+      hours_start_main &&
+      hours_end_main &&
+      hours_days_secondary &&
+      hours_start_secondary &&
+      hours_end_secondary &&
+      primaryStr === secondaryStr
+    ) {
+      ignoreSecondary = true;
+    }
+
+    const hasSecondary = hasSecondaryRaw && !ignoreSecondary;
 
     if (hasPrimary) {
       if (!hours_days_main || !hours_start_main || !hours_end_main) {
@@ -471,33 +519,36 @@ router.put("/:id", async (req, res) => {
       }
     }
 
-    // hours string
     let hours;
 
     if (hasPrimary) {
       hours = `${hours_days_main}: ${hours_start_main} - ${hours_end_main}`;
-      if (hasSecondary) {
+      if (hasSecondaryRaw && !ignoreSecondary) {
         hours += ` | ${hours_days_secondary}: ${hours_start_secondary} - ${hours_end_secondary}`;
       }
-    } else if (hasSecondary) {
+    } else if (hasSecondaryRaw && !ignoreSecondary) {
       return res.status(400).json({
-        message:
-          "Secondary hours cannot be added unless primary hours are provided.",
+        message: "Secondary hours cannot be added unless primary hours are provided.",
       });
     } else {
       const [[orgRow]] = await db.query(
         `SELECT hours FROM organizations WHERE org_id = ?`,
         [orgId]
       );
-
       if (!orgRow) {
         return res.status(404).json({ message: "Organization not found" });
       }
-
-      hours = orgRow.hours;
+      if (ignoreSecondary && orgRow.hours?.includes("|")) {
+        const [primaryOnly] = orgRow.hours.split("|");
+        hours = primaryOnly.trim();
+      } else {
+        hours = orgRow.hours;
+      }
     }
 
-    // org updates
+    // -------------------------------
+    // UPDATE ORG
+    // -------------------------------
     await db.query(
       `
       UPDATE organizations

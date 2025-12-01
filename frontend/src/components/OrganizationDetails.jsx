@@ -256,13 +256,22 @@ export default function OrganizationDetails() {
     return canManageOrg;
   };
 
-  /* ---------- edit modal helpers ---------- */
-
   const parseHours = (hoursString) => {
     const clean = (hoursString || "").trim();
     if (!clean) return { b1: {}, b2: {} };
 
-    const blocks = clean
+    // Normalize backend formats:
+    // Standardize all possible separators to a consistent frontend format.
+    let normalized = clean
+      // convert pipe | into semicolon ;
+      .replace(/\|/g, ";")
+      // convert hyphen ranges (with any spacing) into the EN DASH format
+      .replace(/\s*-\s*/g, " – ")
+      // remove double spaces
+      .replace(/\s\s+/g, " ");
+
+    // Now split blocks
+    const blocks = normalized
       .split(";")
       .map((b) => b.trim())
       .filter(Boolean);
@@ -270,11 +279,13 @@ export default function OrganizationDetails() {
     const parseBlock = (block) => {
       const [daysPart, timePart] = block.split(":");
       if (!daysPart || !timePart) return {};
-      const [start, end] = timePart.split("–");
+
+      let [start, end] = timePart.split("–").map((x) => x?.trim());
+
       return {
         days: daysPart.trim(),
-        start: start?.trim(),
-        end: end?.trim(),
+        start,
+        end,
       };
     };
 
@@ -283,6 +294,7 @@ export default function OrganizationDetails() {
       b2: parseBlock(blocks[1] || ""),
     };
   };
+
 
   const openEditModal = async () => {
     if (!org) return;
@@ -369,8 +381,22 @@ export default function OrganizationDetails() {
 
     try {
       await api.put(`/organizations/${org.id}`, {
-        ...form,
-        hours: hoursFormatted,
+        title: form.title,
+        description: form.description,
+        location_id: form.location_id,
+        category_id: form.category_id,
+        contact: form.contact,
+        website: form.website,
+
+        // backend expects raw hour fields, not "hours"
+        hours_days_main: form.hours_days_main,
+        hours_start_main: form.hours_start_main,
+        hours_end_main: form.hours_end_main,
+
+        hours_days_secondary: form.hours_days_secondary,
+        hours_start_secondary: form.hours_start_secondary,
+        hours_end_secondary: form.hours_end_secondary,
+
         updated_by: user.user_id,
       });
 
