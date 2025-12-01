@@ -777,14 +777,33 @@ router.put('/:event_id', async (req, res) => {
       ]
     );
 
-    // Fetch updated event for notifications
-    const [rows] = await pool.query(`SELECT * FROM events WHERE event_id = ?`, [
-      eventId,
-    ]);
-    if (rows.length === 0)
-      return res.status(404).json({ message: 'Event not found after update' });
-    const event = rows[0];
-    const locationLabel = await getLocationLabel(event.location_id);
+    // Fetch updated event with location fields and registered_count so client gets full object
+const [fetchedRows] = await pool.query(
+  `
+  SELECT 
+    e.*,
+    cl.location_name,
+    cl.building,
+    cl.room,
+    (
+      SELECT COUNT(*) 
+      FROM event_registrations er 
+      WHERE er.event_id = e.event_id
+    ) AS registered_count
+  FROM events e
+  LEFT JOIN campus_locations cl
+    ON cl.location_id = e.location_id
+  WHERE e.event_id = ?
+  LIMIT 1
+  `,
+  [eventId]
+);
+
+if (fetchedRows.length === 0)
+  return res.status(404).json({ message: 'Event not found after update' });
+
+const event = fetchedRows[0];
+const locationLabel = await getLocationLabel(event.location_id);
 
     // Notify creator
     await createNotification(

@@ -711,7 +711,7 @@ export default function EventsPage() {
         eventToSend
       );
 
-      const updatedEvent = res.data;
+      const updatedEvent = res.data && res.data.event ? res.data.event : res.data;
 
       setEvents((prev) =>
         prev.map((e) =>
