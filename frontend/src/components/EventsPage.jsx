@@ -1354,42 +1354,58 @@ const cardStyle =
                       <span>{locationLabel}</span>
                     </div>
 
-                    <div
-                      className="flex items-center gap-2 cursor-pointer hover:underline text-sm text-primary"
-                      onClick={() => openMembersModal(event)}
-                    >
-                      <Users className="h-4 w-4" />
-                      <span>
-                        {event.registered_count || 0} / {event.capacity || 0}{" "}
-                        registered
-                      </span>
-                    </div>
+                    {event.registration_required ? (
+  <div
+    className="flex items-center gap-2 cursor-pointer hover:underline text-sm text-primary"
+    onClick={() => openMembersModal(event)}
+  >
+    <Users className="h-4 w-4" />
+    <span>
+      {event.registered_count || 0} / {event.capacity || 0} registered
+    </span>
+  </div>
+) : (
+  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <Users className="h-4 w-4" />
+    <span>
+      Open · {event.capacity ? `${event.capacity} capacity` : "No cap set"}
+    </span>
+  </div>
+)}
+
                   </div>
 
-                  {showRSVP && !isCompleted && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={isRegistered ? "outline" : "default"}
-                      disabled={isFull && !isRegistered}
-                      onClick={() => handleRSVP(event.event_id)}
-                      className="w-full"
-                    >
-                      {isRegistered ? (
-                        <>
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Cancel RSVP
-                        </>
-                      ) : isFull ? (
-                        "Event Full"
-                      ) : (
-                        <>
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          RSVP
-                        </>
-                      )}
-                    </Button>
-                  )}
+{/* If registration is required → show RSVP button */}
+{event.registration_required && !isCompleted ? (
+  <Button
+    type="button"
+    size="sm"
+    variant={isRegistered ? "outline" : "default"}
+    disabled={isFull && !isRegistered}
+    onClick={() => handleRSVP(event.event_id)}
+    className="w-full"
+  >
+    {isRegistered ? (
+      <>
+        <CheckCircle className="h-4 w-4 mr-1" />
+        Cancel RSVP
+      </>
+    ) : isFull ? (
+      "Event Full"
+    ) : (
+      <>
+        <CheckCircle className="h-4 w-4 mr-1" />
+        RSVP
+      </>
+    )}
+  </Button>
+) : (
+  /* If registration is NOT required → show simple text */
+  <div className="w-full py-2 text-center text-sm text-muted-foreground border rounded-md bg-gray-50 dark:bg-muted/20">
+    No registration required  
+  </div>
+)}
+
 
                   {(isAdmin || isCreator) && (
                     <div className="w-full space-y-2">
