@@ -45,7 +45,7 @@ export default function AIChat() {
     setIsLoading(true);
     try {
       // Use shared axios instance; baseURL + auth handled in api.js
-      const res = await api.post("/assistant/chat", {
+      const res = await api.post("/api/assistant/chat", {
         message: userText,
         history: messages.map((m) => ({
           role: m.role,

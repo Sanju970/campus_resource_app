@@ -7,7 +7,10 @@ const sendEmail = require('../config/sendEmail');
 
 // Helper to extract emails from users array
 function getEmailRecipients(users) {
-  return users.map(user => user.email).filter(email => !!email);
+  return users
+    .filter(u => u.email_notifications === 1) 
+    .map(u => u.email)
+    .filter(email => !!email);
 }
 
 /* ================================
@@ -142,6 +145,7 @@ async function sendEventCreationEmails(event, notifiedUsers, locationLabel) {
 async function sendEventUpdateEmails(event, registeredUsers, locationLabel) {
   try {
     const emailRecipients = getEmailRecipients(registeredUsers);
+    // console.error("recip", emailRecipients);
     if (emailRecipients.length === 0) return;
 
     const subject = `Event Updated: ${event.title}`;
@@ -636,7 +640,7 @@ router.post('/', async (req, res) => {
         let notifiedUsers;
         if (membersOnlyValue) {
           const [members] = await pool.query(
-            `SELECT u.user_id, u.email FROM organization_members om JOIN users u ON om.user_id = u.user_id WHERE om.org_id = ?`,
+            `SELECT u.user_id, u.email, u.email_notifications FROM organization_members om JOIN users u ON om.user_id = u.user_id WHERE om.org_id = ?`,
             [organization_id]
           );
           notifiedUsers = members;
@@ -813,10 +817,10 @@ const locationLabel = await getLocationLabel(event.location_id);
 
     // Notify registered users except creator
     const [registeredUsers] = await pool.query(
-      `SELECT u.user_id, u.email FROM event_registrations er JOIN users u ON er.user_id = u.user_id WHERE er.event_id = ? AND er.user_id != ?`,
+      `SELECT u.user_id, u.email, u.email_notifications FROM event_registrations er JOIN users u ON er.user_id = u.user_id WHERE er.event_id = ? AND er.user_id != ?`,
       [eventId, event.created_by]
     );
-
+    // console.error("registered",registeredUsers);
     const notifyMsg = `Event "${event.title}" has been updated.`;
     await Promise.all(
       registeredUsers.map((u) => createNotification(u.user_id, notifyMsg))
@@ -855,7 +859,7 @@ router.delete('/:event_id', async (req, res) => {
 
     // Fetch registered users
     const [registeredUsers] = await pool.query(
-      `SELECT u.user_id, u.email FROM event_registrations er JOIN users u ON er.user_id = u.user_id WHERE er.event_id = ?`,
+      `SELECT u.user_id, u.email, u.email_notifications FROM event_registrations er JOIN users u ON er.user_id = u.user_id WHERE er.event_id = ?`,
       [eventId]
     );
 
